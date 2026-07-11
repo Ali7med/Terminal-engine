@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Shared build conventions for the Terminal solution.
+    This file also ISOLATES the solution: MSBuild stops walking up the tree once it
+    finds this Directory.Build.props, so build settings from the parent HeliumRedPlatform
+    tree (TreatWarningsAsErrors, analyzers, etc.) do NOT leak in. See docs/PORTING_MAP.md.
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+</Project>

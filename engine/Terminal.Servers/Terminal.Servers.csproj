@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Terminal.Servers</AssemblyName>
+    <RootNamespace>Terminal.Servers</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SSH exec + SFTP: المكتبة القياسيّة في .NET (Renci). طبقة نقيّة بلا UI. -->
+    <PackageReference Include="SSH.NET" Version="2024.2.0" />
+  </ItemGroup>
+
+</Project>

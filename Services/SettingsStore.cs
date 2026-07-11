@@ -1,0 +1,83 @@
+using System;
+using System.IO;
+using System.Text.Json;
+using Terminal.Storage;
+using TerminalLauncher.Theme;
+
+namespace TerminalLauncher.Services;
+
+/// <summary>
+/// حفظ/تحميل تفضيلات المظهر في SQLite عبر <see cref="SettingsSqliteStore"/> (T-108)، مع هجرة
+/// تلقائية لمرّة واحدة من ملف <c>settings.json</c> القديم. الواجهة العامّة (Load/Save) لم تتغيّر
+/// فتبقى مواضع الاستعمال (MainWindow) كما هي.
+/// </summary>
+public sealed class SettingsStore
+{
+    private const string SettingsKey = "app_settings";
+
+    private static readonly string LegacyFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "HeliumRedTools", "TerminalLauncher", "settings.json");
+
+    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+
+    private readonly SettingsSqliteStore _store = new(new AppDatabase());
+
+    public AppSettings Load()
+    {
+        try
+        {
+            string? json = _store.Get(SettingsKey) ?? MigrateLegacyJson();
+            if (string.IsNullOrEmpty(json)) return new();
+            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    public void Save(AppSettings settings)
+    {
+        try
+        {
+            _store.Set(SettingsKey, JsonSerializer.Serialize(settings, Options));
+        }
+        catch
+        {
+            // تجاهل أخطاء الحفظ الطارئة.
+        }
+    }
+
+    /// <summary>قراءة قيمة مفتاح مستقلّ (لتفضيلات لا تخصّ المظهر، مثل حجم خطّ تفاصيل مراقب الخوادم).</summary>
+    public string? GetRaw(string key)
+    {
+        try { return _store.Get(key); } catch { return null; }
+    }
+
+    /// <summary>حفظ قيمة مفتاح مستقلّ.</summary>
+    public void SetRaw(string key, string value)
+    {
+        try { _store.Set(key, value); } catch { /* تجاهل */ }
+    }
+
+    /// <summary>
+    /// هجرة لمرّة واحدة: إن وُجد <c>settings.json</c> القديم يُنقَل محتواه إلى SQLite ويُعاد تسميته
+    /// <c>.migrated</c> كي لا يتكرّر. تُعيد الـ JSON المنقول (أو null إن لا ملف قديم).
+    /// </summary>
+    private string? MigrateLegacyJson()
+    {
+        try
+        {
+            if (!File.Exists(LegacyFilePath)) return null;
+            string json = File.ReadAllText(LegacyFilePath);
+            _store.Set(SettingsKey, json);
+            File.Move(LegacyFilePath, LegacyFilePath + ".migrated", overwrite: true);
+            return json;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}

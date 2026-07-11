@@ -1,0 +1,51 @@
+<Window x:Class="TerminalLauncher.Controls.PasteConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="تأكيد اللصق"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="Manual" Height="420" Width="620"
+        MinHeight="280" MinWidth="440"
+        WindowStyle="ToolWindow" ShowInTaskbar="False"
+        Background="{DynamicResource Brush.Bg}"
+        Foreground="{DynamicResource Brush.Text}"
+        FontFamily="{DynamicResource Font.Ui}" FontSize="13">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- سطر التحذير -->
+        <TextBlock x:Name="WarningText" Grid.Row="0" TextWrapping="Wrap"
+                   Margin="0,0,0,10" FontSize="13"
+                   Foreground="{DynamicResource Brush.Text}"/>
+
+        <!-- معاينة النصّ الكامل (LTR داخلياً كما في التيرمنال) -->
+        <Border Grid.Row="1" CornerRadius="6"
+                Background="{DynamicResource Brush.TerminalBg}"
+                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                          Padding="8">
+                <TextBox x:Name="PreviewText" IsReadOnly="True"
+                         FlowDirection="LeftToRight"
+                         BorderThickness="0" Background="Transparent"
+                         Foreground="{DynamicResource Brush.Text}"
+                         FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Disabled"
+                         HorizontalScrollBarVisibility="Disabled"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- أزرار الإجراء -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left"
+                    Margin="0,12,0,0">
+            <Button x:Name="PasteButton" MinWidth="96" Padding="14,7" Margin="0,0,10,0"
+                    Style="{StaticResource AccentButton}"
+                    Click="PasteButton_Click"/>
+            <Button x:Name="CancelButton" MinWidth="96" Padding="14,7"
+                    Click="CancelButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

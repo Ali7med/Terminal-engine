@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The engine layer: no WPF, no UI, no rendering. Warnings are errors here (guide T-001.4). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>Terminal.Core</AssemblyName>
+    <RootNamespace>Terminal.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

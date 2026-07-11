@@ -1,0 +1,74 @@
+<Window x:Class="TerminalLauncher.Views.WhatsNewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        FontFamily="{DynamicResource Font.Ui}"
+        NumberSubstitution.Substitution="European"
+        KeyDown="Window_KeyDown">
+
+    <!-- طبقة كاملة تغطّي الأداة: خلفية معتّمة (scrim) خلف البطاقة؛ والأداة نفسها تُضبَّب من الكود -->
+    <Grid x:Name="OverlayRoot">
+        <Border x:Name="Scrim" Background="#66000000" MouseDown="Scrim_MouseDown"/>
+
+        <!-- البطاقة -->
+        <Border x:Name="Card" Width="560" Height="600"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                CornerRadius="18" Background="{DynamicResource Brush.Bg}"
+                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="34" ShadowDepth="0" Opacity="0.5"/>
+            </Border.Effect>
+
+            <Grid x:Name="ChromeGrid" SizeChanged="ChromeGrid_SizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- ===== الترويسة: عنوان (يتبع الاتجاه) + إغلاق ===== -->
+                <Grid Grid.Row="0" Margin="28,24,16,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="HeaderTitle" Grid.Column="0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource Brush.Text}"
+                               FontSize="22" FontWeight="Bold"/>
+
+                    <Button x:Name="CloseBtn" Grid.Column="1" Width="34" Height="34"
+                            Background="Transparent" BorderThickness="0" Cursor="Hand" Click="Close_Click"
+                            Foreground="{DynamicResource Brush.TextMuted}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" CornerRadius="9" Background="{DynamicResource Brush.Surface}"
+                                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                    <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Danger}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.OnAccent}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+
+                <!-- ===== المحتوى (يُبنى من CHANGELOG.md: كل الإصدارات + فواصل) ===== -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,6,22,22">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                    </ScrollViewer.Resources>
+                    <StackPanel x:Name="ContentHost"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

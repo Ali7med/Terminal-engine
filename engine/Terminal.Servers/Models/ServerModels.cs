@@ -1,0 +1,88 @@
+namespace Terminal.Servers.Models;
+
+/// <summary>طريقة المصادقة على الخادم.</summary>
+public enum SshAuthKind
+{
+    /// <summary>كلمة مرور.</summary>
+    Password,
+    /// <summary>مفتاح خاصّ (PEM/OpenSSH).</summary>
+    PrivateKey,
+}
+
+/// <summary>
+/// بيانات اتّصال SSH كاملة (تتضمّن السرّ الخام) — تُبنى لحظةَ الاتّصال فقط ولا تُخزَّن هكذا على القرص.
+/// السرّ يُحفَظ مُعمّى (DPAPI) في طبقة التخزين ويُفكّ عند بناء هذا الكائن.
+/// </summary>
+public sealed record SshConnectionInfo(
+    string Host,
+    int Port,
+    string Username,
+    SshAuthKind AuthKind,
+    string? Password = null,
+    string? PrivateKeyPem = null,
+    string? PrivateKeyPassphrase = null);
+
+/// <summary>نتيجة تنفيذ أمر عن بُعد عبر SSH.</summary>
+public sealed record CommandResult(int ExitCode, string StdOut, string StdError)
+{
+    /// <summary>هل نجح الأمر (خرج بالرمز 0)؟</summary>
+    public bool Ok => ExitCode == 0;
+}
+
+/// <summary>قرص/نقطة تركيب من مخرجات <c>df</c> (بالبايت).</summary>
+public sealed record DiskInfo(
+    string Filesystem,
+    string MountPoint,
+    long TotalBytes,
+    long UsedBytes,
+    long AvailBytes,
+    double UsePercent);
+
+/// <summary>مجلّد وحجمه من مخرجات <c>du</c> (بالبايت).</summary>
+public sealed record DirEntry(string Path, long SizeBytes);
+
+/// <summary>نتيجة فحص مجلّد: مساره وإجماليّ حجمه + مجلّداته الفرعيّة المباشرة (تنازليّاً).</summary>
+public sealed record FolderScan(
+    string Path,
+    long TotalBytes,
+    System.Collections.Generic.IReadOnlyList<DirEntry> Children);
+
+/// <summary>ملفّ وحجمه وتاريخ تعديله من مخرجات <c>find</c> (بالبايت).</summary>
+public sealed record FileEntry(string Path, string Name, long SizeBytes, System.DateTimeOffset? Modified);
+
+/// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
+public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);
+
+/// <summary>خدمة systemd من مخرجات <c>systemctl list-units</c>.</summary>
+public sealed record ServiceInfo(string Name, string Load, string Active, string Sub, string Description)
+{
+    /// <summary>هل الخدمة تعمل الآن (active/running)؟</summary>
+    public bool IsActive => string.Equals(Active, "active", System.StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>منفذ مُنصِت من مخرجات <c>ss -tln</c> (البروتوكول + المنفذ + العنوان + العمليّة).</summary>
+public sealed record PortInfo(string Protocol, int Port, string Address, string Process);
+
+/// <summary>معلومات النظام العامّة (اسم المضيف، التوزيعة، النواة، المعالج، الـ IP) — للوحة القيادة.</summary>
+public sealed record SystemInfo(
+    string Hostname,
+    string OsName,
+    string Kernel,
+    string CpuModel,
+    int CpuCores,
+    string Ip);
+
+/// <summary>لقطة أداء لحظيّة للخادم (CPU/RAM/Load/Uptime + أعلى العمليّات).</summary>
+public sealed record PerfSnapshot(
+    double LoadAvg1,
+    double LoadAvg5,
+    double LoadAvg15,
+    long MemTotalKb,
+    long MemUsedKb,
+    long MemFreeKb,
+    string Uptime,
+    System.Collections.Generic.IReadOnlyList<ProcessInfo> TopProcesses)
+{
+    /// <summary>نسبة استخدام الذاكرة (0..100)، أو 0 إن كان الإجماليّ غير معروف.</summary>
+    public double MemUsedPercent => MemTotalKb > 0 ? System.Math.Round(MemUsedKb * 100.0 / MemTotalKb, 1) : 0;
+}

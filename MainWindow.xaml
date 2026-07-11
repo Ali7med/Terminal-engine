@@ -1,0 +1,591 @@
+<Window x:Class="TerminalLauncher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="مشغّل الأوامر" Height="700" Width="1120"
+        Icon="pack://application:,,,/Assets/AppIcon/app.ico"
+        MinHeight="480" MinWidth="820"
+        FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None" Background="{DynamicResource Brush.Bg}"
+        TextOptions.TextFormattingMode="Ideal"
+        FontFamily="{DynamicResource Font.Ui}" FontSize="13"
+        Foreground="{DynamicResource Brush.Text}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="46" ResizeBorderThickness="8"
+                            CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Border x:Name="RootBorder" Background="{DynamicResource Brush.Bg}" CornerRadius="6" ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="46"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- طبقة تعتيم شريط العنوان: شبه شفّافة حسب الثيم كي يبقى العنوان/الأزرار ظاهرين فوق صورة
+                 الخلفيّة. تُفعَّل فقط مع خلفيّة مخصّصة (تُضبَط في ApplyBackground)، وإلّا شفّافة تماماً. -->
+            <Border x:Name="AppHeaderScrim" Grid.Row="0" Background="Transparent"/>
+
+            <!-- ===== شريط العنوان ===== -->
+            <Grid Grid.Row="0" Margin="14,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <!-- زرّ إظهار/إخفاء شريط الأوامر المحفوظة (أيقونة لوحة جانبيّة تتبع لون الزرّ) -->
+                    <Button x:Name="SidebarToggleButton" Style="{StaticResource ChromeButton}"
+                            Click="SidebarToggleButton_Click" Margin="0,0,4,0"
+                            ToolTip="إظهار/إخفاء الأوامر المحفوظة">
+                        <Grid Width="16" Height="13" FlowDirection="LeftToRight" ClipToBounds="True">
+                            <Border BorderThickness="1.4" CornerRadius="3"
+                                    BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            <Border Width="5.5" HorizontalAlignment="Left" CornerRadius="3,0,0,3"
+                                    Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        </Grid>
+                    </Button>
+                    <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource Brush.Accent}">
+                        <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                   Foreground="{DynamicResource Brush.OnAccent}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="TitleText" Text="مشغّل الأوامر" FontWeight="SemiBold" FontSize="13.5"
+                               VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="NewTabButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE710;" Click="NewTabButton_Click"
+                            ToolTip="تيرمنال فارغ جديد (Ctrl+Shift+T)"/>
+                    <Button x:Name="NewTabDropDown" Style="{StaticResource ChromeButton}"
+                            Content="&#xE70D;" FontSize="10" Click="NewTabDropDown_Click"
+                            ToolTip="اختر بروفايل صدفة"/>
+                    <Button x:Name="ServerMonitorButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE968;" Click="ToolsButton_Click" ToolTip="أدوات النظام">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="ToolsMenu">
+                                <MenuItem x:Name="ToolServerMonitor" Header="مراقب الخوادم"
+                                          Click="ServerMonitorButton_Click">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                   Foreground="{DynamicResource Brush.Accent}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button x:Name="WhatsNewButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE946;" Click="WhatsNewButton_Click" ToolTip="ما الجديد / حول البرنامج"/>
+                    <Button x:Name="SettingsButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE713;" Click="SettingsButton_Click" ToolTip="الإعدادات"/>
+                    <Button x:Name="MinButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE921;" Click="MinButton_Click"/>
+                    <Button x:Name="MaxButton" Style="{StaticResource ChromeButton}"
+                            Content="&#xE922;" Click="MaxButton_Click"/>
+                    <Button x:Name="CloseButton" Style="{StaticResource ChromeCloseButton}"
+                            Content="&#xE8BB;" Click="CloseButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== المحتوى ===== -->
+            <Grid x:Name="ContentGrid" Grid.Row="1" Margin="14,4,14,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="SidebarCol" Width="54"/>
+                    <ColumnDefinition x:Name="SplitterCol" Width="0"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- الشريط الجانبيّ المطويّ: أيقونة + إضافة + مختصرات الأوامر؛ يفتح لوحةً كاملة بالمرور -->
+                <Border x:Name="SidebarRail" Grid.Column="0" Style="{StaticResource Card}"
+                        Background="{DynamicResource Brush.Bg}" CornerRadius="0" Padding="0"
+                        MouseEnter="SidebarRail_MouseEnter">
+                    <DockPanel Margin="0,8">
+                        <Button x:Name="SidebarMenuBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
+                                Content="&#xE712;" FontFamily="Segoe MDL2 Assets" FontSize="16" Height="38"
+                                Foreground="{DynamicResource Brush.Text}" Click="SidebarMenu_Click"
+                                ToolTip="الأوامر المحفوظة"/>
+                        <Button x:Name="SidebarAddBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
+                                Content="＋" FontSize="20" Height="38"
+                                Foreground="{DynamicResource Brush.Accent}" Click="AddButton_Click" ToolTip="إضافة أمر"/>
+                        <Border DockPanel.Dock="Top" Height="1" Margin="12,6" Background="{DynamicResource Brush.Border}"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="SidebarDots">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,4" Width="36" Height="36" Cursor="Hand" HorizontalAlignment="Center"
+                                                Tag="{Binding}" Click="SidebarDot_Click" ToolTip="{Binding Name}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="d" Width="32" Height="32" CornerRadius="10"
+                                                            Background="{DynamicResource Brush.Surface}"
+                                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                                        <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
+                                                                   Foreground="{DynamicResource Brush.Text}"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="d" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- منطقة التيرمنالات -->
+                <Grid Grid.Column="2">
+                    <!-- تلميح الفراغ: بلا سطح خاصّ — السطح الوحيد هو إطار التيرمنال، فيظهر التلميح داخله وسطاً -->
+                    <Border x:Name="EmptyHintCard" Background="Transparent">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="40"
+                                       Foreground="{DynamicResource Brush.TextMuted}" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="HintLine1" Text="اختر أمراً واضغط «تشغيل» لفتح تيرمنال"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="0,12,0,0"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="HintLine2" Text="أو Ctrl+Shift+T لتيرمنال فارغ"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0"
+                                       FontSize="11" Opacity="0.8" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <TabControl x:Name="TerminalTabs"/>
+                </Grid>
+
+                <!-- ===== لوحة الأوامر المحفوظة المنبثقة (تفتح بالمرور على الشريط أو بالنقر) ===== -->
+                <Border x:Name="SidebarFlyout" Grid.ColumnSpan="3" Visibility="Collapsed"
+                        HorizontalAlignment="Left" Width="300" VerticalAlignment="Stretch"
+                        MouseLeave="SidebarFlyout_MouseLeave">
+                    <Border Style="{StaticResource Card}" Padding="12" Background="{DynamicResource Brush.Bg}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="0" Opacity="0.45"/>
+                        </Border.Effect>
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="2,0,0,10">
+                                <TextBlock x:Name="SidebarHeader" Text="الأوامر المحفوظة" FontWeight="SemiBold" FontSize="14"
+                                           VerticalAlignment="Center"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource IconButton}"
+                                        Content="＋" FontSize="19" Foreground="{DynamicResource Brush.Accent}"
+                                        Click="AddButton_Click" ToolTip="إضافة أمر"/>
+                            </Grid>
+
+                            <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,10"
+                                     TextChanged="SidebarSearch_TextChanged"/>
+
+                            <Button x:Name="RunBtn" DockPanel.Dock="Bottom" Margin="0,10,0,0" Style="{StaticResource AccentButton}"
+                                    Content="&#x25B6;  تشغيل" Click="RunButton_Click"/>
+
+                            <ListBox x:Name="EntriesList" Margin="0,0,0,2"
+                                     MouseDoubleClick="EntriesList_MouseDoubleClick"
+                                     PreviewMouseRightButtonDown="EntriesList_PreviewMouseRightButtonDown">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="▶  تشغيل" Click="RunButton_Click"/>
+                                        <MenuItem Header="✎  تعديل" Click="EditButton_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="🗑  حذف" Click="DeleteButton_Click"/>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="{Binding Path}" FontSize="10.5"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== شاشة الإعدادات (ملء النافذة، مقسَّمة فئات) ===== -->
+                <Border x:Name="SettingsOverlay" Grid.ColumnSpan="3" Background="#66000000"
+                        Visibility="Collapsed" FlowDirection="LeftToRight"
+                        MouseLeftButtonDown="SettingsOverlay_MouseDown">
+                    <Border x:Name="SettingsPanel" MaxWidth="1000" Width="Auto"
+                            Margin="28" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                            CornerRadius="10" Background="{DynamicResource Brush.SurfaceGlass}"
+                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                            RenderTransformOrigin="0.5,0.5" MouseLeftButtonDown="SettingsPanel_MouseDown">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="SettingsPanelTransform" ScaleX="0.96" ScaleY="0.96"/>
+                        </Border.RenderTransform>
+                        <DockPanel x:Name="SettingsContent" Margin="0" FlowDirection="RightToLeft">
+                            <!-- الترويسة: عنوان + إغلاق -->
+                            <Grid DockPanel.Dock="Top" Margin="24,20,20,16">
+                                <TextBlock x:Name="SettingsTitle" Text="الإعدادات" FontSize="19"
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource ChromeButton}"
+                                        Content="&#xE8BB;" Click="CloseSettings_Click"/>
+                            </Grid>
+                            <Border DockPanel.Dock="Top" Height="1" Margin="0,0,0,0"
+                                    Background="{DynamicResource Brush.Border}"/>
+
+                            <TextBlock x:Name="AutoSaveLabel" DockPanel.Dock="Bottom" VerticalAlignment="Bottom"
+                                       Text="تُحفظ التفضيلات تلقائياً" FontSize="10.5" Margin="24,10,24,14"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                            <!-- الجسم: قائمة فئات (يسار) + محتوى الفئة المختارة (يمين) -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- قائمة الفئات (RadioButton مجموعة واحدة → اختيار حصريّ) -->
+                                <StackPanel x:Name="CategoryList" Grid.Column="0" Margin="14,16,14,0">
+                                    <RadioButton x:Name="NavAppearance" GroupName="SettingsCat"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="appearance"
+                                                 Content="المظهر والخلفية" Checked="CategoryNav_Checked" IsChecked="True"/>
+                                    <RadioButton x:Name="NavBackground" GroupName="SettingsCat" Visibility="Collapsed"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="background"
+                                                 Content="الخلفية" Checked="CategoryNav_Checked"/>
+                                    <RadioButton x:Name="NavLanguage" GroupName="SettingsCat"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="language"
+                                                 Content="اللغة والخطّ" Checked="CategoryNav_Checked"/>
+                                    <RadioButton x:Name="NavFont" GroupName="SettingsCat" Visibility="Collapsed"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="font"
+                                                 Content="الخطّ" Checked="CategoryNav_Checked"/>
+                                </StackPanel>
+
+                                <Border Grid.Column="1" Background="{DynamicResource Brush.Border}"/>
+
+                                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Margin="0,8,0,0" Padding="24,12,20,12">
+                                    <ScrollViewer.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                    </ScrollViewer.Resources>
+                                    <!-- StackPanel (لا Grid) كي تتراصّ اللوحات المرئيّة عمودياً عند دمج صنفين
+                                         (المظهر+الخلفية معاً، اللغة+الخطّ معاً) بدل أن تتراكب في خليّة واحدة. -->
+                                    <StackPanel>
+                                        <!-- ===== فئة: المظهر ===== -->
+                                        <StackPanel x:Name="CatAppearance">
+                                            <TextBlock x:Name="AppearanceLabel" Text="الثيم" Style="{StaticResource SectionLabel}"/>
+                                            <TextBlock x:Name="ThemeHint" Text="اختر ثيماً — يُطبَّق فوراً"
+                                                       Foreground="{DynamicResource Brush.TextMuted}" FontSize="11" Margin="2,0,2,10"/>
+                                            <!-- بطاقات الثيمات تُبنى في الكود (BuildThemeCards): تُعرَض المجموعة
+                                                 الأولى فقط هنا (عدّة في السطر عبر WrapPanel)، وزرّ «عرض الكلّ»
+                                                 يفتح قائمة منبثقة ببقيّة الثيمات. -->
+                                            <WrapPanel x:Name="ThemeCardPanel"/>
+                                            <Button x:Name="ThemeMoreButton" Content="عرض كل الثيمات"
+                                                    HorizontalAlignment="Left" Margin="2,4,0,0" Padding="14,7"
+                                                    Click="ThemeMoreButton_Click"/>
+
+                                            <!-- مزامنة الفاتح/الداكن مع النظام -->
+                                            <CheckBox x:Name="SyncOsCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="مزامنة الفاتح/الداكن مع النظام" Margin="2,10,2,0"
+                                                      Checked="SyncOsCheck_Changed" Unchecked="SyncOsCheck_Changed"/>
+
+                                            <TextBlock x:Name="TextColorLabel" Text="لون الكتابة" Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
+                                            <WrapPanel x:Name="TextColorPanel"/>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: الخلفية ===== -->
+                                        <StackPanel x:Name="CatBackground" Visibility="Collapsed" Margin="0,22,0,0">
+                                            <TextBlock x:Name="BgTemplatesLabel" Text="قوالب"
+                                                       Style="{StaticResource SectionLabel}"/>
+                                            <!-- معرض القوالب يُبنى في الكود (BuildBackgroundGallery) -->
+                                            <WrapPanel x:Name="BgGalleryPanel" Margin="0,2,0,4"/>
+
+                                            <TextBlock x:Name="BgCustomLabel" Text="صورة مخصّصة"
+                                                       Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button x:Name="BgChooseButton" Content="اختر صورة" Padding="14,7"
+                                                        Click="BgChooseButton_Click"/>
+                                                <Button x:Name="BgClearButton" Content="إزالة" Padding="14,7" Margin="8,0,0,0"
+                                                        Click="BgClearButton_Click"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="BgPathText" FontSize="10.5" Margin="2,6,2,0"
+                                                       TextTrimming="CharacterEllipsis" FlowDirection="LeftToRight"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <TextBlock x:Name="BgOpacityLabel" Text="شفافية التيرمنال"
+                                                       Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider x:Name="BgOpacitySlider" VerticalAlignment="Center"
+                                                        Style="{StaticResource AccentSlider}"
+                                                        Minimum="0.30" Maximum="1.00"
+                                                        ValueChanged="BgOpacitySlider_ValueChanged"/>
+                                                <TextBlock x:Name="BgOpacityValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: اللغة ===== -->
+                                        <StackPanel x:Name="CatLanguage" Visibility="Collapsed">
+                                            <TextBlock x:Name="LangLabel" Text="اللغة" Style="{StaticResource SectionLabel}"/>
+                                            <Border CornerRadius="9" Padding="4" MaxWidth="360" HorizontalAlignment="Left"
+                                                    Background="{DynamicResource Brush.Bg}"
+                                                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ToggleButton x:Name="ArToggle" Grid.Column="0" Style="{StaticResource SegToggle}"
+                                                                  Content="عربي" Click="ArToggle_Click"/>
+                                                    <ToggleButton x:Name="EnToggle" Grid.Column="1" Style="{StaticResource SegToggle}"
+                                                                  Content="English" Click="EnToggle_Click"/>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: الخطّ ===== -->
+                                        <StackPanel x:Name="CatFont" Visibility="Collapsed" Margin="0,22,0,0">
+                                            <TextBlock x:Name="FontSizeLabel" Text="حجم الخطّ" Style="{StaticResource SectionLabel}"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider x:Name="FontSizeSlider" VerticalAlignment="Center"
+                                                        Style="{StaticResource AccentSlider}"
+                                                        Minimum="8" Maximum="32"
+                                                        IsSnapToTickEnabled="True" TickFrequency="1"
+                                                        ValueChanged="FontSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="FontSizeValue" Grid.Column="1" MinWidth="30" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock x:Name="FontFamilyLabel" Text="نوع الخطّ" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <ComboBox x:Name="FontFamilyCombo" MaxWidth="360" HorizontalAlignment="Left"
+                                                      MinWidth="240"
+                                                      DisplayMemberPath="Display" SelectedValuePath="Value"
+                                                      SelectionChanged="FontFamilyCombo_SelectionChanged"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== قائمة كل الثيمات (تُفتح من زرّ «عرض كل الثيمات») ===== -->
+                <Border x:Name="ThemesOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" FlowDirection="LeftToRight"
+                        MouseLeftButtonDown="ThemesOverlay_MouseDown">
+                    <Border Width="660" MaxHeight="640" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="0" FlowDirection="RightToLeft"
+                            MouseLeftButtonDown="EditorCard_MouseDown">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="22,16,14,12">
+                                <TextBlock x:Name="ThemesOverlayTitle" Text="كل الثيمات" FontSize="17"
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource ChromeButton}"
+                                        Content="&#xE8BB;" Click="CloseThemesOverlay_Click"/>
+                            </Grid>
+                            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Brush.Border}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                          Padding="20,14,14,16">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                </ScrollViewer.Resources>
+                                <WrapPanel x:Name="ThemesOverlayPanel"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== نافذة إضافة/تعديل أمر (منبثقة) ===== -->
+                <Border x:Name="EditorOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="EditorOverlay_MouseDown">
+                    <Border Width="420" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="20"
+                            MouseLeftButtonDown="EditorCard_MouseDown">
+                        <StackPanel>
+                            <TextBlock x:Name="EditorTitle" Text="إضافة أمر" FontSize="16" FontWeight="SemiBold"
+                                       Margin="0,0,0,14"/>
+
+                            <TextBlock Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                            <TextBox x:Name="EditorName"/>
+
+                            <TextBlock Text="الباث (مجلد العمل)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="EditorPath" FlowDirection="LeftToRight"/>
+                                <Button Grid.Column="1" Content="&#xE838;" FontFamily="Segoe MDL2 Assets"
+                                        Margin="6,0,0,0" Padding="10,6" Click="EditorBrowse_Click" ToolTip="استعراض"/>
+                            </Grid>
+
+                            <TextBlock Text="الأمر" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBox x:Name="EditorCommand" MinHeight="60" AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/>
+
+                            <TextBlock Text="الصدفة الافتراضية" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <ComboBox x:Name="EditorShell" DisplayMemberPath="Display" HorizontalAlignment="Left" Width="200"/>
+
+                            <Grid Margin="0,20,0,0">
+                                <Button HorizontalAlignment="Left" Content="إلغاء" Padding="16,8" Click="CloseEditor_Click"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
+                                        Content="حفظ" Padding="20,8" Click="SaveEditor_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== إدارة بروفايلات الصدفات (T-101.4) ===== -->
+                <Border x:Name="ProfileManagerOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="ProfileManagerOverlay_MouseDown">
+                    <Border Width="560" MaxHeight="560" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="20"
+                            MouseLeftButtonDown="EditorCard_MouseDown">
+                        <DockPanel>
+                            <TextBlock x:Name="ProfileManagerTitle" DockPanel.Dock="Top"
+                                       Text="بروفايلات الصدفات" FontSize="16" FontWeight="SemiBold"
+                                       Margin="0,0,0,14"/>
+
+                            <TextBlock x:Name="DefaultProfileLabel" DockPanel.Dock="Top"
+                                       Text="البروفايل الافتراضيّ" Style="{StaticResource SectionLabel}"/>
+                            <ComboBox x:Name="DefaultProfileCombo" DockPanel.Dock="Top"
+                                      DisplayMemberPath="DisplayLabel" SelectedValuePath="Id"
+                                      Margin="0,0,0,14"
+                                      SelectionChanged="DefaultProfileCombo_SelectionChanged"/>
+
+                            <Grid DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <Button x:Name="ProfileAddBtn" Content="إضافة" Padding="16,8"
+                                            Click="ProfileAdd_Click"/>
+                                    <Button x:Name="ProfileEditBtn" Content="تعديل" Padding="16,8" Margin="8,0,0,0"
+                                            Click="ProfileEdit_Click"/>
+                                    <Button x:Name="ProfileDeleteBtn" Content="حذف" Padding="16,8" Margin="8,0,0,0"
+                                            Click="ProfileDelete_Click"/>
+                                </StackPanel>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
+                                        x:Name="ProfileCloseBtn" Content="إغلاق" Padding="20,8"
+                                        Click="ProfileManagerClose_Click"/>
+                            </Grid>
+
+                            <ListBox x:Name="ProfileList" MinHeight="200" MaxHeight="300"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="2">
+                                            <TextBlock Text="{Binding DisplayLabel}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding TypeHint}" FontSize="11"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== محرّر بروفايل مخصّص (T-101.3) ===== -->
+                <Border x:Name="ProfileEditorOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="ProfileEditorOverlay_MouseDown">
+                    <Border Width="460" MaxHeight="600" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="20"
+                            MouseLeftButtonDown="EditorCard_MouseDown">
+                        <StackPanel>
+                            <TextBlock x:Name="ProfileEditorTitle" Text="بروفايل مخصّص" FontSize="16"
+                                       FontWeight="SemiBold" Margin="0,0,0,14"/>
+
+                            <TextBlock Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                            <TextBox x:Name="ProfileEditorName"/>
+
+                            <TextBlock Text="الملفّ التنفيذيّ (ExePath)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBox x:Name="ProfileEditorExe" FlowDirection="LeftToRight"/>
+
+                            <TextBlock Text="الوسائط (Arguments)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBox x:Name="ProfileEditorArgs" FlowDirection="LeftToRight"/>
+
+                            <TextBlock Text="مجلّد العمل" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBox x:Name="ProfileEditorWorkDir" FlowDirection="LeftToRight"/>
+
+                            <TextBlock Text="متغيّرات البيئة (KEY=VALUE في كل سطر)"
+                                       Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBox x:Name="ProfileEditorEnv" MinHeight="60" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     FlowDirection="LeftToRight"/>
+
+                            <Grid Margin="0,20,0,0">
+                                <Button HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
+                                        Click="ProfileEditorCancel_Click"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
+                                        Content="حفظ" Padding="20,8" Click="ProfileEditorSave_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== لوحة الأوامر (Ctrl+Shift+P) ===== -->
+                <Border x:Name="CommandPaletteOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="CommandPaletteOverlay_MouseDown">
+                    <Border Width="520" MaxHeight="440" VerticalAlignment="Top" HorizontalAlignment="Center"
+                            Margin="0,90,0,0" Style="{StaticResource Card}" Padding="0"
+                            RenderTransformOrigin="0.5,0" MouseLeftButtonDown="CommandPaletteCard_MouseDown">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="CommandPaletteTransform" Y="-24"/>
+                        </Border.RenderTransform>
+                        <DockPanel Margin="14">
+                            <Grid DockPanel.Dock="Top">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           VerticalAlignment="Center" Margin="4,0,10,0"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                <TextBox x:Name="CommandPaletteInput" Grid.Column="1"
+                                         BorderThickness="0" Background="Transparent" FontSize="14"
+                                         Padding="0,6"
+                                         TextChanged="CommandPaletteInput_TextChanged"
+                                         PreviewKeyDown="CommandPaletteInput_PreviewKeyDown"/>
+                            </Grid>
+                            <Border DockPanel.Dock="Top" Height="1" Margin="0,10,0,6"
+                                    Background="{DynamicResource Brush.Border}"/>
+                            <ListBox x:Name="CommandPaletteList" MaxHeight="330"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     MouseDoubleClick="CommandPaletteList_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="13" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Brush.Accent}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Hint}" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       FlowDirection="LeftToRight"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

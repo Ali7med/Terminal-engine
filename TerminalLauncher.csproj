@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>TerminalLauncher</RootNamespace>
+    <AssemblyName>TerminalLauncher</AssemblyName>
+    <!-- أيقونة الـ exe وشريط المهام: «مؤشّر العلامة» (HeliumRed). المصدر SVG بجوارها. -->
+    <ApplicationIcon>Assets\AppIcon\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Fonts\*.ttf" />
+    <!-- نفس الأيقونة كمورد كي تقرأها النوافذ عبر pack URI (Window.Icon). -->
+    <Resource Include="Assets\AppIcon\app.ico" />
+  </ItemGroup>
+
+  <!-- سجلّ التغييرات مورداً مُدمَجاً: تقرأه لوحة «ما الجديد» وقت التشغيل عبر LogicalName ثابت
+       (TerminalLauncher.CHANGELOG.md)، مع احتياط قراءته من القرص أثناء التطوير. -->
+  <ItemGroup>
+    <EmbeddedResource Include="CHANGELOG.md" LogicalName="TerminalLauncher.CHANGELOG.md" />
+  </ItemGroup>
+
+  <!-- مشروع engine/ مبنيّ عبر ProjectReference فقط؛ نمنع قوالب SDK من سحب ملفّاته
+       (خصوصاً ملفّات الاختبارات التي تحتاج xunit) إلى تصريف التطبيق. -->
+  <ItemGroup>
+    <Compile Remove="engine\**" />
+    <Page Remove="engine\**" />
+    <None Remove="engine\**" />
+    <EmbeddedResource Remove="engine\**" />
+    <Resource Remove="engine\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- نواة SkiaSharp فقط (لا SkiaSharp.Views.WPF الذي يجرّ OpenTK لإطار .NET Framework / NU1701).
+         نرسم على WriteableBitmap بأنفسنا عبر SKSurface فوق الـ BackBuffer. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
+    <!-- تشكيل النصوص المعقّدة (العربية: اتّصال الحروف + RTL) عبر HarfBuzz. -->
+    <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.0" />
+    <!-- محرّر نصّ ناضج بتلوين نحويّ حقيقيّ — للوحة تحرير الملفّ داخل التاب (T-7). -->
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <!-- DPAPI (System.Security.Cryptography.ProtectedData) لتعمية أسرار الخوادم — موفَّرة ضمن
+         إطار net10.0-windows (Windows Desktop)، فلا حاجة لحزمة NuGet منفصلة. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- المحرّك النظيف المختبَر (ConPTY + محلّل VT + شبكة الشاشة) — طبقة نقيّة بلا UI. -->
+    <ProjectReference Include="engine\Terminal.Core\Terminal.Core.csproj" />
+    <!-- طبقة التخزين المحلّي (SQLite): التاريخ + الإعدادات + الجلسات. نقيّة بلا UI. -->
+    <ProjectReference Include="engine\Terminal.Storage\Terminal.Storage.csproj" />
+    <!-- طبقة الخوادم (SSH.NET + محلّلات df/du/ps) — أداة «مراقب الخوادم». نقيّة بلا UI. -->
+    <ProjectReference Include="engine\Terminal.Servers\Terminal.Servers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- تحذير أمنيّ (NU1903/GHSA-2m69-gcr7-jv3q) على SQLite الأصليّ المنقول عبر Terminal.Storage؛
+         غير قابل للوصول هنا (قاعدة محلّية + SQL من التطبيق فقط) ولا نسخة مُصحّحة بعد. أُخمَد هذا الإنذار وحده. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+</Project>
