@@ -137,9 +137,9 @@ public static class ThemeManager
             C(0x2C,0x24,0x1E), C(0xF0,0xE8,0xE0), C(0xA6,0x96,0x8A), C(0xEF,0x44,0x44),
             new[]{ C(0xEF,0x44,0x44), C(0xF9,0x73,0x16), C(0xE0,0xAF,0x68), C(0xDC,0xDC,0xDC) }),
 
-        // فاتح دافئ.
+        // فاتح دافئ — سطح تيرمنال فاتح (كان داكناً فيتعارض مع كون الثيم فاتحاً ويجعل الكتابة الفاتحة غير مقروءة).
         new("helium-light", "هيليوم فاتح", "Helium Light", ThemeMode.Light,
-            C(0xF7,0xF6,0xF3), C(0x1A,0x19,0x17), C(0xFF,0xFF,0xFF), C(0xEF,0xED,0xE8), C(0xE6,0xE3,0xDC),
+            C(0xF7,0xF6,0xF3), C(0xFC,0xFB,0xF8), C(0xFF,0xFF,0xFF), C(0xEF,0xED,0xE8), C(0xE6,0xE3,0xDC),
             C(0xDD,0xD9,0xD1), C(0x2A,0x28,0x24), C(0x6E,0x6A,0x62), C(0xC9,0x64,0x42),
             new[]{ C(0xC4,0x3E,0x6B), C(0x2E,0x7D,0x57), C(0x15,0x60,0x7A), C(0x8A,0x7A,0x12) }),
 
@@ -230,8 +230,49 @@ public static class ThemeManager
         Set(r, "Brush.Danger",      C(0xE0, 0x60, 0x3F));
         Set(r, "Brush.Success",     C(0x9E, 0xCE, 0x6A));
 
-        // خلفية لوحة ANSI (لفيديو SGR المعكوس) تتبع خلفية التيرمنال الفعليّة.
+        // لوحة ANSI تتبع الثيم: خلفيّة SGR المعكوس = خلفيّة التيرمنال، والأساس 0..15 يُحسَّن للوضع
+        // (ألوان أغمق على الفاتح كي تُقرأ)، ولون الكتابة الافتراضيّ يتباين مع خلفيّة التيرمنال.
         AnsiPalette.BackgroundColor = TerminalBackground;
+        AnsiPalette.UseLightBase(p.Mode == ThemeMode.Light);
+        AnsiPalette.DefaultForeground = ResolveTerminalForeground(s);
+    }
+
+    /// <summary>
+    /// لون الكتابة الافتراضيّ للتيرمنال (النصّ بلا SGR): يحترم اختيار المستخدم الصريح، وإلّا يختار تلقائياً
+    /// لوناً يتباين مع خلفيّة التيرمنال (فاتح على الداكنة، داكن على الفاتحة). القيمة الفارغة أو "auto" أو
+    /// الافتراضيّ القديم "#D4D4D4" تُعامَل كـ«تلقائيّ» كي تستفيد الإصدارات القديمة من التباين الصحيح.
+    /// </summary>
+    public static Color ResolveTerminalForeground(AppSettings s)
+    {
+        var p = Resolve(s.ThemePresetId);
+        Color bg = p.TerminalBg;
+        Color contrast = Luminance(bg) > 0.5 ? p.Text : C(0xD4, 0xD4, 0xD4); // داكن على الفاتح، فاتح على الداكن
+
+        string fg = (s.DefaultForeground ?? "").Trim();
+        bool auto = fg.Length == 0
+                 || fg.Equals("auto", StringComparison.OrdinalIgnoreCase)
+                 || fg.Equals("#D4D4D4", StringComparison.OrdinalIgnoreCase);
+        if (auto) return contrast;
+
+        Color chosen;
+        try { chosen = (Color)ColorConverter.ConvertFromString(fg); }
+        catch { return contrast; }   // لون غير صالح ⇒ تلقائيّ
+
+        // حارس القراءة: مهما اختار المستخدم، لا نرسم نصّاً غير مقروء فوق خلفيّة التيرمنال. إن ضعُف التباين
+        // (كالنصّ الفاتح فوق ثيم فاتح) نرتدّ للّون المتباين تلقائياً — يضمن وضوح الكتابة في كلّ الثيمات.
+        return ContrastRatio(chosen, bg) < 2.5 ? contrast : chosen;
+    }
+
+    /// <summary>الإضاءة النسبيّة (sRGB مبسّط 0..1) للون — تُستعمل لاختيار لون كتابة متباين.</summary>
+    private static double Luminance(Color c)
+        => (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
+
+    /// <summary>نسبة تباين تقريبيّة (1..21) بين لونين اعتماداً على إضاءتيهما النسبيّتين.</summary>
+    private static double ContrastRatio(Color a, Color b)
+    {
+        double la = Luminance(a), lb = Luminance(b);
+        double hi = Math.Max(la, lb), lo = Math.Min(la, lb);
+        return (hi + 0.05) / (lo + 0.05);
     }
 
     private static void Set(ResourceDictionary r, string key, Color c) => r[key] = new SolidColorBrush(c);

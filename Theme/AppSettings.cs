@@ -52,8 +52,11 @@ public sealed class AppSettings
     /// <summary>نوع خطّ التيرمنال (أحاديّ المسافة). اسم واحد؛ يُضاف Consolas احتياطياً عند التطبيق.</summary>
     public string FontFamily { get; set; } = "Cascadia Mono";
 
-    /// <summary>لون الكتابة الافتراضي (النصّ بلا SGR) بصيغة #RRGGBB.</summary>
-    public string DefaultForeground { get; set; } = "#D4D4D4";
+    /// <summary>
+    /// لون الكتابة الافتراضي (النصّ بلا SGR): "auto" (الافتراضي) = يتبع الثيم (فاتح على الداكن، داكن على
+    /// الفاتح)، أو لون صريح بصيغة #RRGGBB. راجع <c>ThemeManager.ResolveTerminalForeground</c>.
+    /// </summary>
+    public string DefaultForeground { get; set; } = "auto";
 
     /// <summary>
     /// تفعيل مساعد الـ AI السياقيّ (اختياريّ — مُعطَّل افتراضاً). عند التعطيل تُظهِر أفعال «اشرح هذه الكتلة»

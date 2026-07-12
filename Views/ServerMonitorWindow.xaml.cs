@@ -176,7 +176,14 @@ public partial class ServerMonitorWindow : Window
         FileViewLog.Header = Loc.T("srv.file.viewLog");
         FileRename.Header = Loc.T("srv.file.rename");
         FileCopyPath.Header = Loc.T("srv.file.copyPath");
+        FileWhichContainer.Header = Loc.T("srv.file.whichContainer");
         FileDelete.Header = Loc.T("srv.file.delete");
+
+        // لوحة «اعرف الحاوية»
+        ContainerHeaderLabel.Text = Loc.T("srv.docker.ownerTitle");
+        ContainerLoadingText.Text = Loc.T("srv.docker.resolving");
+        ContainerCopyName.Content = Loc.T("srv.docker.copyName");
+        ContainerCopyId.Content = Loc.T("srv.docker.copyId");
         RenameTitle.Text = Loc.T("srv.file.rename");
         RenameCancel.Content = Loc.T("srv.ed.cancel");
         RenameSave.Content = Loc.T("srv.ed.save");
@@ -187,6 +194,7 @@ public partial class ServerMonitorWindow : Window
         DetailView.Header = Loc.T("srv.file.viewLog");
         DetailRename.Header = Loc.T("srv.file.rename");
         DetailCopy.Header = Loc.T("srv.file.copyPath");
+        DetailWhichContainer.Header = Loc.T("srv.file.whichContainer");
         DetailDelete.Header = Loc.T("srv.file.delete");
         FolderDetailLoadingText.Text = Loc.T("srv.file.loading");
         FilesLoadingText.Text = Loc.T("srv.file.loading");
@@ -456,6 +464,11 @@ public partial class ServerMonitorWindow : Window
         {
             var info = _service.BuildConnectionInfo(profile);
             var conn = new SshNetConnection(info);
+            // عند سقوط الجلسة الخاملة تُعيد الطبقة الاتّصال تلقائيّاً قبل تنفيذ الأمر — نُظهر توستاً لحظتها.
+            conn.OnReconnecting = () => Dispatcher.BeginInvoke(() =>
+            {
+                if (_connection == conn) ShowToast(Loc.T("srv.status.reconnecting"));
+            });
             await conn.ConnectAsync(_cts.Token).ConfigureAwait(true);
             _connection = conn;
             _connectedProfile = profile;
@@ -1787,6 +1800,116 @@ public partial class ServerMonitorWindow : Window
         if (SelectedFile != null) _ = OpenLogAsync(SelectedFile);
     }
 
+    // ===== اعرف الحاوية (Docker) — يربط مسار ملفّ بالحاوية المالكة له =====
+    private void FileWhichContainer_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFile is { } f) _ = ResolveContainerAsync(f);
+    }
+
+    private void DetailWhichContainer_Click(object sender, RoutedEventArgs e)
+    {
+        if (DetailFile is { } f) _ = ResolveContainerAsync(f);
+    }
+
+    private string _containerCopyName = "";
+    private string _containerCopyId = "";
+
+    /// <summary>يحدّد حاوية Docker المالكة لمسار الملفّ ويعرضها في لوحة مخصّصة.</summary>
+    private async Task ResolveContainerAsync(FileRowVm f)
+    {
+        if (_connection is null) return;
+
+        ContainerPath.Text = f.Path;
+        ContainerName.Text = Loc.T("srv.docker.resolving");
+        ContainerKindLine.Text = "";
+        ContainerList.ItemsSource = null;
+        ContainerEmpty.Visibility = Visibility.Collapsed;
+        ContainerBody.Visibility = Visibility.Collapsed;
+        ContainerLoading.Visibility = Visibility.Visible;
+        ContainerCopyName.IsEnabled = false;
+        _containerCopyName = "";
+        _containerCopyId = "";
+        ContainerOverlay.Visibility = Visibility.Visible;
+        try
+        {
+            var lookup = await new DockerInspector(_connection)
+                .ResolveAsync(f.Path, _cts?.Token ?? default).ConfigureAwait(true);
+            PopulateContainer(lookup);
+        }
+        catch (Exception ex)
+        {
+            ContainerName.Text = "—";
+            ContainerKindLine.Text = "";
+            ContainerList.ItemsSource = null;
+            ContainerEmptyText.Text = $"{Loc.T("srv.file.opFail")} {ex.Message}";
+            ContainerEmpty.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            ContainerLoading.Visibility = Visibility.Collapsed;
+            ContainerBody.Visibility = Visibility.Visible;
+        }
+    }
+
+    /// <summary>يملأ لوحة معلومات الحاوية من نتيجة الاستعلام.</summary>
+    private void PopulateContainer(DockerLookup lookup)
+    {
+        var primary = lookup.Matches.FirstOrDefault(m => m.WritableLayer) ?? lookup.Matches.FirstOrDefault();
+        ContainerName.Text = primary is null ? "—" : NiceContainer(primary);
+        _containerCopyName = primary?.Name ?? "";
+        _containerCopyId = lookup.Key;
+        ContainerCopyName.IsEnabled = _containerCopyName.Length > 0;
+        ContainerCopyId.IsEnabled = _containerCopyId.Length > 0;
+
+        ContainerKindLine.Text = lookup.Kind switch
+        {
+            DockerPathKind.Overlay => $"{Loc.T("srv.docker.overlayLayer")} · {lookup.Key}",
+            DockerPathKind.Volume => $"{Loc.T("srv.docker.volume")} · {lookup.Key}",
+            _ => Loc.T("srv.docker.notDocker"),
+        };
+
+        if (lookup.Matches.Count == 0)
+        {
+            ContainerList.ItemsSource = null;
+            ContainerEmptyText.Text = lookup.Kind switch
+            {
+                DockerPathKind.Overlay => Loc.T("srv.docker.noOwner"),
+                DockerPathKind.Volume => Loc.T("srv.docker.noVolOwner"),
+                _ => Loc.T("srv.docker.notDocker"),
+            };
+            ContainerEmpty.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ContainerList.ItemsSource = lookup.Matches.Select(ContainerCardVm.From).ToList();
+            ContainerEmpty.Visibility = Visibility.Collapsed;
+            ShowToast($"{Loc.T("srv.file.whichContainer")} · {ContainerName.Text}");
+        }
+    }
+
+    /// <summary>أفضل اسم يُعرض للحاوية (Coolify > Compose > اسم الحاوية).</summary>
+    private static string NiceContainer(DockerContainerMatch m)
+        => !string.IsNullOrEmpty(m.CoolifyName) ? m.CoolifyName
+         : !string.IsNullOrEmpty(m.ComposeProject) ? m.ComposeProject
+         : m.Name;
+
+    private void ContainerClose_Click(object sender, RoutedEventArgs e) => ContainerOverlay.Visibility = Visibility.Collapsed;
+    private void ContainerOverlay_MouseDown(object sender, MouseButtonEventArgs e) => ContainerOverlay.Visibility = Visibility.Collapsed;
+
+    private void ContainerCopyName_Click(object sender, RoutedEventArgs e)
+    {
+        if (_containerCopyName.Length == 0) return;
+        TryCopy(_containerCopyName);
+        ShowToast(Loc.T("srv.toast.copied"));
+    }
+
+    private void ContainerCopyId_Click(object sender, RoutedEventArgs e)
+    {
+        if (_containerCopyId.Length == 0) return;
+        TryCopy(_containerCopyId);
+        ShowToast(Loc.T("srv.toast.copied"));
+    }
+
     private void LogClose_Click(object sender, RoutedEventArgs e) => LogOverlay.Visibility = Visibility.Collapsed;
     private void LogOverlay_MouseDown(object sender, MouseButtonEventArgs e) => LogOverlay.Visibility = Visibility.Collapsed;
 
@@ -2024,4 +2147,32 @@ public sealed class PortRowVm
     public int Port { get; init; }
     public string Address { get; init; } = "";
     public string Process { get; init; } = "";
+}
+
+/// <summary>بطاقة حاوية Docker في لوحة «اعرف الحاوية» — نصوصها مُترجَمة لحظة الإنشاء (اللغة الحاليّة).</summary>
+public sealed class ContainerCardVm
+{
+    public string Name { get; init; } = "";
+    public string Status { get; init; } = "";
+    public string Image { get; init; } = "";
+    public string CoolifyName { get; init; } = "";
+    public string ComposeProject { get; init; } = "";
+    public string OwnershipText { get; init; } = "";
+    public string ImageLabel { get; init; } = "";
+    public bool Running { get; init; }
+    public bool HasImage => !string.IsNullOrEmpty(Image);
+    public bool HasCoolify => !string.IsNullOrEmpty(CoolifyName);
+    public bool HasCompose => !string.IsNullOrEmpty(ComposeProject);
+
+    public static ContainerCardVm From(DockerContainerMatch m) => new()
+    {
+        Name = m.Name,
+        Status = m.Status,
+        Image = m.Image,
+        CoolifyName = m.CoolifyName,
+        ComposeProject = m.ComposeProject,
+        Running = string.Equals(m.Status, "running", System.StringComparison.OrdinalIgnoreCase),
+        OwnershipText = m.WritableLayer ? Loc.T("srv.docker.rwLayer") : Loc.T("srv.docker.mounted"),
+        ImageLabel = Loc.T("srv.docker.image"),
+    };
 }

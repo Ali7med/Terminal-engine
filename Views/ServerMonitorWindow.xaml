@@ -742,6 +742,11 @@
                                                                 <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
+                                                        <MenuItem x:Name="DetailWhichContainer" Header="اعرف الحاوية" Click="DetailWhichContainer_Click">
+                                                            <MenuItem.Icon>
+                                                                <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
                                                         <Separator/>
                                                         <MenuItem x:Name="DetailDelete" Header="حذف" Click="DetailDelete_Click">
                                                             <MenuItem.Icon>
@@ -872,6 +877,11 @@
                                             <MenuItem x:Name="FileCopyPath" Header="نسخ المسار" Click="FileCopyPath_Click">
                                                 <MenuItem.Icon>
                                                     <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem x:Name="FileWhichContainer" Header="اعرف الحاوية" Click="FileWhichContainer_Click">
+                                                <MenuItem.Icon>
+                                                    <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator/>
@@ -1176,6 +1186,172 @@
                                     <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
                                 </TextBox.Resources>
                             </TextBox>
+                        </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== لوحة معلومات الحاوية (Docker) — نتيجة «اعرف الحاوية» ===== -->
+                <Border x:Name="ContainerOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="ContainerOverlay_MouseDown">
+                    <Border Width="540" MaxHeight="660" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="0" MouseLeftButtonDown="EditorCard_MouseDown">
+                        <DockPanel>
+                            <!-- ترويسة: أيقونة + الاسم الكبير + نوع الطبقة/الحجم + إغلاق -->
+                            <Grid DockPanel.Dock="Top" Margin="20,16,12,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" VerticalAlignment="Top"
+                                        Background="{DynamicResource Brush.Surface2}">
+                                    <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Brush.Accent}"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="ContainerHeaderLabel" Text="الحاوية المالكة" FontSize="12"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBlock x:Name="ContainerName" Text="—" FontSize="19" FontWeight="SemiBold"
+                                               FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="ContainerKindLine" Text="" FontSize="11.5" FlowDirection="LeftToRight"
+                                               Foreground="{DynamicResource Brush.TextMuted}" TextTrimming="CharacterEllipsis"
+                                               Margin="0,3,0,0" FontFamily="Consolas, monospace"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource ChromeButton}"
+                                        Content="&#xE8BB;" Click="ContainerClose_Click"/>
+                            </Grid>
+
+                            <!-- مسار الملفّ محلّ الاستعلام -->
+                            <Border DockPanel.Dock="Top" Margin="20,0,20,12" Padding="10,7" CornerRadius="6"
+                                    Background="{DynamicResource Brush.Bg}"
+                                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                <TextBlock x:Name="ContainerPath" FlowDirection="LeftToRight" FontFamily="Consolas, monospace"
+                                           FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </Border>
+
+                            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Brush.Border}"/>
+
+                            <!-- أزرار الأسفل -->
+                            <Grid DockPanel.Dock="Bottom" Margin="20,12,20,16">
+                                <Button x:Name="ContainerCopyId" HorizontalAlignment="Left" Content="نسخ المعرّف"
+                                        Padding="14,8" Click="ContainerCopyId_Click"/>
+                                <Button x:Name="ContainerCopyName" HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
+                                        Content="نسخ الاسم" Click="ContainerCopyName_Click"/>
+                            </Grid>
+
+                            <!-- الجسم: قائمة الحاويات / فراغ / تحميل -->
+                            <Grid Margin="0,12,0,0">
+                                <ScrollViewer x:Name="ContainerBody" VerticalScrollBarVisibility="Auto" Padding="20,0">
+                                    <ScrollViewer.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                    </ScrollViewer.Resources>
+                                    <ItemsControl x:Name="ContainerList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,0,0,10" Padding="14,12" CornerRadius="10"
+                                                        Background="{DynamicResource Brush.Bg}"
+                                                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <!-- الاسم + مؤشّر الحالة -->
+                                                        <Grid>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Ellipse Width="9" Height="9" VerticalAlignment="Center">
+                                                                    <Ellipse.Style>
+                                                                        <Style TargetType="Ellipse">
+                                                                            <Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Running}" Value="True">
+                                                                                    <Setter Property="Fill" Value="#3FB950"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Ellipse.Style>
+                                                                </Ellipse>
+                                                                <TextBlock Text="{Binding Name}" FlowDirection="LeftToRight"
+                                                                           Margin="8,0,0,0" FontWeight="SemiBold" FontSize="14"
+                                                                           VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Status}" HorizontalAlignment="Right"
+                                                                       VerticalAlignment="Center" FontSize="12" FlowDirection="LeftToRight"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                        </Grid>
+
+                                                        <!-- شارات Coolify / Compose -->
+                                                        <WrapPanel Margin="0,10,0,0">
+                                                            <Border Visibility="{Binding HasCoolify, Converter={StaticResource Conv.BoolToVis}}"
+                                                                    Margin="0,0,6,6" Padding="8,3" CornerRadius="5"
+                                                                    Background="{DynamicResource Brush.Surface2}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="Coolify" FontSize="10.5" FontWeight="SemiBold"
+                                                                               VerticalAlignment="Center" FlowDirection="LeftToRight"
+                                                                               Foreground="{DynamicResource Brush.Accent}"/>
+                                                                    <TextBlock Text="{Binding CoolifyName}" FlowDirection="LeftToRight"
+                                                                               Margin="6,0,0,0" FontSize="11" VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource Brush.Text}"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <Border Visibility="{Binding HasCompose, Converter={StaticResource Conv.BoolToVis}}"
+                                                                    Margin="0,0,6,6" Padding="8,3" CornerRadius="5"
+                                                                    Background="{DynamicResource Brush.Surface2}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="Compose" FontSize="10.5" FontWeight="SemiBold"
+                                                                               VerticalAlignment="Center" FlowDirection="LeftToRight"
+                                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                                    <TextBlock Text="{Binding ComposeProject}" FlowDirection="LeftToRight"
+                                                                               Margin="6,0,0,0" FontSize="11" VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource Brush.Text}"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </WrapPanel>
+
+                                                        <!-- الصورة -->
+                                                        <Grid Margin="0,8,0,0"
+                                                              Visibility="{Binding HasImage, Converter={StaticResource Conv.BoolToVis}}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding ImageLabel}" FontSize="12"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Top"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Image}" FlowDirection="LeftToRight"
+                                                                       Margin="10,0,0,0" FontSize="12" TextWrapping="Wrap"
+                                                                       FontFamily="Consolas, monospace"
+                                                                       Foreground="{DynamicResource Brush.Text}"/>
+                                                        </Grid>
+
+                                                        <!-- ملاحظة الملكيّة (طبقة كتابة / حجم مُركَّب) -->
+                                                        <TextBlock Text="{Binding OwnershipText}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                                                   FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <!-- فراغ: لا حاوية / خارج Docker / خطأ -->
+                                <StackPanel x:Name="ContainerEmpty" Visibility="Collapsed"
+                                            VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                    <TextBlock Text="&#xEDA2;" FontFamily="Segoe MDL2 Assets" FontSize="30"
+                                               HorizontalAlignment="Center" Opacity="0.65"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBlock x:Name="ContainerEmptyText" TextAlignment="Center" TextWrapping="Wrap"
+                                               Margin="0,10,0,0" MaxWidth="400"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                </StackPanel>
+
+                                <!-- تحميل -->
+                                <StackPanel x:Name="ContainerLoading" Visibility="Collapsed"
+                                            VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <ProgressBar IsIndeterminate="True" Width="130" Height="6"
+                                                 Foreground="{DynamicResource Brush.Accent}"
+                                                 Background="{DynamicResource Brush.Surface2}" BorderThickness="0"/>
+                                    <TextBlock x:Name="ContainerLoadingText" Text="جارٍ تحديد الحاوية…"
+                                               Margin="0,10,0,0" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                </StackPanel>
+                            </Grid>
                         </DockPanel>
                     </Border>
                 </Border>

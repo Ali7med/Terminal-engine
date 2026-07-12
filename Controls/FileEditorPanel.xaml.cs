@@ -89,7 +89,7 @@ public partial class FileEditorPanel : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, Loc.T("editor.save"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            TerminalLauncher.Views.AppDialog.Alert(Window.GetWindow(this), Loc.T("editor.save"), ex.Message);
             return false;
         }
     }

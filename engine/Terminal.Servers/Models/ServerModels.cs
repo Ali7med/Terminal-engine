@@ -50,6 +50,33 @@ public sealed record FolderScan(
 /// <summary>ملفّ وحجمه وتاريخ تعديله من مخرجات <c>find</c> (بالبايت).</summary>
 public sealed record FileEntry(string Path, string Name, long SizeBytes, System.DateTimeOffset? Modified);
 
+/// <summary>موقع الملفّ داخل بنية Docker على القرص.</summary>
+public enum DockerPathKind
+{
+    /// <summary>ليس داخل طبقة overlay2 ولا حجم Docker.</summary>
+    None,
+    /// <summary>طبقة تخزين overlay2 (<c>/var/lib/docker/overlay2/&lt;id&gt;/…</c>).</summary>
+    Overlay,
+    /// <summary>حجم مُسمّى (<c>/var/lib/docker/volumes/&lt;name&gt;/_data/…</c>).</summary>
+    Volume,
+}
+
+/// <summary>حاوية Docker مطابِقة لطبقة/حجم — من مخرجات <c>docker inspect</c>.</summary>
+public sealed record DockerContainerMatch(
+    string Name,
+    string Status,
+    string Image,
+    string CoolifyName,
+    string ComposeProject,
+    /// <summary>true إن كان الملفّ في طبقة الكتابة لهذه الحاوية (مالك حصريّ)؛ false لحجم مُركَّب.</summary>
+    bool WritableLayer);
+
+/// <summary>نتيجة «اعرف الحاوية»: نوع الموقع + المعرّف المستخرَج + الحاويات المطابِقة.</summary>
+public sealed record DockerLookup(
+    DockerPathKind Kind,
+    string Key,
+    System.Collections.Generic.IReadOnlyList<DockerContainerMatch> Matches);
+
 /// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
 public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);
 

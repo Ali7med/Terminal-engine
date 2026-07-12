@@ -16,43 +16,90 @@ public static class AnsiPalette
     private static readonly Color[] Table = new Color[256];
     private static readonly Dictionary<uint, SolidColorBrush> BrushCache = new();
 
+    /// <summary>
+    /// الأساس 0..15 لخلفيّة داكنة (Tokyo Night) — ألوان ساطعة تُقرأ جيّداً فوق سطح داكن.
+    /// </summary>
+    private static readonly Color[] DarkBase =
+    {
+        Rgb(0x15, 0x16, 0x1E), // black
+        Rgb(0xF7, 0x76, 0x8E), // red
+        Rgb(0x9E, 0xCE, 0x6A), // green
+        Rgb(0xE0, 0xAF, 0x68), // yellow
+        Rgb(0x7A, 0xA2, 0xF7), // blue
+        Rgb(0xBB, 0x9A, 0xF7), // magenta
+        Rgb(0x7D, 0xCF, 0xFF), // cyan
+        Rgb(0xA9, 0xB1, 0xD6), // white
+        Rgb(0x41, 0x48, 0x68), // bright black
+        Rgb(0xFF, 0x7A, 0x93), // bright red
+        Rgb(0xB9, 0xF2, 0x7C), // bright green
+        Rgb(0xFF, 0x9E, 0x64), // bright yellow
+        Rgb(0x7D, 0xA6, 0xFF), // bright blue
+        Rgb(0xBB, 0x9A, 0xF7), // bright magenta
+        Rgb(0x0D, 0xB9, 0xD7), // bright cyan
+        Rgb(0xC0, 0xCA, 0xF5), // bright white
+    };
+
+    /// <summary>
+    /// الأساس 0..15 لخلفيّة فاتحة — ألوان أغمق وأكثر تشبّعاً تُقرأ فوق سطح فاتح (على غرار GitHub/Solarized
+    /// Light). «الأبيض» (7/15) يُخفَّض إلى رماديّ داكن كي يبقى نصّ الصدفات الذي يفترض خلفيّة داكنة مقروءاً.
+    /// </summary>
+    private static readonly Color[] LightBase =
+    {
+        Rgb(0x1A, 0x1A, 0x1A), // black
+        Rgb(0xC4, 0x34, 0x1B), // red
+        Rgb(0x2E, 0x7D, 0x32), // green
+        Rgb(0xA1, 0x62, 0x07), // yellow (كهرمانيّ داكن)
+        Rgb(0x15, 0x65, 0xC0), // blue
+        Rgb(0x8E, 0x24, 0xAA), // magenta
+        Rgb(0x0E, 0x74, 0x90), // cyan
+        Rgb(0x3A, 0x3A, 0x3A), // white → رماديّ داكن
+        Rgb(0x5A, 0x5A, 0x5A), // bright black
+        Rgb(0xD3, 0x2F, 0x2F), // bright red
+        Rgb(0x38, 0x8E, 0x3C), // bright green
+        Rgb(0xB4, 0x5F, 0x06), // bright yellow
+        Rgb(0x19, 0x76, 0xD2), // bright blue
+        Rgb(0x9C, 0x27, 0xB0), // bright magenta
+        Rgb(0x08, 0x91, 0xB2), // bright cyan
+        Rgb(0x1A, 0x1A, 0x1A), // bright white → شبه أسود
+    };
+
+    // هل الأساس الحاليّ مُحسَّن لخلفيّة فاتحة؟ يقوده الثيم عبر <see cref="UseLightBase"/>.
+    private static bool _lightBase;
+
     static AnsiPalette()
     {
-        // 0..15: الأساس (طبيعي 0..7 + ساطع 8..15)
-        Color[] baseColors =
-        {
-            Rgb(0x15, 0x16, 0x1E), // black
-            Rgb(0xF7, 0x76, 0x8E), // red
-            Rgb(0x9E, 0xCE, 0x6A), // green
-            Rgb(0xE0, 0xAF, 0x68), // yellow
-            Rgb(0x7A, 0xA2, 0xF7), // blue
-            Rgb(0xBB, 0x9A, 0xF7), // magenta
-            Rgb(0x7D, 0xCF, 0xFF), // cyan
-            Rgb(0xA9, 0xB1, 0xD6), // white
-            Rgb(0x41, 0x48, 0x68), // bright black
-            Rgb(0xFF, 0x7A, 0x93), // bright red
-            Rgb(0xB9, 0xF2, 0x7C), // bright green
-            Rgb(0xFF, 0x9E, 0x64), // bright yellow
-            Rgb(0x7D, 0xA6, 0xFF), // bright blue
-            Rgb(0xBB, 0x9A, 0xF7), // bright magenta
-            Rgb(0x0D, 0xB9, 0xD7), // bright cyan
-            Rgb(0xC0, 0xCA, 0xF5), // bright white
-        };
-        for (int i = 0; i < 16; i++) Table[i] = baseColors[i];
-
-        // 16..231: مكعّب 6×6×6
+        // 16..231: مكعّب 6×6×6 و232..255: تدرّج رمادي — مطلقة لا تتبع الثيم.
         int n = 16;
         for (int r = 0; r < 6; r++)
             for (int g = 0; g < 6; g++)
                 for (int b = 0; b < 6; b++)
                     Table[n++] = Rgb(Cube(r), Cube(g), Cube(b));
 
-        // 232..255: تدرّج رمادي
         for (int i = 0; i < 24; i++)
         {
             byte v = (byte)(8 + i * 10);
             Table[232 + i] = Rgb(v, v, v);
         }
+
+        ApplyBase(DarkBase);   // الافتراضيّ داكن (يبدّله الثيم عند الإقلاع)
+    }
+
+    /// <summary>ينسخ مجموعة الأساس 0..15 إلى الجدول ويُفرِغ كاش الفراشي كي تُعاد بلون الأساس الجديد.</summary>
+    private static void ApplyBase(Color[] baseColors)
+    {
+        for (int i = 0; i < 16; i++) Table[i] = baseColors[i];
+        BrushCache.Clear();
+    }
+
+    /// <summary>
+    /// يبدّل الأساس 0..15 إلى المجموعة المُحسَّنة لخلفيّة فاتحة/داكنة (يقوده <c>ThemeManager.Apply</c>
+    /// حسب وضع الثيم). لا يمسّ المكعّب 6×6×6 ولا التدرّج الرماديّ.
+    /// </summary>
+    public static void UseLightBase(bool light)
+    {
+        if (_lightBase == light) return;
+        _lightBase = light;
+        ApplyBase(light ? LightBase : DarkBase);
     }
 
     private static byte Cube(int v) => (byte)(v == 0 ? 0 : v * 40 + 55);

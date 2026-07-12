@@ -72,7 +72,7 @@
                                 <MenuItem x:Name="ToolServerMonitor" Header="مراقب الخوادم"
                                           Click="ServerMonitorButton_Click">
                                     <MenuItem.Icon>
-                                        <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                        <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                                    Foreground="{DynamicResource Brush.Accent}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
@@ -123,10 +123,16 @@
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="d" Width="32" Height="32" CornerRadius="10"
                                                             Background="{DynamicResource Brush.Surface}"
-                                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
-                                                        <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
-                                                                   Foreground="{DynamicResource Brush.Text}"/>
+                                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                                                            ClipToBounds="True">
+                                                        <Grid>
+                                                            <!-- ترويسة لون المشروع الأساس (شفّافة إن بلا تصنيف) -->
+                                                            <Border VerticalAlignment="Top" Height="5" CornerRadius="9,9,0,0"
+                                                                    Background="{Binding PrimaryTag, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
+                                                            <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
+                                                                       Foreground="{DynamicResource Brush.Text}"/>
+                                                        </Grid>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
@@ -178,8 +184,15 @@
                                         Click="AddButton_Click" ToolTip="إضافة أمر"/>
                             </Grid>
 
-                            <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,10"
+                            <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,8"
                                      TextChanged="SidebarSearch_TextChanged"/>
+
+                            <!-- شريط فلترة المشاريع/التصنيفات: «الكل» + رقاقة لكل مشروع (نقطة لونه) — يُبنى في الكود -->
+                            <ScrollViewer x:Name="ProjectFilterScroll" DockPanel.Dock="Top"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                                          Margin="0,0,0,8" Visibility="Collapsed">
+                                <WrapPanel x:Name="ProjectFilterBar"/>
+                            </ScrollViewer>
 
                             <Button x:Name="RunBtn" DockPanel.Dock="Bottom" Margin="0,10,0,0" Style="{StaticResource AccentButton}"
                                     Content="&#x25B6;  تشغيل" Click="RunButton_Click"/>
@@ -187,8 +200,12 @@
                             <ListBox x:Name="EntriesList" Margin="0,0,0,2"
                                      MouseDoubleClick="EntriesList_MouseDoubleClick"
                                      PreviewMouseRightButtonDown="EntriesList_PreviewMouseRightButtonDown">
+                                <ListBox.Resources>
+                                    <!-- شريط تمرير متوافق مع الثيم (بدل الافتراضيّ) — مثل بقيّة القوائم -->
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                </ListBox.Resources>
                                 <ListBox.ContextMenu>
-                                    <ContextMenu>
+                                    <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
                                         <MenuItem Header="▶  تشغيل" Click="RunButton_Click"/>
                                         <MenuItem Header="✎  تعديل" Click="EditButton_Click"/>
                                         <Separator/>
@@ -198,10 +215,37 @@
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
-                                            <TextBlock Text="{Binding Path}" FontSize="10.5"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <!-- شريط لون المشروع الأساس على حافة العنصر -->
+                                                <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,8,1"
+                                                        Background="{Binding PrimaryTag, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Path}" FontSize="10.5"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
+                                                    <!-- وسوم المشاريع كرقاقات صغيرة ملوّنة -->
+                                                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,3,0,0"
+                                                                  Visibility="{Binding HasTags, Converter={StaticResource Conv.BoolToVis}}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Margin="0,0,5,0" Padding="6,1" CornerRadius="7"
+                                                                        Background="{Binding Converter={StaticResource Conv.PrimaryTagBrush}}">
+                                                                    <TextBlock Text="{Binding}" FontSize="10"
+                                                                               Foreground="#FFFFFF"/>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Grid>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -437,6 +481,26 @@
                             <TextBlock Text="الصدفة الافتراضية" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <ComboBox x:Name="EditorShell" DisplayMemberPath="Display" HorizontalAlignment="Left" Width="200"/>
 
+                            <TextBlock Text="المشاريع / التصنيفات" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <WrapPanel x:Name="EditorTagPanel"/>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- لون المشروع الجديد (نقره يفتح المنتقي) -->
+                                <Border x:Name="NewProjectColorDot" Grid.Column="0" Width="30" Height="30"
+                                        CornerRadius="8" Margin="0,0,6,0" Cursor="Hand"
+                                        BorderThickness="1" BorderBrush="{DynamicResource Brush.Border}"
+                                        MouseLeftButtonUp="NewProjectColorDot_Click" ToolTip="لون المشروع الجديد"/>
+                                <TextBox x:Name="EditorNewTag" Grid.Column="1" VerticalContentAlignment="Center"
+                                         KeyDown="EditorNewTag_KeyDown"
+                                         ToolTip="اكتب اسم مشروع جديد ثم Enter أو «إضافة»"/>
+                                <Button Grid.Column="2" Content="＋ مشروع" Margin="6,0,0,0" Padding="12,6"
+                                        Click="EditorAddTag_Click"/>
+                            </Grid>
+
                             <Grid Margin="0,20,0,0">
                                 <Button HorizontalAlignment="Left" Content="إلغاء" Padding="16,8" Click="CloseEditor_Click"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
@@ -445,6 +509,33 @@
                         </StackPanel>
                     </Border>
                 </Border>
+
+                <!-- ===== منتقي لون المشروع (لوحة ألوان جاهزة + لون مخصّص) ===== -->
+                <Popup x:Name="ColorPickerPopup" Placement="Mouse" StaysOpen="False" AllowsTransparency="True"
+                       FlowDirection="RightToLeft" Closed="ColorPicker_Closed">
+                    <Border Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
+                            BorderThickness="1" CornerRadius="10" Padding="12" Margin="6">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="2" Opacity="0.4"/>
+                        </Border.Effect>
+                        <StackPanel Width="236">
+                            <TextBlock x:Name="ColorPickerTitle" Text="لون المشروع" FontWeight="SemiBold"
+                                       FontSize="13" Margin="0,0,0,10"/>
+                            <WrapPanel x:Name="ColorSwatchPanel"/>
+                            <TextBlock Text="لون مخصّص (#RRGGBB)" Style="{StaticResource SectionLabel}" Margin="2,10,2,6"/>
+                            <Grid FlowDirection="LeftToRight">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="ColorHexInput" VerticalContentAlignment="Center"
+                                         KeyDown="ColorHexInput_KeyDown"/>
+                                <Button Grid.Column="1" Content="تطبيق" Margin="6,0,0,0" Padding="12,6"
+                                        Click="ColorHexApply_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
                 <!-- ===== إدارة بروفايلات الصدفات (T-101.4) ===== -->
                 <Border x:Name="ProfileManagerOverlay" Grid.ColumnSpan="3" Background="#88000000"

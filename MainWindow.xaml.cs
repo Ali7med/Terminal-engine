@@ -23,6 +23,7 @@ namespace TerminalLauncher;
 public partial class MainWindow : Window
 {
     private readonly EntryStore _store = new();
+    private readonly ProjectStore _projectStore = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly ProfileStore _profileStore = new();
     private readonly SessionStore _sessionStore = new(new AppDatabase());
@@ -37,6 +38,11 @@ public partial class MainWindow : Window
     private bool _restoring;   // true أثناء استرجاع الجلسة كي لا يُثبِّت OpenTerminal لقطات وسطيّة
     private bool _syncingUi = true;   // يبقى true أثناء الإنشاء ليُتجاهَل ValueChanged/SelectionChanged المبكّر
     private CommandEntry? _editorTarget;
+    private readonly List<string> _editorTags = new();   // وسوم المشروع قيد التحرير في نافذة الإضافة/التعديل
+    private string? _projectFilter;   // فلتر المشروع النشط في لوحة الأوامر (null = الكل)
+    private string? _colorPickerTarget;   // اسم المشروع الجاري تغيير لونه في المنتقي
+    private bool _colorPickerForNew;      // المنتقي مفتوح لاختيار لون مشروع جديد (لا لتعديل قائم)
+    private string _newProjectColor = "#C96442";   // لون المشروع الجديد المختار في نافذة التحرير
     private const int WindowCornerRadius = 6;
     private readonly List<Border> _themeCards = new();
     private const int ThemeFirstGroup = 6;     // عدد بطاقات الثيمات في اللوحة السريعة قبل «عرض الكلّ»
@@ -64,10 +70,10 @@ public partial class MainWindow : Window
         new("Claude (Anthropic Sans)", "./Assets/Fonts/#Anthropic Sans"),
     };
 
-    // ألوان كتابة افتراضية جاهزة (#RRGGBB).
+    // ألوان كتابة افتراضية جاهزة (#RRGGBB). "auto" = يتبع الثيم (فاتح على الداكن، داكن على الفاتح).
     private static readonly (string Name, string Hex)[] TextColorChoices =
     {
-        ("فاتح",       "#D4D4D4"),
+        ("تلقائيّ (حسب الثيم)", "auto"),
         ("أبيض",       "#FFFFFF"),
         ("أزرق فاتح",  "#C0CAF5"),
         ("أخضر",       "#9ECE6A"),
@@ -90,9 +96,18 @@ public partial class MainWindow : Window
         _profiles = _profileStore.Load();
         ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
 
+        // المشاريع/التصنيفات: تُحمَّل قبل الأوامر كي تُحلّ ألوان الوسوم عند أوّل رسم.
+        ProjectService.Initialize(_projectStore.Load());
+        ProjectService.Changed += OnProjectsChanged;
+
         foreach (var e in _store.Load()) _entries.Add(e);
+        // ضمان تعريف لكلّ وسم مُشار إليه (لون تلقائيّ للناقص) — يُصلح ملفّ مشاريع مفقوداً أو قديماً.
+        foreach (var entry in _entries)
+            foreach (var tag in entry.Tags)
+                ProjectService.GetOrCreate(tag);
         EntriesList.ItemsSource = _entries;
         SidebarDots.ItemsSource = _entries;   // مختصرات الأوامر في الشريط المطويّ
+        BuildProjectFilterBar();
         EditorShell.ItemsSource = ShellCatalog.All;
 
         BuildThemeCards();
@@ -554,13 +569,17 @@ public partial class MainWindow : Window
                 Height = 30,
                 CornerRadius = new CornerRadius(15),
                 Margin = new Thickness(0, 0, 8, 8),
-                Background = new SolidColorBrush(ParseColor(hex)),
                 BorderThickness = new Thickness(3),
                 BorderBrush = Brushes.Transparent,
                 Cursor = Cursors.Hand,
                 Tag = hex,
                 ToolTip = name,
             };
+            // «تلقائيّ» يعرض لون نصّ الثيم الحاليّ (يتتبّع الثيم عبر DynamicResource)؛ غيره لون ثابت.
+            if (string.Equals(hex, "auto", StringComparison.OrdinalIgnoreCase))
+                dot.SetResourceReference(Border.BackgroundProperty, "Brush.Text");
+            else
+                dot.Background = new SolidColorBrush(ParseColor(hex));
             dot.MouseLeftButtonUp += TextColorSwatch_Click;
             TextColorPanel.Children.Add(dot);
         }
@@ -606,8 +625,8 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>يضبط لون الكتابة الافتراضي في لوحة ANSI من الإعدادات.</summary>
-    private void ApplyDefaultForeground() => AnsiPalette.DefaultForeground = ParseColor(_settings.DefaultForeground);
+    /// <summary>يضبط لون الكتابة الافتراضي في لوحة ANSI: اختيار المستخدم الصريح، وإلّا لون يتباين مع خلفيّة الثيم.</summary>
+    private void ApplyDefaultForeground() => AnsiPalette.DefaultForeground = ThemeManager.ResolveTerminalForeground(_settings);
 
     /// <summary>يطبّق نوع/حجم الخطّ الحاليّ (ويعيد البناء بلون الكتابة الجديد) على كل الأجزاء المفتوحة.</summary>
     private void ApplyFontToAllTabs()
@@ -766,8 +785,11 @@ public partial class MainWindow : Window
     private void SetPreset(string id)
     {
         _settings.ThemePresetId = id;
-        ThemeManager.Apply(_settings);
+        ThemeManager.Apply(_settings);   // يحدّث خلفيّة/أساس/لون كتابة لوحة ANSI حسب وضع الثيم
         UpdateThemeSelection();
+        UpdateTextColorSelection();       // مؤشّر لون الكتابة يتبع الثيم في الوضع التلقائيّ
+        ApplyFontToAllTabs();             // إعادة رسم التيرمنالات بلون/أساس الثيم الجديد فوراً
+        ApplyBackground();                // يحدّث طبقات التعتيم (الشريط الجانبيّ/الرأس) بألوان الثيم الجديد
         SaveSettings();
     }
 
@@ -780,6 +802,9 @@ public partial class MainWindow : Window
             _settings.ThemePresetId = ThemeManager.DefaultFor(IsOsLightTheme() ? AppThemeMode.Light : AppThemeMode.Dark);
         ThemeManager.Apply(_settings);
         UpdateThemeSelection();
+        UpdateTextColorSelection();
+        ApplyFontToAllTabs();             // إعادة رسم التيرمنالات بلون/أساس الثيم الجديد فوراً
+        ApplyBackground();                // يحدّث طبقات التعتيم بألوان الثيم الجديد
         SaveSettings();
     }
 
@@ -811,6 +836,7 @@ public partial class MainWindow : Window
     {
         if (ServerMonitorButton.ContextMenu is { } menu)
         {
+            menu.FlowDirection = Loc.Flow;   // الأيقونة تتبع اتّجاه الواجهة (يمين في العربيّة)
             menu.PlacementTarget = ServerMonitorButton;
             menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             menu.IsOpen = true;
@@ -958,7 +984,7 @@ public partial class MainWindow : Window
     private void RunButton_Click(object sender, RoutedEventArgs e)
     {
         if (Selected is { } entry) OpenTerminal(entry);
-        else MessageBox.Show("اختر أمراً من القائمة أولاً.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Information);
+        else ShowAlert("تنبيه", "اختر أمراً من القائمة أولاً.");
     }
 
     private void EntriesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -978,16 +1004,21 @@ public partial class MainWindow : Window
     private void EditButton_Click(object sender, RoutedEventArgs e)
     {
         if (Selected is { } entry) OpenEditor(entry);
-        else MessageBox.Show("اختر أمراً لتعديله.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Information);
+        else ShowAlert("تنبيه", "اختر أمراً لتعديله.");
     }
 
     private void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is { } entry)
-        {
-            _entries.Remove(entry);
-            _store.Save(_entries);
-        }
+        if (Selected is not { } entry) return;
+        string label = string.IsNullOrWhiteSpace(entry.Name) ? "هذا الأمر" : $"«{entry.Name}»";
+        ShowConfirm("حذف أمر", $"حذف {label}؟",
+            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
+            key =>
+            {
+                if (key != "delete") return;
+                _entries.Remove(entry);
+                _store.Save(_entries);
+            });
     }
 
     // ===== نافذة الإضافة/التعديل =====
@@ -1000,8 +1031,128 @@ public partial class MainWindow : Window
         EditorPath.Text = entry?.Path ?? "";
         EditorCommand.Text = entry?.Command ?? "";
         EditorShell.SelectedItem = ShellCatalog.Get(entry?.Shell);
+
+        _editorTags.Clear();
+        if (entry != null) _editorTags.AddRange(entry.Tags);
+        EditorNewTag.Text = "";
+        _newProjectColor = ProjectService.NextAutoColor;   // لون افتراضيّ للمشروع الجديد (قابل للتغيير)
+        UpdateNewProjectColorDot();
+        BuildEditorTagChips();
+
         EditorOverlay.Visibility = Visibility.Visible;
         EditorName.Focus();
+    }
+
+    /// <summary>يعكس اللون المختار للمشروع الجديد على النقطة الملوّنة بجانب حقل الإضافة.</summary>
+    private void UpdateNewProjectColorDot()
+    {
+        try { NewProjectColorDot.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_newProjectColor)); }
+        catch { NewProjectColorDot.Background = (Brush)FindResource("Brush.Accent"); }
+    }
+
+    /// <summary>نقر نقطة اللون في نافذة التحرير: يفتح المنتقي لاختيار لون المشروع الجديد (قبل إنشائه).</summary>
+    private void NewProjectColorDot_Click(object sender, MouseButtonEventArgs e) => OpenColorPickerForNew();
+
+    // ===== المشاريع/التصنيفات في نافذة التحرير =====
+
+    /// <summary>يبني رقاقات المشاريع في نافذة التحرير: كل مشروع معروف رقاقة تبديل (نشطة = مسنَدة للأمر).</summary>
+    private void BuildEditorTagChips()
+    {
+        EditorTagPanel.Children.Clear();
+        foreach (var proj in ProjectService.All)
+        {
+            bool active = _editorTags.Any(t => string.Equals(t, proj.Name, StringComparison.OrdinalIgnoreCase));
+            EditorTagPanel.Children.Add(MakeTagChip(proj.Name, proj.Color, active, toggle: true));
+        }
+        if (EditorTagPanel.Children.Count == 0)
+        {
+            EditorTagPanel.Children.Add(new TextBlock
+            {
+                Text = "لا مشاريع بعد — أنشئ مشروعاً بالأسفل",
+                Foreground = (Brush)FindResource("Brush.TextMuted"),
+                FontSize = 11,
+                Margin = new Thickness(2, 2, 2, 2),
+            });
+        }
+    }
+
+    /// <summary>رقاقة مشروع (نقطة لون + اسم). في وضع التبديل تعكس/تضبط إسناد الوسم للأمر قيد التحرير.</summary>
+    private Border MakeTagChip(string name, string colorHex, bool active, bool toggle)
+    {
+        Color color;
+        try { color = (Color)ColorConverter.ConvertFromString(colorHex); } catch { color = Colors.Gray; }
+
+        var dot = new Border
+        {
+            Width = 9, Height = 9, CornerRadius = new CornerRadius(5),
+            Background = new SolidColorBrush(color), Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var text = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(dot);
+        content.Children.Add(text);
+
+        var chip = new Border
+        {
+            Child = content,
+            Padding = new Thickness(9, 4, 9, 4),
+            Margin = new Thickness(0, 0, 6, 6),
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Tag = name,
+        };
+        ApplyChipActiveLook(chip, active, color);
+
+        if (toggle)
+            chip.MouseLeftButtonUp += EditorTagChip_Click;
+        return chip;
+    }
+
+    /// <summary>يضبط مظهر الرقاقة حسب حالتها (نشطة = خلفيّة/إطار بلون المشروع، خاملة = سطح محايد).</summary>
+    private void ApplyChipActiveLook(Border chip, bool active, Color color)
+    {
+        if (active)
+        {
+            chip.Background = new SolidColorBrush(Color.FromArgb(0x33, color.R, color.G, color.B));
+            chip.BorderBrush = new SolidColorBrush(color);
+        }
+        else
+        {
+            chip.Background = (Brush)FindResource("Brush.Surface2");
+            chip.BorderBrush = (Brush)FindResource("Brush.Border");
+        }
+    }
+
+    private void EditorTagChip_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border { Tag: string name }) return;
+        int i = _editorTags.FindIndex(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) _editorTags.RemoveAt(i);
+        else _editorTags.Add(name);
+        BuildEditorTagChips();
+    }
+
+    private void EditorAddTag_Click(object sender, RoutedEventArgs e) => AddTagFromInput();
+
+    private void EditorNewTag_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { AddTagFromInput(); e.Handled = true; }
+    }
+
+    /// <summary>ينشئ مشروعاً جديداً من حقل الإدخال باللون المختار ويُسنِده للأمر قيد التحرير.</summary>
+    private void AddTagFromInput()
+    {
+        string name = EditorNewTag.Text.Trim();
+        if (name.Length == 0) return;
+        ProjectService.GetOrCreate(name, _newProjectColor);   // باللون المختار؛ يُطلِق OnProjectsChanged (يحفظ)
+        if (!_editorTags.Any(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase)))
+            _editorTags.Add(name);
+        EditorNewTag.Text = "";
+        _newProjectColor = ProjectService.NextAutoColor;   // اللون التالي للمشروع التالي
+        UpdateNewProjectColorDot();
+        BuildEditorTagChips();
     }
 
     private void CloseEditor_Click(object sender, RoutedEventArgs e) => EditorOverlay.Visibility = Visibility.Collapsed;
@@ -1021,7 +1172,7 @@ public partial class MainWindow : Window
         var name = EditorName.Text.Trim();
         if (name.Length == 0)
         {
-            MessageBox.Show("أدخل اسماً للأمر.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowAlert("تنبيه", "أدخل اسماً للأمر.");
             return;
         }
 
@@ -1036,11 +1187,307 @@ public partial class MainWindow : Window
         target.Path = EditorPath.Text.Trim();
         target.Command = EditorCommand.Text.Trim();
         target.Shell = shellKey;
+        target.Tags = new List<string>(_editorTags);
 
         _store.Save(_entries);
-        EntriesList.Items.Refresh();
+        BuildProjectFilterBar();       // قد تكون أُضيفت مشاريع جديدة
+        RefreshCommandVisuals();
         EntriesList.SelectedItem = target;
         EditorOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    // ===== فلترة المشاريع في لوحة الأوامر =====
+
+    /// <summary>يبني شريط فلترة المشاريع: «الكل» + رقاقة لكل مشروع. يُخفى الشريط إن لا مشاريع.</summary>
+    private void BuildProjectFilterBar()
+    {
+        ProjectFilterBar.Children.Clear();
+        var projects = ProjectService.All;
+        if (projects.Count == 0)
+        {
+            ProjectFilterScroll.Visibility = Visibility.Collapsed;
+            _projectFilter = null;
+            return;
+        }
+
+        // «الكل» — يلغي الفلتر.
+        ProjectFilterBar.Children.Add(MakeFilterChip(null, "الكل", null, _projectFilter is null));
+        foreach (var proj in projects)
+        {
+            Color color;
+            try { color = (Color)ColorConverter.ConvertFromString(proj.Color); } catch { color = Colors.Gray; }
+            bool active = string.Equals(_projectFilter, proj.Name, StringComparison.OrdinalIgnoreCase);
+            ProjectFilterBar.Children.Add(MakeFilterChip(proj.Name, proj.Name, color, active));
+        }
+        ProjectFilterScroll.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>رقاقة فلتر واحدة (اسم المشروع في Tag؛ null = «الكل»).</summary>
+    private Border MakeFilterChip(string? name, string label, Color? color, bool active)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        if (color is { } c)
+            content.Children.Add(new Border
+            {
+                Width = 8, Height = 8, CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(c), Margin = new Thickness(0, 0, 5, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontSize = 11.5 });
+
+        var chip = new Border
+        {
+            Child = content,
+            Padding = new Thickness(9, 3, 9, 3),
+            Margin = new Thickness(0, 0, 6, 0),
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Tag = name,
+        };
+        ApplyChipActiveLook(chip, active, color ?? ((SolidColorBrush)FindResource("Brush.Accent")).Color);
+        chip.MouseLeftButtonUp += ProjectFilterChip_Click;
+
+        // رقاقة مشروع فعليّ (لا «الكل») تحمل قائمة سياق (تغيير اللون + حذف).
+        if (name != null)
+        {
+            var menu = new ContextMenu();
+            var recolor = new MenuItem { Header = "🎨  تغيير اللون" };
+            recolor.Click += (_, _) => OpenColorPicker(name);
+            var del = new MenuItem { Header = $"🗑  حذف المشروع «{name}»" };
+            del.Click += (_, _) => DeleteProject(name);
+            menu.Items.Add(recolor);
+            menu.Items.Add(del);
+            // منع طيّ اللوحة أثناء ظهور المنيو فوقها (كقائمة الأوامر).
+            menu.Opened += EntriesContextMenu_Opened;
+            menu.Closed += EntriesContextMenu_Closed;
+            chip.ContextMenu = menu;
+        }
+        return chip;
+    }
+
+    /// <summary>
+    /// يحذف مشروعاً عبر حوار تأكيد مخصّص. إن كانت به أوامر مرتبطة يسأل: حذف الأوامر، فكّ الربط، أو إلغاء.
+    /// </summary>
+    private void DeleteProject(string name)
+    {
+        var linked = _entries.Where(c => c.HasTag(name)).ToList();
+
+        if (linked.Count == 0)
+        {
+            ShowConfirm("حذف مشروع", $"حذف المشروع «{name}»؟",
+                new (string, string, bool)[] { ("حذف", "unlink", true), ("إلغاء", "cancel", false) },
+                key => { if (key != "cancel") FinishDeleteProject(name, linked, deleteLinked: false); });
+            return;
+        }
+
+        ShowConfirm("حذف مشروع",
+            $"المشروع «{name}» مرتبط بـ {linked.Count} أمراً. ماذا تفعل بالأوامر المرتبطة؟",
+            new (string, string, bool)[]
+            {
+                ("حذف الأوامر", "delete", true),
+                ("فكّ الربط", "unlink", false),
+                ("إلغاء", "cancel", false),
+            },
+            key =>
+            {
+                if (key == "cancel") return;
+                FinishDeleteProject(name, linked, deleteLinked: key == "delete");
+            });
+    }
+
+    /// <summary>ينفّذ حذف المشروع بعد اختيار المستخدم: حذف الأوامر المرتبطة أو فكّ ربطها، ثمّ إزالة المشروع.</summary>
+    private void FinishDeleteProject(string name, List<CommandEntry> linked, bool deleteLinked)
+    {
+        if (linked.Count > 0)
+        {
+            if (deleteLinked)
+            {
+                foreach (var c in linked) _entries.Remove(c);
+            }
+            else
+            {
+                foreach (var c in linked)
+                {
+                    c.Tags.RemoveAll(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
+                    c.NotifyTagsChanged();
+                }
+            }
+            _store.Save(_entries);
+        }
+
+        if (string.Equals(_projectFilter, name, StringComparison.OrdinalIgnoreCase))
+            _projectFilter = null;
+
+        ProjectService.Remove(name);   // يُطلِق OnProjectsChanged (يحفظ المشاريع + يعيد الرسم)
+        BuildProjectFilterBar();
+        ApplyEntriesFilter();
+        RefreshCommandVisuals();
+    }
+
+    // ===== حوار تأكيد مخصّص (بديل MessageBox) =====
+
+    /// <summary>
+    /// يعرض حوار تأكيد مخصّصاً (<see cref="Views.AppDialog"/>) بأزرار ديناميكيّة، ويستدعي <paramref name="onResult"/>
+    /// بمفتاح الزرّ المختار. الإلغاء (Escape/زرّ إلغاء) لا يستدعي شيئاً — على المستدعي تضمين مفتاح «cancel».
+    /// </summary>
+    private void ShowConfirm(string title, string message,
+        (string Label, string Key, bool Accent)[] options, Action<string> onResult)
+    {
+        var key = Views.AppDialog.Confirm(this, title, message, options);
+        if (key != null) onResult(key);
+    }
+
+    /// <summary>تنبيه مخصّص بزرّ واحد (بديل MessageBox ذي OK) — يُستعمل عبر الأداة.</summary>
+    private void ShowAlert(string title, string message) => Views.AppDialog.Alert(this, title, message);
+
+    // ===== منتقي لون المشروع =====
+
+    /// <summary>يفتح منتقي اللون لمشروع: يبني رقاقات اللوحة، يملأ اللون الحاليّ، ويُبقي لوحة الأوامر مفتوحة.</summary>
+    private void OpenColorPicker(string name)
+    {
+        _colorPickerForNew = false;
+        _colorPickerTarget = name;
+        _colorPickerOpen = true;   // يمنع طيّ اللوحة أثناء ظهور المنتقي فوقها
+        if (!_sidebarPinned && SidebarFlyout.Visibility != Visibility.Visible) ShowSidebarFlyout(true);
+
+        ColorPickerTitle.Text = $"لون المشروع «{name}»";
+        ShowColorPicker(ProjectService.Find(name)?.Color ?? "");
+    }
+
+    /// <summary>يفتح المنتقي لاختيار لون مشروع جديد (وضع الإنشاء داخل نافذة التحرير).</summary>
+    private void OpenColorPickerForNew()
+    {
+        _colorPickerForNew = true;
+        _colorPickerTarget = null;
+        _colorPickerOpen = true;
+        ColorPickerTitle.Text = "لون المشروع الجديد";
+        ShowColorPicker(_newProjectColor);
+    }
+
+    /// <summary>يملأ رقاقات اللوحة (مع إبراز اللون الحاليّ) ويفتح المنبثقة.</summary>
+    private void ShowColorPicker(string current)
+    {
+        ColorHexInput.Text = current;
+        ColorSwatchPanel.Children.Clear();
+        foreach (var hex in ProjectService.Palette)
+            ColorSwatchPanel.Children.Add(MakeColorSwatch(hex, string.Equals(hex, current, StringComparison.OrdinalIgnoreCase)));
+        ColorPickerPopup.IsOpen = true;
+    }
+
+    /// <summary>مربّع لون في المنتقي — نقره يُطبّق اللون على المشروع الهدف.</summary>
+    private Border MakeColorSwatch(string hex, bool selected)
+    {
+        Color color;
+        try { color = (Color)ColorConverter.ConvertFromString(hex); } catch { color = Colors.Gray; }
+        var swatch = new Border
+        {
+            Width = 26, Height = 26, CornerRadius = new CornerRadius(7),
+            Margin = new Thickness(0, 0, 6, 6),
+            Background = new SolidColorBrush(color),
+            BorderThickness = new Thickness(selected ? 3 : 1),
+            BorderBrush = selected ? (Brush)FindResource("Brush.Text") : (Brush)FindResource("Brush.Border"),
+            Cursor = Cursors.Hand,
+            Tag = hex,
+            ToolTip = hex,
+        };
+        swatch.MouseLeftButtonUp += (s, _) =>
+        {
+            if ((s as Border)?.Tag is string h) ApplyProjectColor(h);
+        };
+        return swatch;
+    }
+
+    private void ColorHexApply_Click(object sender, RoutedEventArgs e) => ApplyHexFromInput();
+
+    private void ColorHexInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { ApplyHexFromInput(); e.Handled = true; }
+    }
+
+    /// <summary>يطبّق لوناً مخصّصاً من حقل الإدخال (يتحقّق من صلاحيّته أوّلاً).</summary>
+    private void ApplyHexFromInput()
+    {
+        string hex = ColorHexInput.Text.Trim();
+        if (hex.Length == 0) return;
+        if (hex[0] != '#') hex = "#" + hex;
+        try { _ = (Color)ColorConverter.ConvertFromString(hex); }
+        catch
+        {
+            ShowAlert("تنبيه", "لون غير صالح. استعمل الصيغة #RRGGBB.");
+            return;
+        }
+        ApplyProjectColor(hex);
+    }
+
+    /// <summary>يطبّق اللون المختار: لمشروع جديد (يحدّث المعاينة) أو لمشروع قائم (يحفظ ويعيد الرسم).</summary>
+    private void ApplyProjectColor(string hex)
+    {
+        if (_colorPickerForNew)
+        {
+            _newProjectColor = hex;
+            UpdateNewProjectColorDot();
+            ColorPickerPopup.IsOpen = false;
+            return;
+        }
+        if (_colorPickerTarget is not { } name) return;
+        ProjectService.SetColor(name, hex);   // يُطلِق OnProjectsChanged (حفظ + إعادة رسم الشارات)
+        BuildProjectFilterBar();
+        ColorPickerPopup.IsOpen = false;
+    }
+
+    private void ColorPicker_Closed(object sender, EventArgs e)
+    {
+        _colorPickerOpen = false;
+        _colorPickerTarget = null;
+        _colorPickerForNew = false;
+        if (!KeepFlyoutOpen() && !SidebarFlyout.IsMouseOver) ShowSidebarFlyout(false);
+    }
+
+    private void ProjectFilterChip_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border chip) return;
+        string? name = chip.Tag as string;
+        // نفس الرقاقة النشطة تُلغي الفلتر (تبديل).
+        _projectFilter = string.Equals(_projectFilter, name, StringComparison.OrdinalIgnoreCase) ? null : name;
+        BuildProjectFilterBar();
+        ApplyEntriesFilter();
+    }
+
+    /// <summary>يطبّق فلتر البحث والمشروع معاً على قائمة الأوامر.</summary>
+    private void ApplyEntriesFilter()
+    {
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(EntriesList.ItemsSource);
+        if (view is null) return;
+        string q = SidebarSearch.Text?.Trim() ?? "";
+        string? proj = _projectFilter;
+
+        if (q.Length == 0 && proj is null) { view.Filter = null; return; }
+
+        view.Filter = o =>
+        {
+            if (o is not CommandEntry c) return false;
+            if (proj != null && !c.HasTag(proj)) return false;
+            if (q.Length == 0) return true;
+            return (c.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (c.Path?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (c.Command?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || c.Tags.Any(t => t.Contains(q, StringComparison.OrdinalIgnoreCase));
+        };
+    }
+
+    /// <summary>يُحدَّث عند تغيّر المشاريع (إضافة/تلوين): يحفظ ويعيد رسم الشارات والقوائم.</summary>
+    private void OnProjectsChanged()
+    {
+        _projectStore.Save(ProjectService.All);
+        RefreshCommandVisuals();
+    }
+
+    /// <summary>يعيد رسم شارات الشريط الجانبيّ وقائمة الأوامر (لالتقاط ألوان/وسوم محدَّثة).</summary>
+    private void RefreshCommandVisuals()
+    {
+        SidebarDots.Items.Refresh();
+        EntriesList.Items.Refresh();
     }
 
     // ===== التيرمنالات =====
@@ -1130,23 +1577,28 @@ public partial class MainWindow : Window
     private void ProfileEdit_Click(object sender, RoutedEventArgs e)
     {
         if (ProfileList.SelectedItem is ShellProfile { IsBuiltIn: false } p) OpenProfileEditor(p);
-        else MessageBox.Show("اختر بروفايلاً مخصّصاً لتعديله (الصدفات المكتشَفة غير قابلة للتعديل).",
-            "بروفايلات الصدفات", MessageBoxButton.OK, MessageBoxImage.Information);
+        else ShowAlert("بروفايلات الصدفات", "اختر بروفايلاً مخصّصاً لتعديله (الصدفات المكتشَفة غير قابلة للتعديل).");
     }
 
     private void ProfileDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (ProfileList.SelectedItem is ShellProfile { IsBuiltIn: false } p)
+        if (ProfileList.SelectedItem is not ShellProfile { IsBuiltIn: false } p)
         {
-            _profiles.CustomProfiles.RemoveAll(x => x.Id == p.Id);
-            if (_profiles.DefaultProfileId == p.Id) _profiles.DefaultProfileId = null;
-            _profileStore.Save(_profiles);
-            ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
-            EditorShell.ItemsSource = ShellCatalog.All;
-            RefreshProfileManager();
+            ShowAlert("بروفايلات الصدفات", "اختر بروفايلاً مخصّصاً لحذفه.");
+            return;
         }
-        else MessageBox.Show("اختر بروفايلاً مخصّصاً لحذفه.", "بروفايلات الصدفات",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        ShowConfirm("حذف بروفايل", $"حذف البروفايل «{p.Name}»؟",
+            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
+            key =>
+            {
+                if (key != "delete") return;
+                _profiles.CustomProfiles.RemoveAll(x => x.Id == p.Id);
+                if (_profiles.DefaultProfileId == p.Id) _profiles.DefaultProfileId = null;
+                _profileStore.Save(_profiles);
+                ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
+                EditorShell.ItemsSource = ShellCatalog.All;
+                RefreshProfileManager();
+            });
     }
 
     /// <summary>يفتح محرّر البروفايل المخصّص (إضافة إن كان null، أو تعديل نسخة).</summary>
@@ -1174,15 +1626,14 @@ public partial class MainWindow : Window
         string name = ProfileEditorName.Text.Trim();
         if (name.Length == 0)
         {
-            MessageBox.Show("أدخل اسماً للبروفايل.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowAlert("تنبيه", "أدخل اسماً للبروفايل.");
             return;
         }
         string exe = ProfileEditorExe.Text.Trim();
         string args = ProfileEditorArgs.Text.Trim();
         if (exe.Length == 0 && args.Length == 0)
         {
-            MessageBox.Show("أدخل ملفّاً تنفيذيّاً أو سطر أمر (وسائط).", "تنبيه",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowAlert("تنبيه", "أدخل ملفّاً تنفيذيّاً أو سطر أمر (وسائط).");
             return;
         }
 
@@ -1360,7 +1811,24 @@ public partial class MainWindow : Window
     private void SidebarMenu_Click(object sender, RoutedEventArgs e) => ToggleSidebarExpanded();
     private void SidebarFlyout_MouseLeave(object sender, MouseEventArgs e)
     {
-        if (!_sidebarPinned) ShowSidebarFlyout(false);
+        // لا نطوي اللوحة وفوقها قائمة سياق أو منتقي لون مفتوح — وإلّا «تصغر» تحتها.
+        if (!KeepFlyoutOpen()) ShowSidebarFlyout(false);
+    }
+
+    // قائمة سياق الأوامر / منتقي اللون مفتوح؟ (يمنع طيّ اللوحة أثناء ظهور أيّهما فوقها).
+    private bool _entriesContextMenuOpen;
+    private bool _colorPickerOpen;
+
+    /// <summary>هل يجب إبقاء لوحة الأوامر مفتوحة (مثبَّتة أو فوقها منيو/منتقي)؟</summary>
+    private bool KeepFlyoutOpen() => _sidebarPinned || _entriesContextMenuOpen || _colorPickerOpen;
+
+    private void EntriesContextMenu_Opened(object sender, RoutedEventArgs e) => _entriesContextMenuOpen = true;
+
+    private void EntriesContextMenu_Closed(object sender, RoutedEventArgs e)
+    {
+        _entriesContextMenuOpen = false;
+        // بعد إغلاق المنيو: إن غادر الماوس اللوحة (ولا سبب آخر لإبقائها) نطويها كالمعتاد.
+        if (!KeepFlyoutOpen() && !SidebarFlyout.IsMouseOver) ShowSidebarFlyout(false);
     }
 
     /// <summary>يفتح/يغلق لوحة الأوامر بانزلاق + تلاشٍ خفيف (≈150مي).</summary>
@@ -1399,17 +1867,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>يصفّي قائمة الأوامر المحفوظة حسب نصّ البحث (الاسم/الباث/الأمر).</summary>
-    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(EntriesList.ItemsSource);
-        if (view is null) return;
-        string q = SidebarSearch.Text?.Trim() ?? "";
-        view.Filter = q.Length == 0 ? null : o =>
-            o is CommandEntry c &&
-            ((c.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-             || (c.Path?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-             || (c.Command?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
-    }
+    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyEntriesFilter();
 
     // ===== لوحة الأوامر (Ctrl+Shift+P) =====
 

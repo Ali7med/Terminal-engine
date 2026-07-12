@@ -138,7 +138,7 @@ public partial class TerminalTabView : UserControl
         _blinkTimer.Tick += (_, _) => Renderer.CursorBlinkOn = !Renderer.CursorBlinkOn;
 
         Loaded += OnLoaded;
-        SizeChanged += (_, _) => ResizeSession();
+        SizeChanged += (_, _) => OnViewSizeChanged();
 
         // لوحة تحرير الملفّ (T-7): عند طلبها الإغلاق نطوي عمود المحرّر ونعيد التيرمنال لكامل العرض.
         EditorPanel.CloseRequested += CollapseEditor;
@@ -164,14 +164,36 @@ public partial class TerminalTabView : UserControl
         };
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e) => TryStartSession();
+
+    /// <summary>يبدأ الجلسة أو يعيد قياسها عند تغيّر حجم العرض (يبدؤها متأخّراً إن لم يكن الحجم جاهزاً بعد).</summary>
+    private void OnViewSizeChanged()
     {
-        if (_started) return;
+        if (!_started) TryStartSession();
+        else ResizeSession();
+    }
+
+    /// <summary>
+    /// يبدأ الجلسة مرّة واحدة، لكن فقط بعد أن يكتمل تخطيط العرض بحجم صالح. البدء قبل التخطيط (تبويب مخفيّ
+    /// أو تخطيط مؤجَّل) يقيس أعمدة/أسطر مصغّرة (حدّ أدنى 20×5) فتُطلَق الصدفة بعرض ضيّق ويبقى بانرها/مخرجها
+    /// الأوّل ملفوفاً حتى لو أُعيد القياس لاحقاً. لذا ننتظر أوّل حجم صالح (يصله حدث <c>SizeChanged</c>).
+    /// </summary>
+    private void TryStartSession()
+    {
+        if (_started || !HasRenderableSize()) return;
         _started = true;
         StartSession();
         _refresh.Start();
         _blinkTimer.Start();
         Renderer.Focus();
+    }
+
+    /// <summary>هل اكتمل تخطيط العرض بحجم صالح (لا صفر) يسمح بقياس أعمدة/أسطر حقيقيّة؟</summary>
+    private bool HasRenderableSize()
+    {
+        double w = Renderer.ActualWidth > 0 ? Renderer.ActualWidth : ActualWidth;
+        double h = Renderer.ActualHeight > 0 ? Renderer.ActualHeight : ActualHeight;
+        return w >= 40 && h >= 24;
     }
 
     // ===== الجلسة =====
@@ -468,8 +490,7 @@ public partial class TerminalTabView : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"تعذّر فتح تيرمنال خارجيّ: {ex.Message}", "تنبيه",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            TerminalLauncher.Views.AppDialog.Alert(Window.GetWindow(this), "تنبيه", $"تعذّر فتح تيرمنال خارجيّ: {ex.Message}");
         }
     }
 
@@ -1355,8 +1376,8 @@ public partial class TerminalTabView : UserControl
         string result;
         try { result = await _ai.SuggestAsync(ctx); }
         catch (Exception ex) { result = "تعذّر تشغيل مساعد الـ AI: " + ex.Message; }
-        MessageBox.Show(result, _ai.IsEnabled ? "شرح الكتلة" : "مساعد الـ AI (اختياريّ)",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        TerminalLauncher.Views.AppDialog.Alert(Window.GetWindow(this),
+            _ai.IsEnabled ? "شرح الكتلة" : "مساعد الـ AI (اختياريّ)", result);
     }
 
     /// <summary>يفتح قائمة سياق الكتلة (Shift+زر أيمن) بأفعال النسخ والشرح للكتلة عند السطر المطلق المعطى.</summary>
@@ -1364,7 +1385,7 @@ public partial class TerminalTabView : UserControl
     {
         if (BlockAtAbsLine(abs) is not { } b)
         {
-            MessageBox.Show("لا توجد كتلة عند هذا الموضع.", "الكتل", MessageBoxButton.OK, MessageBoxImage.Information);
+            TerminalLauncher.Views.AppDialog.Alert(Window.GetWindow(this), "الكتل", "لا توجد كتلة عند هذا الموضع.");
             return;
         }
         var menu = new ContextMenu { FlowDirection = FlowDirection.RightToLeft };
