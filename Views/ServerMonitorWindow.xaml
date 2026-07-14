@@ -6,7 +6,7 @@
         Title="مراقب الخوادم" Height="680" Width="1080"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="480" MinWidth="820"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="CenterScreen"
         WindowStyle="None" Background="{DynamicResource Brush.Bg}"
         TextOptions.TextFormattingMode="Ideal"
         FontFamily="{DynamicResource Font.Ui}" FontSize="13"
@@ -269,6 +269,8 @@
                                                  Style="{StaticResource ServerModeTab}" Content="الملفّات" Checked="Mode_Checked"/>
                                     <RadioButton x:Name="ModeMgmt" GroupName="SrvMode"
                                                  Style="{StaticResource ServerModeTab}" Content="الإدارة" Checked="Mode_Checked"/>
+                                    <RadioButton x:Name="ModeContainers" GroupName="SrvMode"
+                                                 Style="{StaticResource ServerModeTab}" Content="الحاويات" Checked="Mode_Checked"/>
                                 </StackPanel>
 
                                 <!-- حجم خطّ التفاصيل (موحّد للشجرة والتفاصيل والجدول) -->
@@ -1061,6 +1063,114 @@
                                     </Border>
                                 </StackPanel>
                             </ScrollViewer>
+
+                            <!-- ===== الحاويات (كلّ حاويات Docker على الخادم) ===== -->
+                            <DockPanel x:Name="ContainersPanel" Visibility="Collapsed" Margin="16">
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="ContainersLabel" Text="الحاويات" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ContainersCount" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                               FontSize="12" FlowDirection="LeftToRight"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBox x:Name="ContainersSearch" Grid.Column="2" Margin="12,0" MaxWidth="280"
+                                             HorizontalAlignment="Right" VerticalContentAlignment="Center" Padding="8,4"
+                                             Tag="بحث في الحاويات…" TextChanged="ContainersSearch_TextChanged"/>
+                                    <Button x:Name="ContainersRefresh" Grid.Column="3" Content="&#xE72C;"
+                                            FontFamily="Segoe MDL2 Assets" Padding="8,5"
+                                            Click="ContainersRefresh_Click" ToolTip="تحديث"/>
+                                </Grid>
+                                <ProgressBar x:Name="ContainersLoading" DockPanel.Dock="Top" Height="4" Margin="0,0,0,6"
+                                             IsIndeterminate="True" Visibility="Collapsed"
+                                             Foreground="{DynamicResource Brush.Accent}"
+                                             Background="{DynamicResource Brush.Surface2}" BorderThickness="0"/>
+
+                                <Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ScrollViewer.Resources>
+                                            <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                        </ScrollViewer.Resources>
+                                        <ItemsControl x:Name="ContainersList">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8" Padding="14,12" CornerRadius="10"
+                                                            Background="{DynamicResource Brush.Surface}"
+                                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu>
+                                                                <MenuItem Header="تسمية…" Click="ContainerRename_Click"/>
+                                                                <MenuItem Header="إزالة الاسم" Click="ContainerClearName_Click"
+                                                                          Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}"/>
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- مؤشّر الحالة -->
+                                                            <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Running}" Value="True">
+                                                                                <Setter Property="Fill" Value="#3FB950"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+
+                                                            <!-- الاسم المعروض (مخصّص أو حقيقيّ) + الاسم الحقيقيّ عند التخصيص + الصورة + الحالة -->
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock Text="{Binding DisplayName}" FlowDirection="LeftToRight"
+                                                                           FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding Name}" FlowDirection="LeftToRight" Margin="0,2,0,0"
+                                                                           FontSize="11" FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource Brush.Accent}"
+                                                                           Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}"/>
+                                                                <TextBlock FlowDirection="LeftToRight" Margin="0,3,0,0" FontSize="11.5"
+                                                                           FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}">
+                                                                    <Run Text="{Binding ShortId, Mode=OneWay}"/>
+                                                                    <Run Text="  ·  "/>
+                                                                    <Run Text="{Binding Image, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Status}" FlowDirection="LeftToRight"
+                                                                           Margin="0,3,0,0" FontSize="11.5"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                            </StackPanel>
+
+                                                            <!-- دخول -->
+                                                            <Button Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                                    Style="{StaticResource AccentButton}" Content="دخول"
+                                                                    Tag="{Binding}" IsEnabled="{Binding Running}"
+                                                                    Click="ContainerRowEnter_Click"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+
+                                    <StackPanel x:Name="ContainersEmpty" Visibility="Collapsed"
+                                                VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                        <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="30"
+                                                   HorizontalAlignment="Center" Opacity="0.65"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        <TextBlock x:Name="ContainersEmptyText" Text="لا حاويات" TextAlignment="Center"
+                                                   TextWrapping="Wrap" Margin="0,10,0,0" MaxWidth="420"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DockPanel>
                         </Grid>
                     </DockPanel>
                 </Border>
@@ -1127,6 +1237,10 @@
 
                                     <TextBlock x:Name="LblColor" Text="لون مميّز" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                                     <WrapPanel x:Name="ColorPanel"/>
+
+                                    <CheckBox x:Name="EdUseSudo" Margin="2,14,2,0" Content="استخدم sudo لأوامر Docker"/>
+                                    <TextBlock x:Name="SudoHint" FontSize="10.5" Margin="2,4,2,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                     <TextBlock x:Name="LblNotes" Text="ملاحظات" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                                     <TextBox x:Name="EdNotes" MinHeight="48" AcceptsReturn="True" TextWrapping="Wrap"
@@ -1236,8 +1350,13 @@
                             <Grid DockPanel.Dock="Bottom" Margin="20,12,20,16">
                                 <Button x:Name="ContainerCopyId" HorizontalAlignment="Left" Content="نسخ المعرّف"
                                         Padding="14,8" Click="ContainerCopyId_Click"/>
-                                <Button x:Name="ContainerCopyName" HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
-                                        Content="نسخ الاسم" Click="ContainerCopyName_Click"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="ContainerCopyName" Content="نسخ الاسم" Padding="14,8"
+                                            Click="ContainerCopyName_Click"/>
+                                    <Button x:Name="ContainerEnter" Margin="8,0,0,0" IsEnabled="False"
+                                            Style="{StaticResource AccentButton}" Content="دخول الحاوية"
+                                            Click="ContainerEnter_Click"/>
+                                </StackPanel>
                             </Grid>
 
                             <!-- الجسم: قائمة الحاويات / فراغ / تحميل -->
@@ -1353,6 +1472,26 @@
                                 </StackPanel>
                             </Grid>
                         </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== تسمية الحاوية باسم مخصّص ===== -->
+                <Border x:Name="NameOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="NameOverlay_MouseDown">
+                    <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="22" MouseLeftButtonDown="EditorCard_MouseDown">
+                        <StackPanel>
+                            <TextBlock x:Name="NameTitle" Text="تسمية الحاوية" FontSize="15" FontWeight="SemiBold"
+                                       Margin="0,0,0,12"/>
+                            <TextBox x:Name="NameInput" VerticalContentAlignment="Center" Padding="8,6"
+                                     KeyDown="NameInput_KeyDown"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">
+                                <Button x:Name="NameSave" Content="حفظ" Style="{StaticResource AccentButton}"
+                                        Padding="20,8" Click="NameSave_Click"/>
+                                <Button x:Name="NameCancel" Content="إلغاء" Margin="8,0,0,0" Padding="18,8"
+                                        Click="NameCancel_Click"/>
+                            </StackPanel>
+                        </StackPanel>
                     </Border>
                 </Border>
 

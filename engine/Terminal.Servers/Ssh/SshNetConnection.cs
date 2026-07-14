@@ -56,6 +56,23 @@ public sealed class SshNetConnection : ISshConnection
         }
     }, ct);
 
+    /// <summary>
+    /// ينفّذ أمراً ويبثّ مخرجاته الخام (stdout) إلى <paramref name="dest"/> — آمن للبيانات الثنائيّة
+    /// (تنزيل ملفّات). يعيد رمز الخروج. لا يعيد المحاولة عند السقوط (تنزيل لمرّة واحدة).
+    /// </summary>
+    public Task<int> DownloadToStreamAsync(string command, System.IO.Stream dest, CancellationToken ct = default)
+        => Task.Run(() =>
+        {
+            EnsureConnected(ct);
+            var client = _client ?? throw new InvalidOperationException("SSH غير متّصل.");
+            using var cmd = client.CreateCommand(command);
+            var async = cmd.BeginExecute();
+            using (var os = cmd.OutputStream)
+                os.CopyTo(dest);
+            cmd.EndExecute(async);
+            return cmd.ExitStatus ?? -1;
+        }, ct);
+
     /// <summary>يضمن جلسة مفتوحة قبل التنفيذ (يعيد الفتح إن سقطت). آمن للاستدعاء المتزامن.</summary>
     private void EnsureConnected(CancellationToken ct, bool forceReopen = false)
     {

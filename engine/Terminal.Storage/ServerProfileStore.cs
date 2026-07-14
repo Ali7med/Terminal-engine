@@ -20,7 +20,8 @@ public sealed record ServerProfileRow(
     string? Color,
     string? Notes,
     long? LastConnectedUnixMs,
-    int SortOrder);
+    int SortOrder,
+    bool UseSudo = false);
 
 /// <summary>
 /// يخزّن بروفايلات الخوادم (اتّصالات SSH) في جدول <c>server_profiles</c> بـ SQLite. يملك جدوله
@@ -47,6 +48,10 @@ public sealed class ServerProfileStore
             "notes TEXT, " +
             "last_connected INTEGER, " +
             "sort_order INTEGER NOT NULL DEFAULT 0)");
+
+        // هجرة تدريجيّة: عمود use_sudo أُضيف لاحقاً (قواعد قديمة بلا العمود). ALTER يرمي إن وُجد العمود.
+        try { _db.Execute("ALTER TABLE server_profiles ADD COLUMN use_sudo INTEGER NOT NULL DEFAULT 0"); }
+        catch { /* العمود موجود بالفعل — لا شيء. */ }
     }
 
     /// <summary>يُدرج أو يحدّث بروفايلاً حسب <c>id</c> (upsert).</summary>
@@ -57,12 +62,12 @@ public sealed class ServerProfileStore
         using var command = connection.CreateCommand();
         command.CommandText =
             "INSERT INTO server_profiles " +
-            "(id, name, host, port, username, auth_kind, secret_cipher, key_passphrase_cipher, color, notes, last_connected, sort_order) " +
-            "VALUES ($id, $name, $host, $port, $username, $auth, $secret, $keypass, $color, $notes, $last, $sort) " +
+            "(id, name, host, port, username, auth_kind, secret_cipher, key_passphrase_cipher, color, notes, last_connected, sort_order, use_sudo) " +
+            "VALUES ($id, $name, $host, $port, $username, $auth, $secret, $keypass, $color, $notes, $last, $sort, $sudo) " +
             "ON CONFLICT(id) DO UPDATE SET " +
             "name=$name, host=$host, port=$port, username=$username, auth_kind=$auth, " +
             "secret_cipher=$secret, key_passphrase_cipher=$keypass, color=$color, notes=$notes, " +
-            "last_connected=$last, sort_order=$sort;";
+            "last_connected=$last, sort_order=$sort, use_sudo=$sudo;";
         Bind(command, row);
         command.ExecuteNonQuery();
     }
@@ -75,7 +80,7 @@ public sealed class ServerProfileStore
         using var command = connection.CreateCommand();
         command.CommandText =
             "SELECT id, name, host, port, username, auth_kind, secret_cipher, key_passphrase_cipher, " +
-            "color, notes, last_connected, sort_order FROM server_profiles " +
+            "color, notes, last_connected, sort_order, use_sudo FROM server_profiles " +
             "ORDER BY sort_order, name COLLATE NOCASE;";
         using var reader = command.ExecuteReader();
         while (reader.Read())
@@ -90,7 +95,7 @@ public sealed class ServerProfileStore
         using var command = connection.CreateCommand();
         command.CommandText =
             "SELECT id, name, host, port, username, auth_kind, secret_cipher, key_passphrase_cipher, " +
-            "color, notes, last_connected, sort_order FROM server_profiles WHERE id = $id;";
+            "color, notes, last_connected, sort_order, use_sudo FROM server_profiles WHERE id = $id;";
         command.Parameters.AddWithValue("$id", id);
         using var reader = command.ExecuteReader();
         return reader.Read() ? Read(reader) : null;
@@ -131,6 +136,7 @@ public sealed class ServerProfileStore
         command.Parameters.AddWithValue("$notes", (object?)r.Notes ?? DBNull.Value);
         command.Parameters.AddWithValue("$last", (object?)r.LastConnectedUnixMs ?? DBNull.Value);
         command.Parameters.AddWithValue("$sort", r.SortOrder);
+        command.Parameters.AddWithValue("$sudo", r.UseSudo ? 1 : 0);
     }
 
     private static ServerProfileRow Read(SqliteDataReader reader) => new(
@@ -145,5 +151,6 @@ public sealed class ServerProfileStore
         reader.IsDBNull(8) ? null : reader.GetString(8),
         reader.IsDBNull(9) ? null : reader.GetString(9),
         reader.IsDBNull(10) ? null : reader.GetInt64(10),
-        reader.GetInt32(11));
+        reader.GetInt32(11),
+        reader.GetInt32(12) != 0);
 }

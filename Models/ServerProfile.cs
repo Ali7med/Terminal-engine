@@ -30,6 +30,9 @@ public sealed class ServerProfile
     /// <summary>عبارة مرور المفتاح المُعمّاة المخزَّنة.</summary>
     public string? KeyPassphraseCipher { get; set; }
 
+    /// <summary>هل تُسبَق أوامر Docker بـ <c>sudo</c> على هذا الخادم (مستخدم بلا صلاحيّة docker مباشرة)؟</summary>
+    public bool UseSudo { get; set; }
+
     public string? Color { get; set; }
     public string? Notes { get; set; }
     public DateTimeOffset? LastConnected { get; set; }

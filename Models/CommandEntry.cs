@@ -19,6 +19,12 @@ public sealed class CommandEntry : INotifyPropertyChanged
 
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
+    /// <summary>
+    /// تبويب لحظيّ لا يُحفَظ في لقطة الجلسة ولا يُسترجَع (مثل شِل حاوية Docker عبر ssh — سطر أمره يحمل
+    /// موارد مؤقّتة زائلة). في الذاكرة فقط؛ غير مُسلسَل.
+    /// </summary>
+    public bool IsTransient { get; set; }
+
     /// <summary>مفتاح الصدفة الافتراضية لهذا الأمر: cmd | powershell | bash.</summary>
     public string Shell
     {

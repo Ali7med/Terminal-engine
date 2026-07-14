@@ -41,6 +41,8 @@ public partial class ServerMonitorWindow : Window
     private CancellationTokenSource? _cts;
     private ServerProfile? _connectedProfile;   // بروفايل الجلسة الحيّة (لبناء SFTP)
 
+    private string _containerEnterName = "";   // اسم الحاوية المالكة (لزرّ «دخول الحاوية»)
+
     private List<FileRowVm> _files = new();      // نتيجة «أكبر الملفّات» كاملةً (قبل تصفية البحث)
     private FileRowVm? _renameTarget;
     private Func<string, string, Task>? _renameRefresh;   // (newPath, newName) → تحديث المصدر بعد النجاح
@@ -52,6 +54,12 @@ public partial class ServerMonitorWindow : Window
     private const double MinDetailFont = 11, MaxDetailFont = 24;
     private readonly SettingsStore _settings = new();
     private double _detailFont = 14;
+
+    // أسماء الحاويات المخصّصة (مخزّنة لكلّ خادم) + نسخة مُخبّأة لبحث الخوادم بلا اتّصال.
+    private readonly global::Terminal.Storage.ContainerNameStore _containerNames =
+        new(new global::Terminal.Storage.AppDatabase());
+    private IReadOnlyList<(string ProfileId, string ContainerKey, string CustomName)> _nameCache =
+        System.Array.Empty<(string, string, string)>();
 
     public ServerMonitorWindow(ServerProfileService service)
     {
@@ -70,7 +78,15 @@ public partial class ServerMonitorWindow : Window
         ApplyDetailFont();
         ApplyTexts();
         _all = _service.LoadAll();
+        ReloadNameCache();
         RefreshList();
+    }
+
+    /// <summary>يعيد تحميل نسخة أسماء الحاويات المخصّصة المُخبّأة (تُستعمل في بحث الخوادم).</summary>
+    private void ReloadNameCache()
+    {
+        try { _nameCache = _containerNames.GetAll(); }
+        catch { _nameCache = System.Array.Empty<(string, string, string)>(); }
     }
 
     // ===== حجم خطّ التفاصيل الموحّد =====
@@ -147,6 +163,9 @@ public partial class ServerMonitorWindow : Window
         MgmtProcMenu.FlowDirection = Loc.Flow;
         MgmtSvcMenu.FlowDirection = Loc.Flow;
         ModeDashboard.Content = Loc.T("srv.tab.dashboard");
+        ModeContainers.Content = Loc.T("srv.tab.containers");
+        ContainersLabel.Text = Loc.T("srv.containers.title");
+        ContainersSearch.Tag = Loc.T("srv.containers.search");
         DashOverviewLabel.Text = Loc.T("srv.dash.overview");
         DashProcLabel.Text = Loc.T("srv.dash.topProc");
         DashTreemapLabel.Text = Loc.T("srv.dash.treemap");
@@ -184,6 +203,7 @@ public partial class ServerMonitorWindow : Window
         ContainerLoadingText.Text = Loc.T("srv.docker.resolving");
         ContainerCopyName.Content = Loc.T("srv.docker.copyName");
         ContainerCopyId.Content = Loc.T("srv.docker.copyId");
+        ContainerEnter.Content = Loc.T("srv.docker.enter");
         RenameTitle.Text = Loc.T("srv.file.rename");
         RenameCancel.Content = Loc.T("srv.ed.cancel");
         RenameSave.Content = Loc.T("srv.ed.save");
@@ -216,6 +236,8 @@ public partial class ServerMonitorWindow : Window
         LblAuth.Text = Loc.T("srv.ed.auth");
         LblColor.Text = Loc.T("srv.ed.color");
         LblNotes.Text = Loc.T("srv.ed.notes");
+        EdUseSudo.Content = Loc.T("srv.ed.sudo");
+        SudoHint.Text = Loc.T("srv.ed.sudoHint");
         LblKeyPass.Text = Loc.T("srv.ed.keyPass");
         EditorCancel.Content = Loc.T("srv.ed.cancel");
         EditorSave.Content = Loc.T("srv.ed.save");
@@ -232,7 +254,11 @@ public partial class ServerMonitorWindow : Window
             view = _all.Where(p =>
                 p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 p.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                p.Username.Contains(q, StringComparison.OrdinalIgnoreCase));
+                p.Username.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                // مطابقة اسم حاوية مخصّص أو اسمها الحقيقيّ (المفتاح) المخزَّن لهذا الخادم
+                _nameCache.Any(cn => cn.ProfileId == p.Id &&
+                    (cn.CustomName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                     cn.ContainerKey.Contains(q, StringComparison.OrdinalIgnoreCase))));
 
         var selected = ServerList.SelectedItem as ServerProfile;
         ServerList.ItemsSource = view.ToList();
@@ -351,6 +377,7 @@ public partial class ServerMonitorWindow : Window
         EdKey.Text = "";
         EdKeyPass.Password = "";
         EdNotes.Text = profile?.Notes ?? "";
+        EdUseSudo.IsChecked = profile?.UseSudo ?? false;
         _editColor = profile?.EffectiveColor ?? PresetColors[0];
 
         SecretHint.Text = profile?.HasStoredSecret == true ? Loc.T("srv.ed.secretKept") : "";
@@ -421,6 +448,7 @@ public partial class ServerMonitorWindow : Window
         p.AuthKind = EdAuth.SelectedIndex == 1 ? SshAuthKind.PrivateKey : SshAuthKind.Password;
         p.Color = _editColor;
         p.Notes = string.IsNullOrWhiteSpace(EdNotes.Text) ? null : EdNotes.Text.Trim();
+        p.UseSudo = EdUseSudo.IsChecked == true;
 
         // السرّ الخام: يُضبَط فقط إن أُدخل (وإلّا يُبقى المخزَّن)
         string rawSecret = p.AuthKind == SshAuthKind.PrivateKey ? EdKey.Text : EdPassword.Password;
@@ -481,6 +509,7 @@ public partial class ServerMonitorWindow : Window
             ResetFolders();
             ResetFiles();
             ResetDashboard();
+            ResetContainers();
             ModeDashboard.IsChecked = true;   // لوحة القيادة هي الافتراضيّة عند الاتّصال
             SetConnectedUi(true);              // → ApplyMode → LoadDashboardAsync
             ShowFlyout(false);
@@ -1015,12 +1044,14 @@ public partial class ServerMonitorWindow : Window
         bool folders = ModeFolders.IsChecked == true;
         bool files = ModeFiles.IsChecked == true;
         bool mgmt = ModeMgmt.IsChecked == true;
+        bool containers = ModeContainers.IsChecked == true;
 
         DashboardScroller.Visibility = dash ? Visibility.Visible : Visibility.Collapsed;
         ResultScroller.Visibility = disks ? Visibility.Visible : Visibility.Collapsed;
         FoldersPanel.Visibility = folders ? Visibility.Visible : Visibility.Collapsed;
         FilesPanel.Visibility = files ? Visibility.Visible : Visibility.Collapsed;
         MgmtScroller.Visibility = mgmt ? Visibility.Visible : Visibility.Collapsed;
+        ContainersPanel.Visibility = containers ? Visibility.Visible : Visibility.Collapsed;
 
         if (!dash) StopLive();   // المراقبة الحيّة تعمل فقط أثناء عرض لوحة القيادة
 
@@ -1029,6 +1060,7 @@ public partial class ServerMonitorWindow : Window
             _ = LoadDashboardAsync();
             if (LiveToggle.IsChecked == true) StartLive();
         }
+        else if (containers && ContainersList.ItemsSource == null) _ = LoadContainersAsync();
         else if (mgmt && MgmtProcesses.ItemsSource == null) _ = LoadMgmtAsync();
         else if (disks && DisksList.ItemsSource == null) _ = ScanDisksAsync();
         else if (folders && FolderTree.Items.Count == 0 && !_suppressAutoScan)
@@ -1829,10 +1861,12 @@ public partial class ServerMonitorWindow : Window
         ContainerCopyName.IsEnabled = false;
         _containerCopyName = "";
         _containerCopyId = "";
+        _containerEnterName = "";
+        ContainerEnter.IsEnabled = false;
         ContainerOverlay.Visibility = Visibility.Visible;
         try
         {
-            var lookup = await new DockerInspector(_connection)
+            var lookup = await new DockerInspector(_connection, _connectedProfile?.UseSudo ?? false)
                 .ResolveAsync(f.Path, _cts?.Token ?? default).ConfigureAwait(true);
             PopulateContainer(lookup);
         }
@@ -1858,8 +1892,11 @@ public partial class ServerMonitorWindow : Window
         ContainerName.Text = primary is null ? "—" : NiceContainer(primary);
         _containerCopyName = primary?.Name ?? "";
         _containerCopyId = lookup.Key;
+        _containerEnterName = primary?.Name ?? "";
         ContainerCopyName.IsEnabled = _containerCopyName.Length > 0;
         ContainerCopyId.IsEnabled = _containerCopyId.Length > 0;
+        // «دخول الحاوية»: مُتاح عند وجود اسم حاوية + بروفايل متّصل.
+        ContainerEnter.IsEnabled = _containerEnterName.Length > 0 && _connectedProfile != null;
 
         ContainerKindLine.Text = lookup.Kind switch
         {
@@ -1908,6 +1945,173 @@ public partial class ServerMonitorWindow : Window
         if (_containerCopyId.Length == 0) return;
         TryCopy(_containerCopyId);
         ShowToast(Loc.T("srv.toast.copied"));
+    }
+
+    // ===== تبويب «الحاويات» (كلّ حاويات الخادم) =====
+
+    /// <summary>يصفّر قائمة الحاويات (عند الاتّصال/تبديل الخادم) كي تُعاد بالتحميل الكسول.</summary>
+    private void ResetContainers()
+    {
+        _containerRows = new();
+        ContainersSearch.Text = "";
+        ContainersList.ItemsSource = null;
+        ContainersCount.Text = "";
+        ContainersEmpty.Visibility = Visibility.Collapsed;
+    }
+
+    private List<ContainerRowVm> _containerRows = new();   // كلّ الحاويات (قبل تصفية البحث)
+
+    private void ContainersRefresh_Click(object sender, RoutedEventArgs e) => _ = LoadContainersAsync();
+
+    private void ContainersSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyContainerFilter();
+
+    /// <summary>يصفّي قائمة الحاويات بالاسم/الاسم المخصّص/الصورة حسب مربّع البحث.</summary>
+    private void ApplyContainerFilter()
+    {
+        string q = ContainersSearch.Text?.Trim() ?? "";
+        IEnumerable<ContainerRowVm> view = _containerRows;
+        if (q.Length > 0)
+            view = _containerRows.Where(r =>
+                r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.CustomName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.Image.Contains(q, StringComparison.OrdinalIgnoreCase));
+
+        var list = view.ToList();
+        ContainersList.ItemsSource = list;
+        ContainersCount.Text = _containerRows.Count == 0 ? ""
+            : (list.Count == _containerRows.Count ? $"({_containerRows.Count})" : $"({list.Count}/{_containerRows.Count})");
+
+        bool none = _containerRows.Count == 0;
+        ContainersEmptyText.Text = none ? Loc.T("srv.containers.none") : Loc.T("srv.containers.noMatch");
+        ContainersEmpty.Visibility = (none || list.Count == 0) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>يسرد كلّ حاويات Docker على الخادم ويعرضها بطاقاتٍ لكلّ واحدة زرّ «دخول».</summary>
+    private async Task LoadContainersAsync()
+    {
+        if (_connection is null) return;
+        ContainersLoading.Visibility = Visibility.Visible;
+        ContainersEmpty.Visibility = Visibility.Collapsed;
+        try
+        {
+            var items = await new DockerContainers(_connection, _connectedProfile?.UseSudo ?? false)
+                .ListAsync(_cts?.Token ?? default).ConfigureAwait(true);
+
+            var custom = _connectedProfile != null
+                ? _containerNames.GetForProfile(_connectedProfile.Id)
+                : (IReadOnlyDictionary<string, string>)new Dictionary<string, string>();
+            _containerRows = items.Select(c =>
+            {
+                var vm = ContainerRowVm.From(c);
+                if (custom.TryGetValue(c.Name, out var n)) vm.CustomName = n;
+                return vm;
+            }).ToList();
+            ApplyContainerFilter();
+        }
+        catch (Exception ex)
+        {
+            ContainersList.ItemsSource = null;
+            ContainersCount.Text = "";
+            ContainersEmptyText.Text = $"{Loc.T("srv.file.opFail")} {ex.Message}";
+            ContainersEmpty.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            ContainersLoading.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>«دخول» على بطاقة حاوية: يبني جلسة شِل بمعرّفها القصير ويطلب فتح تبويب.</summary>
+    private void ContainerRowEnter_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ContainerRowVm vm) return;
+        EnterContainer(vm.EnterTarget, vm.DisplayName);
+    }
+
+    // ===== تسمية الحاوية باسم مخصّص =====
+    private string _namingKey = "";   // اسم الحاوية الحقيقيّ (مفتاح التخزين) قيد التسمية
+
+    /// <summary>
+    /// يستخرج نموذج البطاقة من عنصر قائمة سياق موثوقاً: عبر <c>PlacementTarget</c> (لأنّ DataContext
+    /// لعناصر ContextMenu داخل قالب ItemsControl غير موثوق في WPF).
+    /// </summary>
+    private static ContainerRowVm? CardVm(object sender)
+        => sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement fe } }
+            ? fe.DataContext as ContainerRowVm
+            : (sender as FrameworkElement)?.DataContext as ContainerRowVm;
+
+    private void ContainerRename_Click(object sender, RoutedEventArgs e)
+    {
+        if (CardVm(sender) is not { } vm || _connectedProfile is null) return;
+        _namingKey = vm.Name;
+        NameTitle.Text = $"{Loc.T("srv.containers.nameTitle")} · {vm.Name}";
+        NameInput.Text = vm.CustomName;
+        NameOverlay.Visibility = Visibility.Visible;
+        NameInput.Focus();
+        NameInput.SelectAll();
+    }
+
+    private void ContainerClearName_Click(object sender, RoutedEventArgs e)
+    {
+        if (CardVm(sender) is not { } vm || _connectedProfile is null) return;
+        _containerNames.Remove(_connectedProfile.Id, vm.Name);
+        ReloadNameCache();
+        _ = LoadContainersAsync();
+    }
+
+    private void NameSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connectedProfile != null && _namingKey.Length > 0)
+        {
+            _containerNames.Set(_connectedProfile.Id, _namingKey, NameInput.Text);
+            ReloadNameCache();
+            _ = LoadContainersAsync();
+        }
+        NameOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void NameCancel_Click(object sender, RoutedEventArgs e) => NameOverlay.Visibility = Visibility.Collapsed;
+    private void NameOverlay_MouseDown(object sender, MouseButtonEventArgs e) => NameOverlay.Visibility = Visibility.Collapsed;
+    private void NameInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { NameSave_Click(sender, e); e.Handled = true; }
+        else if (e.Key == Key.Escape) { NameOverlay.Visibility = Visibility.Collapsed; e.Handled = true; }
+    }
+
+    /// <summary>«دخول الحاوية» من لوحة «اعرف الحاوية» (يعمل على الحاوية المالكة المعروضة).</summary>
+    private void ContainerEnter_Click(object sender, RoutedEventArgs e)
+    {
+        if (EnterContainer(_containerEnterName, NiceLabel()))
+            ContainerOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// يفتح «مستكشف الحاوية» <paramref name="target"/> (تصفّح ملفّات + كونسول تفاعليّ داخلها). يعيد
+    /// <c>true</c> عند الفتح الناجح (لإغلاق اللوحة المنبثقة عند الحاجة).
+    /// </summary>
+    private bool EnterContainer(string target, string displayName)
+    {
+        if (string.IsNullOrEmpty(target) || _connectedProfile is null) return false;
+        try
+        {
+            var info = _service.BuildConnectionInfo(_connectedProfile);
+            var win = new ContainerExplorerWindow(info, target, displayName, _connectedProfile.UseSudo);
+            win.Show();
+            ShowToast($"{Loc.T("srv.docker.enter")} · {displayName}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Alert(this, Loc.T("srv.docker.enter"), $"{Loc.T("srv.file.opFail")} {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>اسم يُعرَض في عنوان تبويب الشِل (اسم الحاوية المعروض حاليّاً، وإلّا الاسم الخام).</summary>
+    private string NiceLabel()
+    {
+        string shown = ContainerName.Text;
+        return string.IsNullOrWhiteSpace(shown) || shown == "—" ? _containerEnterName : shown;
     }
 
     private void LogClose_Click(object sender, RoutedEventArgs e) => LogOverlay.Visibility = Visibility.Collapsed;
@@ -2174,5 +2378,35 @@ public sealed class ContainerCardVm
         Running = string.Equals(m.Status, "running", System.StringComparison.OrdinalIgnoreCase),
         OwnershipText = m.WritableLayer ? Loc.T("srv.docker.rwLayer") : Loc.T("srv.docker.mounted"),
         ImageLabel = Loc.T("srv.docker.image"),
+    };
+}
+
+/// <summary>صفّ بطاقة في تبويب «الحاويات» (من <c>docker ps -a</c>) — للعرض + هدف «دخول».</summary>
+public sealed class ContainerRowVm
+{
+    public string Name { get; init; } = "";
+    public string ShortId { get; init; } = "";
+    public string Image { get; init; } = "";
+    public string Status { get; init; } = "";
+    public bool Running { get; init; }
+
+    /// <summary>هدف <c>docker exec</c> — المعرّف القصير (مستقرّ وآمن regex).</summary>
+    public string EnterTarget { get; init; } = "";
+
+    /// <summary>اسم مخصّص وضعه المستخدم (فارغ = لا شيء). مفتاح التخزين هو <see cref="Name"/>.</summary>
+    public string CustomName { get; set; } = "";
+    public bool HasCustom => !string.IsNullOrEmpty(CustomName);
+
+    /// <summary>الاسم المعروض: المخصّص إن وُجد وإلّا الاسم الحقيقيّ.</summary>
+    public string DisplayName => HasCustom ? CustomName : Name;
+
+    public static ContainerRowVm From(ContainerListItem c) => new()
+    {
+        Name = c.Name,
+        ShortId = c.ShortId,
+        Image = c.Image,
+        Status = c.Status,
+        Running = c.Running,
+        EnterTarget = c.ShortId,
     };
 }

@@ -36,9 +36,13 @@ public sealed class DockerInspector
         "{{range .Mounts}}{{.Name}} {{end}}";
 
     private readonly ISshConnection _ssh;
+    private readonly bool _sudo;
 
-    public DockerInspector(ISshConnection ssh)
-        => _ssh = ssh ?? throw new ArgumentNullException(nameof(ssh));
+    public DockerInspector(ISshConnection ssh, bool sudo = false)
+    {
+        _ssh = ssh ?? throw new ArgumentNullException(nameof(ssh));
+        _sudo = sudo;
+    }
 
     /// <summary>يصنّف المسار ويستخرج معرّف الطبقة/الحجم (<see cref="DockerPathKind.None"/> إن كان خارج Docker).</summary>
     public static (DockerPathKind Kind, string Key) Classify(string path)
@@ -61,14 +65,20 @@ public sealed class DockerInspector
     }
 
     /// <summary>أمر البحث عن الحاوية المالكة لطبقة overlay2 (يفحص طبقة الكتابة لكلّ الحاويات ويصفّي بالمعرّف).</summary>
-    public static string BuildOverlayLookup(string overlayId)
-        => "docker ps -aq 2>/dev/null | xargs -r docker inspect --format '" + InspectFormat + "' 2>/dev/null " +
+    public static string BuildOverlayLookup(string overlayId, bool sudo = false)
+    {
+        string d = DockerCli.Prefix(sudo);
+        return d + "docker ps -aq 2>/dev/null | xargs -r " + d + "docker inspect --format '" + InspectFormat + "' 2>/dev/null " +
            "| grep -F -- " + StorageScanner.ShellQuote(overlayId);
+    }
 
     /// <summary>أمر البحث عن الحاويات التي تُركّب حجماً مُسمّى.</summary>
-    public static string BuildVolumeLookup(string volumeName)
-        => "docker ps -aq 2>/dev/null | xargs -r docker inspect --format '" + VolumeFormat + "' 2>/dev/null " +
+    public static string BuildVolumeLookup(string volumeName, bool sudo = false)
+    {
+        string d = DockerCli.Prefix(sudo);
+        return d + "docker ps -aq 2>/dev/null | xargs -r " + d + "docker inspect --format '" + VolumeFormat + "' 2>/dev/null " +
            "| grep -F -- " + StorageScanner.ShellQuote(volumeName);
+    }
 
     /// <summary>يحلّل مخرجات docker inspect المُصفّاة إلى <see cref="DockerLookup"/>.</summary>
     public static DockerLookup Parse(DockerPathKind kind, string key, string stdout)
@@ -105,7 +115,7 @@ public sealed class DockerInspector
         if (kind == DockerPathKind.None)
             return new DockerLookup(kind, string.Empty, Array.Empty<DockerContainerMatch>());
 
-        string cmd = kind == DockerPathKind.Overlay ? BuildOverlayLookup(key) : BuildVolumeLookup(key);
+        string cmd = kind == DockerPathKind.Overlay ? BuildOverlayLookup(key, _sudo) : BuildVolumeLookup(key, _sudo);
         var r = await _ssh.RunAsync(cmd, ct).ConfigureAwait(false);
         return Parse(kind, key, r.StdOut);
     }

@@ -20,9 +20,9 @@ public sealed class EntryPrimaryTagBrushConverter : IValueConverter
     {
         Color? c = value switch
         {
-            CommandEntry e => ProjectService.PrimaryColor(e),
-            string s       => ProjectService.ColorOf(s),
-            _              => null,
+            Project p => ProjectService.ColorOf(p),      // لون المشروع = لون تاكه الأساس
+            string s  => ProjectService.ColorOf(s),       // اسم مشروع → لون تاكه الأساس
+            _         => null,
         };
         return c is { } col ? MakeFrozen(col) : Transparent;
     }

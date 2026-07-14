@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows;
@@ -70,8 +71,13 @@ public partial class TerminalTabView : UserControl
     private bool _started;
     private bool _initializing = true;
 
-    private global::Terminal.Core.Pty.PtySession? _coreSession;
+    private global::Terminal.Core.Pty.IPtySession? _coreSession;
     private global::Terminal.Core.Screen.ScreenBuffer? _coreScreen;
+
+    // تجاوز صدفة لحظيّ (شِل حاوية): إن كان غير null تُشغَّل الجلسة به بدل كتالوج الصدفات (يوفّر نهاية
+    // السطر)، ويُخفى كومبو الصدفة (التبديل يكسر الجلسة). _sessionFactory يبني الـ backend (SSH بدل ConPTY).
+    private readonly global::TerminalLauncher.Terminal.ShellDef? _shellOverride;
+    private readonly Func<global::Terminal.Core.Pty.IPtySession>? _sessionFactory;
 
     // حالة التشغيل (للحالة النصّية: PID / المدّة / رمز الخروج)
     private DateTime _startTime;
@@ -104,13 +110,16 @@ public partial class TerminalTabView : UserControl
 
     public TerminalTabView(CommandEntry entry, Action persist, Func<bool> toggleSidebar,
         double fontSize = 13, Action<double>? persistFontSize = null, Func<bool>? aiEnabled = null,
-        string? sessionId = null)
+        string? sessionId = null, global::TerminalLauncher.Terminal.ShellDef? shellOverride = null,
+        Func<global::Terminal.Core.Pty.IPtySession>? sessionFactory = null)
     {
         InitializeComponent();
         _entry = entry;
         _persist = persist;
         _toggleSidebar = toggleSidebar;
         _persistFontSize = persistFontSize;
+        _shellOverride = shellOverride;
+        _sessionFactory = sessionFactory;
         _ai = new Services.AiAssistant(aiEnabled ?? (static () => false));
 
         // معرّف الجلسة: مُمرَّر عند الاسترجاع (يربط بالتاريخ المخزَّن) أو جديد للجلسة الجديدة.
@@ -119,6 +128,8 @@ public partial class TerminalTabView : UserControl
 
         ShellCombo.ItemsSource = ShellCatalog.All;
         ShellCombo.SelectedItem = ShellCatalog.Get(_entry.Shell);
+        // شِل حاوية عبر ssh: نُخفي الكومبو — تبديل الصدفة يشغّل StartSession بكتالوج الصدفات فيكسر جلسة ssh.
+        if (_shellOverride != null) ShellCombo.Visibility = Visibility.Collapsed;
         _initializing = false;
 
         HistoryButton.ToolTip = Services.Loc.T("tip.history");   // تلميح مُعرَّب (T-106)
@@ -219,7 +230,7 @@ public partial class TerminalTabView : UserControl
         }
         ClearDocument();
 
-        var shell = ShellCatalog.Get(_entry.Shell);
+        var shell = _shellOverride ?? ShellCatalog.Get(_entry.Shell);
         _newline = shell.Newline;
         Interlocked.Exchange(ref _commandSent, 0);
 
@@ -227,12 +238,12 @@ public partial class TerminalTabView : UserControl
         try
         {
             lock (_screenLock) _coreScreen = new global::Terminal.Core.Screen.ScreenBuffer(cols, rows);
-            _coreSession = new global::Terminal.Core.Pty.PtySession();
+            _coreSession = _sessionFactory?.Invoke() ?? new global::Terminal.Core.Pty.PtySession();
             _coreSession.DataReceived += OnCoreData;
             _coreSession.Exited += OnExited;
             // مجلّد العمل: بروفايل الصدفة يتجاوز مسار الأمر المحفوظ إن حُدِّد (T-101.5).
-            string workDir = !string.IsNullOrWhiteSpace(shell.WorkingDirectory)
-                ? shell.WorkingDirectory! : (_entry.Path ?? "");
+            string workDir = NormalizeWorkDir(!string.IsNullOrWhiteSpace(shell.WorkingDirectory)
+                ? shell.WorkingDirectory! : (_entry.Path ?? ""));
             // متغيّرات البيئة: تُضبَط على بيئة العمليّة قبل الإطلاق (يرثها ابن ConPTY) ثم تُستعاد.
             using (ApplyProfileEnvironment(shell.EnvironmentVariables))
                 _coreSession.Start(shell.CommandLine, workDir, cols, rows);
@@ -286,6 +297,21 @@ public partial class TerminalTabView : UserControl
         public void Dispose() { }
     }
 
+    /// <summary>
+    /// يُطبّع مجلّد العمل قبل تمريره لـ ConPTY: يوسّع متغيّرات البيئة (<c>%VAR%</c>)، يزيل علامات
+    /// الاقتباس والفراغات، ويحوّل الشرطات المائلة الأماميّة إلى خلفيّة — كي لا يفشل مسارٌ صالح بصيغة مختلفة.
+    /// (السبب الشائع لـ«تشغيل من فولدر معيّن لا يعمل»: مسار بمتغيّر بيئة أو باقتباس فيفشل <c>Directory.Exists</c>.)
+    /// </summary>
+    private static string NormalizeWorkDir(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        string p = Environment.ExpandEnvironmentVariables(path.Trim()).Trim().Trim('"').Trim();
+        if (p.Length == 0) return "";
+        p = p.Replace('/', '\\');
+        try { return System.IO.Directory.Exists(p) ? System.IO.Path.GetFullPath(p) : p; }
+        catch { return p; }
+    }
+
     /// <summary>بايتات خام من ConPTY → ScreenBuffer؛ يفتح كتلة استدلاليّة لأوّل أمر محفوظ.</summary>
     private void OnCoreData(byte[] data)
     {
@@ -294,12 +320,14 @@ public partial class TerminalTabView : UserControl
 
         if (Interlocked.Exchange(ref _commandSent, 1) == 0)
         {
-            var cmd = _entry.Command;
-            if (!string.IsNullOrWhiteSpace(cmd))
+            // أمر المشروع قد يكون متعدّد الخطوات (سطر لكلّ خطوة) — تُنفَّذ بالتوالي.
+            foreach (var raw in (_entry.Command ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
             {
-                lock (_screenLock) _coreScreen?.BeginHeuristicCommand(cmd);
-                _coreSession?.Write(cmd + _newline);
-                RecordHistory(cmd);   // التقاط الأمر المحفوظ المُنفَّذ (T-106)
+                var step = raw.Trim();
+                if (step.Length == 0) continue;
+                lock (_screenLock) _coreScreen?.BeginHeuristicCommand(step);
+                _coreSession?.Write(step + _newline);
+                RecordHistory(step);   // التقاط الأمر المُنفَّذ (T-106)
             }
         }
     }
@@ -533,18 +561,66 @@ public partial class TerminalTabView : UserControl
         }
     }
 
+    // أحدث الأوامر المخزّنة (DISTINCT) المحمّلة عند فتح المنسدلة — يُصفّى منها البحث محلّياً.
+    private List<string> _historyRecent = new();
+
     private void HistoryButton_Click(object sender, RoutedEventArgs e)
     {
         RefreshHistoryList();
+        HistorySearch.Text = "";
         HistoryPopup.IsOpen = true;
-        HistoryList.Focus();
+        // التركيز على مربّع البحث بعد فتح المنسدلة (مؤجَّل حتى يُنشأ العنصر بصريّاً).
+        Dispatcher.BeginInvoke(new Action(() => HistorySearch.Focus()), DispatcherPriority.Input);
     }
 
-    /// <summary>يعيد تعبئة قائمة السجلّ بأحدث 50 أمراً (DISTINCT) عند فتح المنسدلة.</summary>
+    /// <summary>يحمّل أحدث الأوامر (DISTINCT) ويعرضها؛ يُصفَّى منها البحث لاحقاً.</summary>
     private void RefreshHistoryList()
     {
-        try { HistoryList.ItemsSource = _history.Recent(50); }
-        catch { HistoryList.ItemsSource = System.Array.Empty<string>(); }
+        try { _historyRecent = new List<string>(_history.Recent(300)); }
+        catch { _historyRecent = new List<string>(); }
+        FilterHistory("");
+    }
+
+    /// <summary>يصفّي السجلّ بمطابقة جزئيّة غير حسّاسة للحالة ويحدّد أوّل نتيجة.</summary>
+    private void FilterHistory(string term)
+    {
+        IEnumerable<string> items = _historyRecent;
+        if (!string.IsNullOrWhiteSpace(term))
+            items = _historyRecent.Where(c => c.Contains(term, StringComparison.OrdinalIgnoreCase));
+        var list = items.ToList();
+        HistoryList.ItemsSource = list;
+        if (list.Count > 0) HistoryList.SelectedIndex = 0;
+    }
+
+    private void HistorySearch_TextChanged(object sender, TextChangedEventArgs e)
+        => FilterHistory(HistorySearch.Text);
+
+    /// <summary>الأسهم أعلى/أسفل تتنقّل القائمة، Enter يلصق وينفّذ، Esc يغلق — مع بقاء التركيز في البحث.</summary>
+    private void HistorySearch_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        int count = HistoryList.Items.Count;
+        switch (e.Key)
+        {
+            case Key.Down when count > 0:
+                HistoryList.SelectedIndex = Math.Min(HistoryList.SelectedIndex + 1, count - 1);
+                HistoryList.ScrollIntoView(HistoryList.SelectedItem);
+                e.Handled = true;
+                break;
+            case Key.Up when count > 0:
+                HistoryList.SelectedIndex = Math.Max(HistoryList.SelectedIndex - 1, 0);
+                HistoryList.ScrollIntoView(HistoryList.SelectedItem);
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                RunSelectedHistory();
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                HistoryPopup.IsOpen = false;
+                Renderer.Focus();
+                e.Handled = true;
+                break;
+        }
     }
 
     private void HistoryList_MouseDoubleClick(object sender, MouseButtonEventArgs e) => RunSelectedHistory();
@@ -830,6 +906,19 @@ public partial class TerminalTabView : UserControl
     {
         if (string.IsNullOrEmpty(text)) return;
         _coreSession?.Write(text);
+    }
+
+    /// <summary>
+    /// يكتب أمراً كاملاً وينفّذه في الجلسة الحيّة (يُستدعى من «لوحة أوامر المشروع»): يفتح كتلة استدلاليّة،
+    /// يكتب الأمر متبوعاً بفاصل السطر، يلتقطه في التاريخ (T-106)، ويعيد التركيز للتيرمنال.
+    /// </summary>
+    public void RunCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return;
+        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(command);
+        _coreSession?.Write(command + _newline);
+        RecordHistory(command);
+        FocusTerminal();
     }
 
     // ===== اللصق المتقدّم + حماية اللصق (T-104.4 / T-104.5) =====

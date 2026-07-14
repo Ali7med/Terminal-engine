@@ -121,22 +121,19 @@
                                                 Tag="{Binding}" Click="SidebarDot_Click" ToolTip="{Binding Name}">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
+                                                    <!-- مربّع المشروع: ممتلئ بلون المشروع مع الحرف الأوّل -->
                                                     <Border x:Name="d" Width="32" Height="32" CornerRadius="10"
-                                                            Background="{DynamicResource Brush.Surface}"
-                                                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                                                            Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}"
+                                                            BorderBrush="Transparent" BorderThickness="0"
                                                             ClipToBounds="True">
-                                                        <Grid>
-                                                            <!-- ترويسة لون المشروع الأساس (شفّافة إن بلا تصنيف) -->
-                                                            <Border VerticalAlignment="Top" Height="5" CornerRadius="9,9,0,0"
-                                                                    Background="{Binding PrimaryTag, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
-                                                            <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
-                                                                       Foreground="{DynamicResource Brush.Text}"/>
-                                                        </Grid>
+                                                        <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
+                                                                   Foreground="#FFFFFF"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="d" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                                                            <Setter TargetName="d" Property="BorderBrush" Value="{DynamicResource Brush.Text}"/>
+                                                            <Setter TargetName="d" Property="BorderThickness" Value="2"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -187,15 +184,19 @@
                             <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,8"
                                      TextChanged="SidebarSearch_TextChanged"/>
 
-                            <!-- شريط فلترة المشاريع/التصنيفات: «الكل» + رقاقة لكل مشروع (نقطة لونه) — يُبنى في الكود -->
+                            <!-- شريط فلترة التاكات: «الكل» + رقاقة لكل تاك — صفّ أفقيّ بسكرول مربوط بالعجلة -->
                             <ScrollViewer x:Name="ProjectFilterScroll" DockPanel.Dock="Top"
-                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
-                                          Margin="0,0,0,8" Visibility="Collapsed">
-                                <WrapPanel x:Name="ProjectFilterBar"/>
+                                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          Margin="0,0,0,8" Visibility="Collapsed"
+                                          PreviewMouseWheel="HorizontalChips_PreviewMouseWheel">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                </ScrollViewer.Resources>
+                                <StackPanel x:Name="ProjectFilterBar" Orientation="Horizontal"/>
                             </ScrollViewer>
 
                             <Button x:Name="RunBtn" DockPanel.Dock="Bottom" Margin="0,10,0,0" Style="{StaticResource AccentButton}"
-                                    Content="&#x25B6;  تشغيل" Click="RunButton_Click"/>
+                                    Content="&#x25B6;  فتح المشروع" Click="RunButton_Click"/>
 
                             <ListBox x:Name="EntriesList" Margin="0,0,0,2"
                                      MouseDoubleClick="EntriesList_MouseDoubleClick"
@@ -206,7 +207,7 @@
                                 </ListBox.Resources>
                                 <ListBox.ContextMenu>
                                     <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
-                                        <MenuItem Header="▶  تشغيل" Click="RunButton_Click"/>
+                                        <MenuItem Header="▶  فتح" Click="RunButton_Click"/>
                                         <MenuItem Header="✎  تعديل" Click="EditButton_Click"/>
                                         <Separator/>
                                         <MenuItem Header="🗑  حذف" Click="DeleteButton_Click"/>
@@ -214,43 +215,171 @@
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <!-- شريط لون المشروع الأساس على حافة العنصر -->
-                                                <Border Grid.Column="0" Width="3" CornerRadius="2" Margin="0,1,8,1"
-                                                        Background="{Binding PrimaryTag, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
-                                                    <TextBlock Text="{Binding Path}" FontSize="10.5"
-                                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                                               FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
-                                                    <!-- وسوم المشاريع كرقاقات صغيرة ملوّنة -->
-                                                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,3,0,0"
-                                                                  Visibility="{Binding HasTags, Converter={StaticResource Conv.BoolToVis}}">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Border Margin="0,0,5,0" Padding="6,1" CornerRadius="7"
-                                                                        Background="{Binding Converter={StaticResource Conv.PrimaryTagBrush}}">
-                                                                    <TextBlock Text="{Binding}" FontSize="10"
-                                                                               Foreground="#FFFFFF"/>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </StackPanel>
-                                            </Grid>
-                                        </StackPanel>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
+                                                    Margin="0,0,9,0" VerticalAlignment="Center"
+                                                    Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="{Binding Folder}" FontSize="10.5"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <Border Grid.Column="2" CornerRadius="8" Padding="7,1" VerticalAlignment="Center"
+                                                    Background="{DynamicResource Brush.Surface2}">
+                                                <TextBlock Text="{Binding Commands.Count}" FontSize="10.5"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Border>
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </DockPanel>
+                    </Border>
+                </Border>
+
+                <!-- ===== لوحة أوامر المشروع السريعة: تطفو شفّافة على حافة التيرمنال (فوق طبقة اللوحة المنبثقة) ===== -->
+                <Border x:Name="QuickDock" Grid.Column="2" Visibility="Collapsed" Width="234"
+                        HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                        Margin="6" CornerRadius="12"
+                        Background="{DynamicResource Brush.SurfaceGlass}"
+                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="0" Opacity="0.4"/>
+                    </Border.Effect>
+                    <DockPanel>
+                        <!-- الرأس: نقطة لون + اسم المشروع + تعديل + طيّ، وسطر الفولدر -->
+                        <Grid DockPanel.Dock="Top" Margin="11,10,7,7">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="QuickDockDot" Width="9" Height="9" CornerRadius="5"
+                                        Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="QuickDockTitle" FontSize="12.5" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="QuickEditProject" Style="{StaticResource IconButton}"
+                                        Width="26" Height="26" Content="&#xE70F;" FontFamily="Segoe MDL2 Assets"
+                                        FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                        Click="QuickEditProject_Click" ToolTip="تعديل المشروع"/>
+                                <Button Style="{StaticResource IconButton}"
+                                        Width="26" Height="26" Content="&#xE89F;" FontFamily="Segoe MDL2 Assets"
+                                        FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
+                                        Click="QuickDockClose_Click" ToolTip="طيّ اللوحة"/>
+                            </StackPanel>
+                            <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0" CornerRadius="6" Padding="7,3"
+                                    Background="{DynamicResource Brush.Bg}" Cursor="Hand"
+                                    ToolTip="فولدر المشروع" MouseLeftButtonUp="QuickEditProject_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                               Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center"
+                                               Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="QuickDockPath" FontSize="10.5" FlowDirection="LeftToRight"
+                                               Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- رقاقات تبديل المشاريع: صفّ أفقيّ بسكرول قابل للسحب ومربوط بعجلة الماوس/الباد -->
+                        <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled" Margin="9,0,9,5"
+                                      PreviewMouseWheel="HorizontalChips_PreviewMouseWheel">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                            </ScrollViewer.Resources>
+                            <StackPanel x:Name="QuickDockChips" Orientation="Horizontal"/>
+                        </ScrollViewer>
+
+                        <Border DockPanel.Dock="Top" Height="1" Margin="9,0,9,0"
+                                Background="{DynamicResource Brush.Border}"/>
+
+                        <!-- التذييل: أمر جديد + التقاط الأمر الحاليّ -->
+                        <StackPanel DockPanel.Dock="Bottom" Margin="9,6,9,9">
+                            <Button x:Name="QuickNewCommand" Style="{StaticResource AccentButton}"
+                                    Click="QuickNewCommand_Click"/>
+                            <Button x:Name="QuickAddCurrent" Margin="0,6,0,0" Padding="10,6"
+                                    Click="QuickAddCurrent_Click"/>
+                        </StackPanel>
+
+                        <!-- الجسم: أوامر المشروع (+ محرّر مباشر يُبنى في الكود) -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Margin="0,7,0,0">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                            </ScrollViewer.Resources>
+                            <StackPanel Margin="9,0,9,4">
+                                <StackPanel x:Name="QuickCmdPanel"/>
+                                <TextBlock x:Name="QuickCmdEmpty" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Brush.TextMuted}" Margin="2,2,2,4"
+                                           Visibility="Collapsed"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- ===== محرّر المشروع (اسم/لون/فولدر/صدفة) ===== -->
+                <Border x:Name="ProjectEditorOverlay" Grid.ColumnSpan="3" Background="#88000000"
+                        Visibility="Collapsed" MouseLeftButtonDown="ProjectEditorOverlay_MouseDown">
+                    <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Style="{StaticResource Card}" Padding="20" MouseLeftButtonDown="EditorCard_MouseDown">
+                        <StackPanel>
+                            <TextBlock x:Name="ProjEditTitle" Text="مشروع جديد" FontSize="16" FontWeight="SemiBold"
+                                       Margin="0,0,0,14"/>
+                            <TextBlock x:Name="ProjEditNameLabel" Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                            <TextBox x:Name="ProjEditName"/>
+
+                            <TextBlock x:Name="ProjEditTagsLabel" Text="التاكات (تصنيفات ملوّنة)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <WrapPanel x:Name="ProjEditTagPanel"/>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="ProjNewTagColorDot" Grid.Column="0" Width="30" Height="30"
+                                        CornerRadius="8" Margin="0,0,6,0" Cursor="Hand"
+                                        BorderThickness="1" BorderBrush="{DynamicResource Brush.Border}"
+                                        MouseLeftButtonUp="ProjNewTagColorDot_Click" ToolTip="لون التاك الجديد"/>
+                                <TextBox x:Name="ProjEditNewTag" Grid.Column="1" VerticalContentAlignment="Center"
+                                         KeyDown="ProjEditNewTag_KeyDown" ToolTip="اكتب اسم تاك جديد ثم Enter أو «إضافة»"/>
+                                <Button Grid.Column="2" Content="＋ تاك" Margin="6,0,0,0" Padding="12,6"
+                                        Click="ProjEditAddTag_Click"/>
+                            </Grid>
+
+                            <TextBlock x:Name="ProjEditFolderLabel" Text="الباث (مجلّد العمل)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="ProjEditFolder" FlowDirection="LeftToRight"/>
+                                <Button Grid.Column="1" Content="&#xE838;" FontFamily="Segoe MDL2 Assets"
+                                        Margin="6,0,0,0" Padding="10,6" Click="ProjEditBrowse_Click" ToolTip="استعراض"/>
+                            </Grid>
+
+                            <TextBlock x:Name="ProjEditShellLabel" Text="الصدفة الافتراضية" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <ComboBox x:Name="ProjEditShell" DisplayMemberPath="Display" HorizontalAlignment="Left" Width="200"/>
+
+                            <Grid Margin="0,20,0,0">
+                                <Button x:Name="ProjEditCancelBtn" HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
+                                        Click="ProjEditCancel_Click"/>
+                                <Button x:Name="ProjEditSaveBtn" HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
+                                        Content="حفظ" Padding="20,8" Click="ProjEditSave_Click"/>
+                            </Grid>
+                        </StackPanel>
                     </Border>
                 </Border>
 
@@ -450,67 +579,7 @@
                     </Border>
                 </Border>
 
-                <!-- ===== نافذة إضافة/تعديل أمر (منبثقة) ===== -->
-                <Border x:Name="EditorOverlay" Grid.ColumnSpan="3" Background="#88000000"
-                        Visibility="Collapsed" MouseLeftButtonDown="EditorOverlay_MouseDown">
-                    <Border Width="420" VerticalAlignment="Center" HorizontalAlignment="Center"
-                            Style="{StaticResource Card}" Padding="20"
-                            MouseLeftButtonDown="EditorCard_MouseDown">
-                        <StackPanel>
-                            <TextBlock x:Name="EditorTitle" Text="إضافة أمر" FontSize="16" FontWeight="SemiBold"
-                                       Margin="0,0,0,14"/>
-
-                            <TextBlock Text="الاسم" Style="{StaticResource SectionLabel}"/>
-                            <TextBox x:Name="EditorName"/>
-
-                            <TextBlock Text="الباث (مجلد العمل)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="EditorPath" FlowDirection="LeftToRight"/>
-                                <Button Grid.Column="1" Content="&#xE838;" FontFamily="Segoe MDL2 Assets"
-                                        Margin="6,0,0,0" Padding="10,6" Click="EditorBrowse_Click" ToolTip="استعراض"/>
-                            </Grid>
-
-                            <TextBlock Text="الأمر" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
-                            <TextBox x:Name="EditorCommand" MinHeight="60" AcceptsReturn="True" TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/>
-
-                            <TextBlock Text="الصدفة الافتراضية" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
-                            <ComboBox x:Name="EditorShell" DisplayMemberPath="Display" HorizontalAlignment="Left" Width="200"/>
-
-                            <TextBlock Text="المشاريع / التصنيفات" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
-                            <WrapPanel x:Name="EditorTagPanel"/>
-                            <Grid Margin="0,6,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <!-- لون المشروع الجديد (نقره يفتح المنتقي) -->
-                                <Border x:Name="NewProjectColorDot" Grid.Column="0" Width="30" Height="30"
-                                        CornerRadius="8" Margin="0,0,6,0" Cursor="Hand"
-                                        BorderThickness="1" BorderBrush="{DynamicResource Brush.Border}"
-                                        MouseLeftButtonUp="NewProjectColorDot_Click" ToolTip="لون المشروع الجديد"/>
-                                <TextBox x:Name="EditorNewTag" Grid.Column="1" VerticalContentAlignment="Center"
-                                         KeyDown="EditorNewTag_KeyDown"
-                                         ToolTip="اكتب اسم مشروع جديد ثم Enter أو «إضافة»"/>
-                                <Button Grid.Column="2" Content="＋ مشروع" Margin="6,0,0,0" Padding="12,6"
-                                        Click="EditorAddTag_Click"/>
-                            </Grid>
-
-                            <Grid Margin="0,20,0,0">
-                                <Button HorizontalAlignment="Left" Content="إلغاء" Padding="16,8" Click="CloseEditor_Click"/>
-                                <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
-                                        Content="حفظ" Padding="20,8" Click="SaveEditor_Click"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </Border>
-
-                <!-- ===== منتقي لون المشروع (لوحة ألوان جاهزة + لون مخصّص) ===== -->
+                <!-- ===== منتقي لون التاك (لوحة ألوان جاهزة + لون مخصّص) ===== -->
                 <Popup x:Name="ColorPickerPopup" Placement="Mouse" StaysOpen="False" AllowsTransparency="True"
                        FlowDirection="RightToLeft" Closed="ColorPicker_Closed">
                     <Border Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"

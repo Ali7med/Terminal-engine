@@ -81,10 +81,11 @@ public sealed class ServerProfileService
         Notes = r.Notes,
         LastConnected = r.LastConnectedUnixMs is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null,
         SortOrder = r.SortOrder,
+        UseSudo = r.UseSudo,
     };
 
     private static ServerProfileRow ToRow(ServerProfile p) => new(
         p.Id, p.Name, p.Host, p.Port, p.Username, (int)p.AuthKind,
         p.SecretCipher, p.KeyPassphraseCipher, p.Color, p.Notes,
-        p.LastConnected?.ToUnixTimeMilliseconds(), p.SortOrder);
+        p.LastConnected?.ToUnixTimeMilliseconds(), p.SortOrder, p.UseSudo);
 }

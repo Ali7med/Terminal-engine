@@ -70,4 +70,16 @@ public sealed class AppSettings
     /// فلا تتكرّر لكلّ إصدار. فارغة = لم تُعرَض بعد (أوّل تشغيل).
     /// </summary>
     public string LastWhatsNewVersion { get; set; } = "";
+
+    /// <summary>
+    /// علم الترحيل لمرّة واحدة: تحويل الأوامر المحفوظة القديمة (CommandEntry الموسومة) إلى أوامر داخل
+    /// المشاريع (نموذج «لوحة المشاريع»). يُضبط true بعد أوّل ترحيل ناجح فلا يتكرّر ولا يطمس تعديلات المستخدم.
+    /// </summary>
+    public bool ProjectsMigratedV1 { get; set; } = false;
+
+    /// <summary>
+    /// علم ترحيل V2 لمرّة واحدة: نقل لون كلّ مشروع (النموذج القديم) إلى «تاك» بنفس الاسم واللون، وإسناده
+    /// للمشروع. يُضبط true بعد أوّل ترحيل فلا يتكرّر.
+    /// </summary>
+    public bool ProjectsTagMigratedV2 { get; set; } = false;
 }

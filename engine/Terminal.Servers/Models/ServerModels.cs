@@ -77,6 +77,19 @@ public sealed record DockerLookup(
     string Key,
     System.Collections.Generic.IReadOnlyList<DockerContainerMatch> Matches);
 
+/// <summary>حاوية من قائمة <c>docker ps -a</c> (كلّ الحاويات على الخادم).</summary>
+public sealed record ContainerListItem(string Id, string Name, string State, string Status, string Image)
+{
+    /// <summary>هل الحاوية تعمل الآن (<c>state == running</c>)؟</summary>
+    public bool Running => string.Equals(State, "running", System.StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>معرّف قصير (12 محرفاً) — مستقرّ وآمن كهدف <c>docker exec</c>.</summary>
+    public string ShortId => Id.Length > 12 ? Id.Substring(0, 12) : Id;
+}
+
+/// <summary>مدخل في مستكشف ملفّات الحاوية (اسم + هل هو مجلّد) من <c>ls -1Ap</c>.</summary>
+public sealed record ContainerEntry(string Name, bool IsDir);
+
 /// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
 public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);
 

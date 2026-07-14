@@ -24,6 +24,7 @@ public partial class MainWindow : Window
 {
     private readonly EntryStore _store = new();
     private readonly ProjectStore _projectStore = new();
+    private readonly TagStore _tagStore = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly ProfileStore _profileStore = new();
     private readonly SessionStore _sessionStore = new(new AppDatabase());
@@ -37,12 +38,9 @@ public partial class MainWindow : Window
     private bool _sidebarPinned;   // لوحة الأوامر مثبَّتة مفتوحة (لا تُغلَق عند مغادرة الماوس)
     private bool _restoring;   // true أثناء استرجاع الجلسة كي لا يُثبِّت OpenTerminal لقطات وسطيّة
     private bool _syncingUi = true;   // يبقى true أثناء الإنشاء ليُتجاهَل ValueChanged/SelectionChanged المبكّر
-    private CommandEntry? _editorTarget;
-    private readonly List<string> _editorTags = new();   // وسوم المشروع قيد التحرير في نافذة الإضافة/التعديل
-    private string? _projectFilter;   // فلتر المشروع النشط في لوحة الأوامر (null = الكل)
-    private string? _colorPickerTarget;   // اسم المشروع الجاري تغيير لونه في المنتقي
-    private bool _colorPickerForNew;      // المنتقي مفتوح لاختيار لون مشروع جديد (لا لتعديل قائم)
-    private string _newProjectColor = "#C96442";   // لون المشروع الجديد المختار في نافذة التحرير
+    private string? _tagFilter;   // فلتر التاك النشط في لوحة المشاريع (null = الكل)
+    private string? _colorPickerTarget;   // اسم التاك الجاري تغيير لونه في المنتقي
+    private bool _colorPickerForNew;      // المنتقي مفتوح لاختيار لون تاك جديد (لا لتعديل قائم)
     private const int WindowCornerRadius = 6;
     private readonly List<Border> _themeCards = new();
     private const int ThemeFirstGroup = 6;     // عدد بطاقات الثيمات في اللوحة السريعة قبل «عرض الكلّ»
@@ -96,20 +94,17 @@ public partial class MainWindow : Window
         _profiles = _profileStore.Load();
         ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
 
-        // المشاريع/التصنيفات: تُحمَّل قبل الأوامر كي تُحلّ ألوان الوسوم عند أوّل رسم.
+        // التاكات (تُحمَّل قبل المشاريع كي تُحلّ الألوان) ثمّ المشاريع.
+        TagService.Initialize(_tagStore.Load());
+        TagService.Changed += OnTagsChanged;
         ProjectService.Initialize(_projectStore.Load());
         ProjectService.Changed += OnProjectsChanged;
 
         foreach (var e in _store.Load()) _entries.Add(e);
-        // ضمان تعريف لكلّ وسم مُشار إليه (لون تلقائيّ للناقص) — يُصلح ملفّ مشاريع مفقوداً أو قديماً.
-        foreach (var entry in _entries)
-            foreach (var tag in entry.Tags)
-                ProjectService.GetOrCreate(tag);
-        EntriesList.ItemsSource = _entries;
-        SidebarDots.ItemsSource = _entries;   // مختصرات الأوامر في الشريط المطويّ
-        BuildProjectFilterBar();
-        EditorShell.ItemsSource = ShellCatalog.All;
-
+        MigrateEntriesToProjects();      // ترحيل الأوامر القديمة إلى مشاريع (مرّة واحدة — V1)
+        MigrateProjectColorsToTags();    // ترحيل لون كلّ مشروع إلى تاك (مرّة واحدة — V2)
+        RefreshProjectsList();           // «لوحة المشاريع» + نقاط الشريط
+        BuildTagFilterBar();             // شريط فلترة التاكات
         BuildThemeCards();
         BuildFontChoices();
         BuildTextColorSwatches();
@@ -853,7 +848,8 @@ public partial class MainWindow : Window
             _serverMonitorWindow.Activate();
             return;
         }
-        _serverMonitorWindow = new Views.ServerMonitorWindow(_serverProfiles) { Owner = this };
+        // نافذة مستقلّة (بلا Owner) كي لا تبقى دائماً فوق النافذة الرئيسة — يتحكّم المستخدم بترتيبها.
+        _serverMonitorWindow = new Views.ServerMonitorWindow(_serverProfiles);
         _serverMonitorWindow.Closed += (_, _) => _serverMonitorWindow = null;
         _serverMonitorWindow.Show();
     }
@@ -904,10 +900,9 @@ public partial class MainWindow : Window
 
         Title = Loc.T("app.title");
         TitleText.Text = Loc.T("app.title");
-        SidebarHeader.Text = Loc.T("sidebar.saved");
-        SidebarSearch.Tag = Loc.T("sidebar.search");
-        SidebarMenuBtn.ToolTip = Loc.T("sidebar.saved");
-        RunBtn.Content = Loc.T("btn.run");
+        SidebarHeader.Text = Loc.T("sidebar.projects");
+        SidebarMenuBtn.ToolTip = Loc.T("sidebar.projects");
+        RunBtn.Content = Loc.T("proj.open");
         HintLine1.Text = Loc.T("hint.pick");
         HintLine2.Text = Loc.T("hint.empty");
         SettingsTitle.Text = Loc.T("settings.title");
@@ -943,6 +938,20 @@ public partial class MainWindow : Window
         ThemesOverlayTitle.Text = Loc.T("settings.allThemes");
         ArToggle.IsChecked = Loc.Current == AppLang.Ar;
         EnToggle.IsChecked = Loc.Current == AppLang.En;
+
+        // لوحة المشاريع + الدوك
+        SidebarSearch.Tag = Loc.T("proj.search");
+        QuickNewCommand.Content = Loc.T("proj.cmd.new");
+        QuickAddCurrent.Content = Loc.T("quick.addCurrent");
+        QuickCmdEmpty.Text = Loc.T("quick.empty");
+        QuickEditProject.ToolTip = Loc.T("proj.edit");
+        ProjEditNameLabel.Text = Loc.T("proj.field.name");
+        ProjEditTagsLabel.Text = Loc.T("proj.field.tags");
+        ProjEditFolderLabel.Text = Loc.T("proj.field.folder");
+        ProjEditShellLabel.Text = Loc.T("proj.field.shell");
+        ProjEditCancelBtn.Content = Loc.T("editor.cancel");
+        ProjEditSaveBtn.Content = Loc.T("editor.save");
+        if (_quickProject != null && QuickDock.Visibility == Visibility.Visible) BuildQuickDock();
     }
 
     private void ToggleSettings(bool open)
@@ -979,17 +988,102 @@ public partial class MainWindow : Window
 
     // ===== الشريط الجانبي: إجراءات =====
 
-    private CommandEntry? Selected => EntriesList.SelectedItem as CommandEntry;
+    private Project? Selected => EntriesList.SelectedItem as Project;
+
+    /// <summary>يعيد بناء «لوحة المشاريع» (قائمة المشاريع + نقاط الشريط) مصفّاةً بنصّ البحث.</summary>
+    private void RefreshProjectsList()
+    {
+        string q = SidebarSearch.Text?.Trim() ?? "";
+        var items = ProjectService.All.AsEnumerable();
+        if (_tagFilter != null)
+            items = items.Where(p => p.HasTag(_tagFilter));
+        if (q.Length > 0)
+            items = items.Where(p => p.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+                                     || (p.Folder?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        EntriesList.ItemsSource = items.ToList();
+        SidebarDots.ItemsSource = ProjectService.All.ToList();   // نقاط الشريط = المشاريع
+    }
+
+    /// <summary>
+    /// ترحيل لمرّة واحدة: الأوامر المحفوظة القديمة (CommandEntry الموسومة) → أوامر داخل مشاريعها.
+    /// يستنتج فولدر المشروع من أكثر مسارات أوامره شيوعاً، ويصفّر تجاوز الأوامر المطابقة له.
+    /// </summary>
+    private void MigrateEntriesToProjects()
+    {
+        if (_settings.ProjectsMigratedV1) return;
+        const string general = "عام";
+        foreach (var e in _entries)
+        {
+            var steps = ProjectService.SplitSteps(e.Command);
+            if (steps.Count == 0) continue;
+            string tag = string.IsNullOrWhiteSpace(e.PrimaryTag) ? general : e.PrimaryTag!;
+            var proj = ProjectService.GetOrCreateSilent(tag);
+            string key = string.Join("\n", steps);
+            if (proj.Commands.Any(c => c.DedupKey == key)) continue;
+            proj.Commands.Add(new ProjectCommand
+            {
+                Label = e.Name ?? "",
+                Steps = steps,
+                Folder = string.IsNullOrWhiteSpace(e.Path) ? null : e.Path,
+            });
+            if (string.IsNullOrWhiteSpace(proj.Shell) && !string.IsNullOrWhiteSpace(e.Shell))
+                proj.Shell = e.Shell;
+        }
+        foreach (var proj in ProjectService.All)
+        {
+            if (proj.Commands.Count == 0) continue;
+            if (string.IsNullOrWhiteSpace(proj.Folder))
+            {
+                var top = proj.Commands.Where(c => !string.IsNullOrWhiteSpace(c.Folder))
+                    .GroupBy(c => c.Folder!, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(g => g.Count()).FirstOrDefault();
+                if (top != null) proj.Folder = top.Key;
+            }
+            foreach (var c in proj.Commands)
+                if (!string.IsNullOrWhiteSpace(c.Folder) && string.Equals(c.Folder, proj.Folder, StringComparison.OrdinalIgnoreCase))
+                    c.Folder = null;
+        }
+        _settings.ProjectsMigratedV1 = true;
+        _projectStore.Save(ProjectService.All);
+        SaveSettings();
+    }
+
+    /// <summary>ترحيل V2 لمرّة واحدة: لون كلّ مشروع قديم → تاك بنفس الاسم واللون، مُسنَد للمشروع.</summary>
+    private void MigrateProjectColorsToTags()
+    {
+        if (_settings.ProjectsTagMigratedV2) return;
+        foreach (var p in ProjectService.All)
+        {
+            if (p.Tags.Count > 0) continue;                    // له تاكات أصلاً
+            if (string.IsNullOrWhiteSpace(p.Color)) continue;  // بلا لون قديم
+            TagService.GetOrCreateSilent(p.Name, p.Color);     // تاك بنفس اسم/لون المشروع
+            p.Tags = new List<string> { p.Name };
+            p.Color = "";                                      // إزالة اللون المهجور
+        }
+        _settings.ProjectsTagMigratedV2 = true;
+        _tagStore.Save(TagService.All);
+        _projectStore.Save(ProjectService.All);
+        SaveSettings();
+    }
+
+    /// <summary>يُحدَّث عند تغيّر التاكات (إضافة/تلوين/حذف): يحفظ ويعيد رسم الألوان والشريط.</summary>
+    private void OnTagsChanged()
+    {
+        _tagStore.Save(TagService.All);
+        RefreshProjectsList();
+        BuildTagFilterBar();
+        if (_quickProject != null && QuickDock.Visibility == Visibility.Visible) BuildQuickDock();
+    }
 
     private void RunButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is { } entry) OpenTerminal(entry);
-        else ShowAlert("تنبيه", "اختر أمراً من القائمة أولاً.");
+        if (Selected is { } proj) OpenQuickDock(proj.Name);
+        else ShowAlert("تنبيه", "اختر مشروعاً من القائمة أولاً.");
     }
 
     private void EntriesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (Selected is { } entry) OpenTerminal(entry);
+        if (Selected is { } proj) { OpenQuickDock(proj.Name); if (!_sidebarPinned) ShowSidebarFlyout(false); }
     }
 
     // يحدّد العنصر تحت المؤشّر قبل ظهور القائمة السياقية.
@@ -999,84 +1093,35 @@ public partial class MainWindow : Window
             item.IsSelected = true;
     }
 
-    private void AddButton_Click(object sender, RoutedEventArgs e) => OpenEditor(null);
+    private void AddButton_Click(object sender, RoutedEventArgs e) => OpenProjectEditor(null);
 
     private void EditButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is { } entry) OpenEditor(entry);
-        else ShowAlert("تنبيه", "اختر أمراً لتعديله.");
+        if (Selected is { } proj) OpenProjectEditor(proj);
+        else ShowAlert("تنبيه", "اختر مشروعاً لتعديله.");
     }
 
     private void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is not { } entry) return;
-        string label = string.IsNullOrWhiteSpace(entry.Name) ? "هذا الأمر" : $"«{entry.Name}»";
-        ShowConfirm("حذف أمر", $"حذف {label}؟",
+        if (Selected is not { } proj) return;
+        int n = proj.Commands.Count;
+        string msg = n > 0
+            ? $"حذف المشروع «{proj.Name}» و{n} من أوامره؟"
+            : $"حذف المشروع «{proj.Name}»؟";
+        ShowConfirm("حذف مشروع", msg,
             new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
             key =>
             {
                 if (key != "delete") return;
-                _entries.Remove(entry);
-                _store.Save(_entries);
+                if (string.Equals(_quickProject, proj.Name, StringComparison.OrdinalIgnoreCase)) CloseQuickDock();
+                ProjectService.Remove(proj.Name);   // يُطلِق OnProjectsChanged → حفظ + إعادة رسم
+                RefreshProjectsList();
             });
     }
 
-    // ===== نافذة الإضافة/التعديل =====
+    // ===== رقاقات التاكات (مشتركة: محرّر المشروع) =====
 
-    private void OpenEditor(CommandEntry? entry)
-    {
-        _editorTarget = entry;
-        EditorTitle.Text = entry is null ? "إضافة أمر" : "تعديل أمر";
-        EditorName.Text = entry?.Name ?? "";
-        EditorPath.Text = entry?.Path ?? "";
-        EditorCommand.Text = entry?.Command ?? "";
-        EditorShell.SelectedItem = ShellCatalog.Get(entry?.Shell);
-
-        _editorTags.Clear();
-        if (entry != null) _editorTags.AddRange(entry.Tags);
-        EditorNewTag.Text = "";
-        _newProjectColor = ProjectService.NextAutoColor;   // لون افتراضيّ للمشروع الجديد (قابل للتغيير)
-        UpdateNewProjectColorDot();
-        BuildEditorTagChips();
-
-        EditorOverlay.Visibility = Visibility.Visible;
-        EditorName.Focus();
-    }
-
-    /// <summary>يعكس اللون المختار للمشروع الجديد على النقطة الملوّنة بجانب حقل الإضافة.</summary>
-    private void UpdateNewProjectColorDot()
-    {
-        try { NewProjectColorDot.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_newProjectColor)); }
-        catch { NewProjectColorDot.Background = (Brush)FindResource("Brush.Accent"); }
-    }
-
-    /// <summary>نقر نقطة اللون في نافذة التحرير: يفتح المنتقي لاختيار لون المشروع الجديد (قبل إنشائه).</summary>
-    private void NewProjectColorDot_Click(object sender, MouseButtonEventArgs e) => OpenColorPickerForNew();
-
-    // ===== المشاريع/التصنيفات في نافذة التحرير =====
-
-    /// <summary>يبني رقاقات المشاريع في نافذة التحرير: كل مشروع معروف رقاقة تبديل (نشطة = مسنَدة للأمر).</summary>
-    private void BuildEditorTagChips()
-    {
-        EditorTagPanel.Children.Clear();
-        foreach (var proj in ProjectService.All)
-        {
-            bool active = _editorTags.Any(t => string.Equals(t, proj.Name, StringComparison.OrdinalIgnoreCase));
-            EditorTagPanel.Children.Add(MakeTagChip(proj.Name, proj.Color, active, toggle: true));
-        }
-        if (EditorTagPanel.Children.Count == 0)
-        {
-            EditorTagPanel.Children.Add(new TextBlock
-            {
-                Text = "لا مشاريع بعد — أنشئ مشروعاً بالأسفل",
-                Foreground = (Brush)FindResource("Brush.TextMuted"),
-                FontSize = 11,
-                Margin = new Thickness(2, 2, 2, 2),
-            });
-        }
-    }
-
-    /// <summary>رقاقة مشروع (نقطة لون + اسم). في وضع التبديل تعكس/تضبط إسناد الوسم للأمر قيد التحرير.</summary>
+    /// <summary>رقاقة تاك (نقطة لون + اسم). في وضع التبديل تعكس/تضبط إسناد التاك للمشروع قيد التحرير.</summary>
     private Border MakeTagChip(string name, string colorHex, bool active, bool toggle)
     {
         Color color;
@@ -1106,7 +1151,7 @@ public partial class MainWindow : Window
         ApplyChipActiveLook(chip, active, color);
 
         if (toggle)
-            chip.MouseLeftButtonUp += EditorTagChip_Click;
+            chip.MouseLeftButtonUp += ProjEditTagChip_Click;
         return chip;
     }
 
@@ -1125,104 +1170,34 @@ public partial class MainWindow : Window
         }
     }
 
-    private void EditorTagChip_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not Border { Tag: string name }) return;
-        int i = _editorTags.FindIndex(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
-        if (i >= 0) _editorTags.RemoveAt(i);
-        else _editorTags.Add(name);
-        BuildEditorTagChips();
-    }
-
-    private void EditorAddTag_Click(object sender, RoutedEventArgs e) => AddTagFromInput();
-
-    private void EditorNewTag_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter) { AddTagFromInput(); e.Handled = true; }
-    }
-
-    /// <summary>ينشئ مشروعاً جديداً من حقل الإدخال باللون المختار ويُسنِده للأمر قيد التحرير.</summary>
-    private void AddTagFromInput()
-    {
-        string name = EditorNewTag.Text.Trim();
-        if (name.Length == 0) return;
-        ProjectService.GetOrCreate(name, _newProjectColor);   // باللون المختار؛ يُطلِق OnProjectsChanged (يحفظ)
-        if (!_editorTags.Any(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase)))
-            _editorTags.Add(name);
-        EditorNewTag.Text = "";
-        _newProjectColor = ProjectService.NextAutoColor;   // اللون التالي للمشروع التالي
-        UpdateNewProjectColorDot();
-        BuildEditorTagChips();
-    }
-
-    private void CloseEditor_Click(object sender, RoutedEventArgs e) => EditorOverlay.Visibility = Visibility.Collapsed;
-    private void EditorOverlay_MouseDown(object sender, MouseButtonEventArgs e) => EditorOverlay.Visibility = Visibility.Collapsed;
     private void EditorCard_MouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
-    private void EditorBrowse_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "اختر المجلد" };
-        if (!string.IsNullOrWhiteSpace(EditorPath.Text) && Directory.Exists(EditorPath.Text))
-            dlg.InitialDirectory = EditorPath.Text;
-        if (dlg.ShowDialog() == true) EditorPath.Text = dlg.FolderName;
-    }
+    // ===== فلترة التاكات في لوحة المشاريع =====
 
-    private void SaveEditor_Click(object sender, RoutedEventArgs e)
-    {
-        var name = EditorName.Text.Trim();
-        if (name.Length == 0)
-        {
-            ShowAlert("تنبيه", "أدخل اسماً للأمر.");
-            return;
-        }
-
-        string shellKey = (EditorShell.SelectedItem as ShellDef)?.Key ?? "cmd";
-        var target = _editorTarget;
-        if (target is null)
-        {
-            target = new CommandEntry();
-            _entries.Add(target);
-        }
-        target.Name = name;
-        target.Path = EditorPath.Text.Trim();
-        target.Command = EditorCommand.Text.Trim();
-        target.Shell = shellKey;
-        target.Tags = new List<string>(_editorTags);
-
-        _store.Save(_entries);
-        BuildProjectFilterBar();       // قد تكون أُضيفت مشاريع جديدة
-        RefreshCommandVisuals();
-        EntriesList.SelectedItem = target;
-        EditorOverlay.Visibility = Visibility.Collapsed;
-    }
-
-    // ===== فلترة المشاريع في لوحة الأوامر =====
-
-    /// <summary>يبني شريط فلترة المشاريع: «الكل» + رقاقة لكل مشروع. يُخفى الشريط إن لا مشاريع.</summary>
-    private void BuildProjectFilterBar()
+    /// <summary>يبني شريط فلترة التاكات: «الكل» + رقاقة لكلّ تاك. يُخفى إن لا تاكات.</summary>
+    private void BuildTagFilterBar()
     {
         ProjectFilterBar.Children.Clear();
-        var projects = ProjectService.All;
-        if (projects.Count == 0)
+        var tags = TagService.All;
+        if (tags.Count == 0)
         {
             ProjectFilterScroll.Visibility = Visibility.Collapsed;
-            _projectFilter = null;
+            _tagFilter = null;
             return;
         }
 
-        // «الكل» — يلغي الفلتر.
-        ProjectFilterBar.Children.Add(MakeFilterChip(null, "الكل", null, _projectFilter is null));
-        foreach (var proj in projects)
+        ProjectFilterBar.Children.Add(MakeFilterChip(null, Loc.T("proj.filter.all"), null, _tagFilter is null));
+        foreach (var t in tags)
         {
             Color color;
-            try { color = (Color)ColorConverter.ConvertFromString(proj.Color); } catch { color = Colors.Gray; }
-            bool active = string.Equals(_projectFilter, proj.Name, StringComparison.OrdinalIgnoreCase);
-            ProjectFilterBar.Children.Add(MakeFilterChip(proj.Name, proj.Name, color, active));
+            try { color = (Color)ColorConverter.ConvertFromString(t.Color); } catch { color = Colors.Gray; }
+            bool active = string.Equals(_tagFilter, t.Name, StringComparison.OrdinalIgnoreCase);
+            ProjectFilterBar.Children.Add(MakeFilterChip(t.Name, t.Name, color, active));
         }
         ProjectFilterScroll.Visibility = Visibility.Visible;
     }
 
-    /// <summary>رقاقة فلتر واحدة (اسم المشروع في Tag؛ null = «الكل»).</summary>
+    /// <summary>رقاقة فلتر تاك واحدة (اسم التاك في Tag؛ null = «الكل»).</summary>
     private Border MakeFilterChip(string? name, string label, Color? color, bool active)
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1248,17 +1223,16 @@ public partial class MainWindow : Window
         ApplyChipActiveLook(chip, active, color ?? ((SolidColorBrush)FindResource("Brush.Accent")).Color);
         chip.MouseLeftButtonUp += ProjectFilterChip_Click;
 
-        // رقاقة مشروع فعليّ (لا «الكل») تحمل قائمة سياق (تغيير اللون + حذف).
+        // رقاقة تاك فعليّ (لا «الكل») تحمل قائمة سياق (تغيير اللون + حذف التاك).
         if (name != null)
         {
             var menu = new ContextMenu();
             var recolor = new MenuItem { Header = "🎨  تغيير اللون" };
             recolor.Click += (_, _) => OpenColorPicker(name);
-            var del = new MenuItem { Header = $"🗑  حذف المشروع «{name}»" };
-            del.Click += (_, _) => DeleteProject(name);
+            var del = new MenuItem { Header = $"🗑  حذف التاك «{name}»" };
+            del.Click += (_, _) => DeleteTag(name);
             menu.Items.Add(recolor);
             menu.Items.Add(del);
-            // منع طيّ اللوحة أثناء ظهور المنيو فوقها (كقائمة الأوامر).
             menu.Opened += EntriesContextMenu_Opened;
             menu.Closed += EntriesContextMenu_Closed;
             chip.ContextMenu = menu;
@@ -1266,63 +1240,22 @@ public partial class MainWindow : Window
         return chip;
     }
 
-    /// <summary>
-    /// يحذف مشروعاً عبر حوار تأكيد مخصّص. إن كانت به أوامر مرتبطة يسأل: حذف الأوامر، فكّ الربط، أو إلغاء.
-    /// </summary>
-    private void DeleteProject(string name)
+    /// <summary>يحذف تاكاً بعد تأكيد: يفكّ ربطه من كلّ المشاريع ثمّ يزيله.</summary>
+    private void DeleteTag(string name)
     {
-        var linked = _entries.Where(c => c.HasTag(name)).ToList();
-
-        if (linked.Count == 0)
-        {
-            ShowConfirm("حذف مشروع", $"حذف المشروع «{name}»؟",
-                new (string, string, bool)[] { ("حذف", "unlink", true), ("إلغاء", "cancel", false) },
-                key => { if (key != "cancel") FinishDeleteProject(name, linked, deleteLinked: false); });
-            return;
-        }
-
-        ShowConfirm("حذف مشروع",
-            $"المشروع «{name}» مرتبط بـ {linked.Count} أمراً. ماذا تفعل بالأوامر المرتبطة؟",
-            new (string, string, bool)[]
-            {
-                ("حذف الأوامر", "delete", true),
-                ("فكّ الربط", "unlink", false),
-                ("إلغاء", "cancel", false),
-            },
+        int linked = ProjectService.All.Count(p => p.HasTag(name));
+        string msg = linked > 0
+            ? $"حذف التاك «{name}»؟ سيُفكّ من {linked} مشروعاً (لا تُحذَف المشاريع)."
+            : $"حذف التاك «{name}»؟";
+        ShowConfirm("حذف تاك", msg,
+            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
             key =>
             {
-                if (key == "cancel") return;
-                FinishDeleteProject(name, linked, deleteLinked: key == "delete");
+                if (key != "delete") return;
+                if (string.Equals(_tagFilter, name, StringComparison.OrdinalIgnoreCase)) _tagFilter = null;
+                ProjectService.RemoveTagFromAll(name);   // يُطلِق OnProjectsChanged
+                TagService.Remove(name);                 // يُطلِق OnTagsChanged (حفظ + إعادة رسم الشريط)
             });
-    }
-
-    /// <summary>ينفّذ حذف المشروع بعد اختيار المستخدم: حذف الأوامر المرتبطة أو فكّ ربطها، ثمّ إزالة المشروع.</summary>
-    private void FinishDeleteProject(string name, List<CommandEntry> linked, bool deleteLinked)
-    {
-        if (linked.Count > 0)
-        {
-            if (deleteLinked)
-            {
-                foreach (var c in linked) _entries.Remove(c);
-            }
-            else
-            {
-                foreach (var c in linked)
-                {
-                    c.Tags.RemoveAll(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
-                    c.NotifyTagsChanged();
-                }
-            }
-            _store.Save(_entries);
-        }
-
-        if (string.Equals(_projectFilter, name, StringComparison.OrdinalIgnoreCase))
-            _projectFilter = null;
-
-        ProjectService.Remove(name);   // يُطلِق OnProjectsChanged (يحفظ المشاريع + يعيد الرسم)
-        BuildProjectFilterBar();
-        ApplyEntriesFilter();
-        RefreshCommandVisuals();
     }
 
     // ===== حوار تأكيد مخصّص (بديل MessageBox) =====
@@ -1341,9 +1274,9 @@ public partial class MainWindow : Window
     /// <summary>تنبيه مخصّص بزرّ واحد (بديل MessageBox ذي OK) — يُستعمل عبر الأداة.</summary>
     private void ShowAlert(string title, string message) => Views.AppDialog.Alert(this, title, message);
 
-    // ===== منتقي لون المشروع =====
+    // ===== منتقي لون التاك =====
 
-    /// <summary>يفتح منتقي اللون لمشروع: يبني رقاقات اللوحة، يملأ اللون الحاليّ، ويُبقي لوحة الأوامر مفتوحة.</summary>
+    /// <summary>يفتح منتقي اللون لتاك قائم: يبني رقاقات اللوحة، يملأ اللون الحاليّ، ويُبقي اللوحة مفتوحة.</summary>
     private void OpenColorPicker(string name)
     {
         _colorPickerForNew = false;
@@ -1351,18 +1284,18 @@ public partial class MainWindow : Window
         _colorPickerOpen = true;   // يمنع طيّ اللوحة أثناء ظهور المنتقي فوقها
         if (!_sidebarPinned && SidebarFlyout.Visibility != Visibility.Visible) ShowSidebarFlyout(true);
 
-        ColorPickerTitle.Text = $"لون المشروع «{name}»";
-        ShowColorPicker(ProjectService.Find(name)?.Color ?? "");
+        ColorPickerTitle.Text = $"لون التاك «{name}»";
+        ShowColorPicker(TagService.Find(name)?.Color ?? "");
     }
 
-    /// <summary>يفتح المنتقي لاختيار لون مشروع جديد (وضع الإنشاء داخل نافذة التحرير).</summary>
+    /// <summary>يفتح المنتقي لاختيار لون تاك جديد (وضع الإنشاء داخل محرّر المشروع).</summary>
     private void OpenColorPickerForNew()
     {
         _colorPickerForNew = true;
         _colorPickerTarget = null;
         _colorPickerOpen = true;
-        ColorPickerTitle.Text = "لون المشروع الجديد";
-        ShowColorPicker(_newProjectColor);
+        ColorPickerTitle.Text = "لون التاك الجديد";
+        ShowColorPicker(_projNewTagColor);
     }
 
     /// <summary>يملأ رقاقات اللوحة (مع إبراز اللون الحاليّ) ويفتح المنبثقة.</summary>
@@ -1370,7 +1303,7 @@ public partial class MainWindow : Window
     {
         ColorHexInput.Text = current;
         ColorSwatchPanel.Children.Clear();
-        foreach (var hex in ProjectService.Palette)
+        foreach (var hex in TagService.Palette)
             ColorSwatchPanel.Children.Add(MakeColorSwatch(hex, string.Equals(hex, current, StringComparison.OrdinalIgnoreCase)));
         ColorPickerPopup.IsOpen = true;
     }
@@ -1420,19 +1353,18 @@ public partial class MainWindow : Window
         ApplyProjectColor(hex);
     }
 
-    /// <summary>يطبّق اللون المختار: لمشروع جديد (يحدّث المعاينة) أو لمشروع قائم (يحفظ ويعيد الرسم).</summary>
+    /// <summary>يطبّق اللون المختار: لتاك جديد (يحدّث المعاينة) أو لتاك قائم (يحفظ ويعيد الرسم).</summary>
     private void ApplyProjectColor(string hex)
     {
         if (_colorPickerForNew)
         {
-            _newProjectColor = hex;
-            UpdateNewProjectColorDot();
+            _projNewTagColor = hex;
+            UpdateNewTagColorDot();
             ColorPickerPopup.IsOpen = false;
             return;
         }
         if (_colorPickerTarget is not { } name) return;
-        ProjectService.SetColor(name, hex);   // يُطلِق OnProjectsChanged (حفظ + إعادة رسم الشارات)
-        BuildProjectFilterBar();
+        TagService.SetColor(name, hex);   // يُطلِق OnTagsChanged (حفظ + إعادة رسم)
         ColorPickerPopup.IsOpen = false;
     }
 
@@ -1444,43 +1376,488 @@ public partial class MainWindow : Window
         if (!KeepFlyoutOpen() && !SidebarFlyout.IsMouseOver) ShowSidebarFlyout(false);
     }
 
+    /// <summary>نقر رقاقة فلتر التاك: يبدّل الفلتر ويعيد بناء قائمة المشاريع.</summary>
     private void ProjectFilterChip_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border chip) return;
         string? name = chip.Tag as string;
-        // نفس الرقاقة النشطة تُلغي الفلتر (تبديل).
-        _projectFilter = string.Equals(_projectFilter, name, StringComparison.OrdinalIgnoreCase) ? null : name;
-        BuildProjectFilterBar();
-        ApplyEntriesFilter();
+        _tagFilter = string.Equals(_tagFilter, name, StringComparison.OrdinalIgnoreCase) ? null : name;
+        BuildTagFilterBar();
+        RefreshProjectsList();
     }
 
-    /// <summary>يطبّق فلتر البحث والمشروع معاً على قائمة الأوامر.</summary>
-    private void ApplyEntriesFilter()
+    // ===== لوحة أوامر المشروع السريعة: تطفو على حافة التيرمنال، تُنفَّذ بالنقر في التيرمنال النشط =====
+
+    private string? _quickProject;                       // المشروع المعروض في اللوحة (null = مطويّة)
+    private readonly TranslateTransform _quickDockTransform = new();
+
+    /// <summary>يفتح اللوحة على مشروع (أو يطويها إن null/مجهول)، يبنيها ويُظهرها بانزلاق. يطوي لوحة المشاريع لتفادي التداخل.</summary>
+    private void OpenQuickDock(string? projectName)
     {
-        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(EntriesList.ItemsSource);
-        if (view is null) return;
-        string q = SidebarSearch.Text?.Trim() ?? "";
-        string? proj = _projectFilter;
-
-        if (q.Length == 0 && proj is null) { view.Filter = null; return; }
-
-        view.Filter = o =>
-        {
-            if (o is not CommandEntry c) return false;
-            if (proj != null && !c.HasTag(proj)) return false;
-            if (q.Length == 0) return true;
-            return (c.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (c.Path?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (c.Command?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                || c.Tags.Any(t => t.Contains(q, StringComparison.OrdinalIgnoreCase));
-        };
+        if (ProjectService.Find(projectName) is not { } proj) { CloseQuickDock(); return; }
+        _quickProject = proj.Name;
+        _sidebarPinned = false;
+        ShowSidebarFlyout(false);   // الدوك ولوحة المشاريع حصريّان (لا يظهران معاً)
+        BuildQuickDock();
+        ShowQuickDock(true);
     }
 
-    /// <summary>يُحدَّث عند تغيّر المشاريع (إضافة/تلوين): يحفظ ويعيد رسم الشارات والقوائم.</summary>
+    private void CloseQuickDock()
+    {
+        _quickProject = null;
+        ShowQuickDock(false);
+    }
+
+    private void QuickDockClose_Click(object sender, RoutedEventArgs e) => CloseQuickDock();
+
+    /// <summary>إظهار/إخفاء اللوحة بانزلاق أفقيّ خفيف + تلاشٍ (كلوحة الأوامر الجانبيّة).</summary>
+    private void ShowQuickDock(bool show)
+    {
+        QuickDock.RenderTransform = _quickDockTransform;
+        if (show)
+        {
+            if (QuickDock.Visibility == Visibility.Visible) return;
+            QuickDock.Visibility = Visibility.Visible;
+            var dur = TimeSpan.FromMilliseconds(160);
+            QuickDock.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
+            _quickDockTransform.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(18, 0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        }
+        else
+        {
+            if (QuickDock.Visibility != Visibility.Visible) return;
+            var dur = TimeSpan.FromMilliseconds(140);
+            var fade = new DoubleAnimation(1, 0, dur);
+            fade.Completed += (_, _) => { if (QuickDock.Opacity == 0) QuickDock.Visibility = Visibility.Collapsed; };
+            QuickDock.BeginAnimation(OpacityProperty, fade);
+            _quickDockTransform.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(0, 18, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
+        }
+    }
+
+    private ProjectCommand? _editingCmd;   // أمر قيد التحرير المباشر في الدوك (null = لا شيء)
+    private bool _addingCmd;                // إضافة أمر جديد (محرّر فارغ بأعلى القائمة)
+    private static readonly FontFamily Mdl2 = new("Segoe MDL2 Assets");
+
+    /// <summary>يبني محتوى الدوك للمشروع النشط: الرأس (اسم/فولدر)، رقاقات التبديل، والأوامر (+ محرّر مباشر).</summary>
+    private void BuildQuickDock()
+    {
+        if (ProjectService.Find(_quickProject) is not { } proj) { CloseQuickDock(); return; }
+        var color = ProjectService.ColorOf(proj) ?? ((SolidColorBrush)FindResource("Brush.Accent")).Color;
+        QuickDockDot.Background = new SolidColorBrush(color);
+        QuickDockTitle.Text = proj.Name;
+        QuickDockPath.Text = string.IsNullOrWhiteSpace(proj.Folder) ? Loc.T("proj.noFolder") : proj.Folder;
+
+        // رقاقات تبديل المشاريع
+        QuickDockChips.Children.Clear();
+        foreach (var p in ProjectService.All)
+        {
+            var c = ProjectService.ColorOf(p) ?? color;
+            bool active = string.Equals(p.Name, proj.Name, StringComparison.OrdinalIgnoreCase);
+            QuickDockChips.Children.Add(MakeQuickChip(p.Name, c, active));
+        }
+
+        // الأوامر (مع محرّر مباشر بدل الصفّ قيد التحرير، أو بأعلى القائمة عند الإضافة)
+        QuickCmdPanel.Children.Clear();
+        if (_addingCmd) QuickCmdPanel.Children.Add(BuildCommandEditor(null, proj, color));
+        foreach (var cmd in proj.Commands)
+            QuickCmdPanel.Children.Add(_editingCmd == cmd
+                ? BuildCommandEditor(cmd, proj, color)
+                : MakeCommandRow(cmd, color, proj));
+        QuickCmdEmpty.Visibility = (proj.Commands.Count == 0 && !_addingCmd) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>رقاقة تبديل مشروع داخل الدوك (تعيد بناءه على المشروع المنقور).</summary>
+    private Border MakeQuickChip(string name, Color color, bool active)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new Border
+        {
+            Width = 7, Height = 7, CornerRadius = new CornerRadius(4),
+            Background = new SolidColorBrush(color), Margin = new Thickness(0, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        content.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, FontSize = 10.5 });
+        var chip = new Border
+        {
+            Child = content,
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(0, 0, 5, 5),
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Tag = name,
+        };
+        ApplyChipActiveLook(chip, active, color);
+        chip.MouseLeftButtonUp += (_, _) => OpenQuickDock(name);
+        return chip;
+    }
+
+    /// <summary>صفّ أمر: أيقونة تشغيل + الاسم + شارة عدد الخطوات + تعديل/حذف؛ النقر ينفّذه (تنفيذ ذكيّ).</summary>
+    private Border MakeCommandRow(ProjectCommand cmd, Color color, Project proj)
+    {
+        var top = new Grid();
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var play = new TextBlock
+        {
+            Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = new SolidColorBrush(color),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0),
+        };
+        var label = new TextBlock
+        {
+            Text = cmd.Display, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis, Foreground = (Brush)FindResource("Brush.Text"),
+        };
+        Grid.SetColumn(label, 1);
+        top.Children.Add(play);
+        top.Children.Add(label);
+
+        if (cmd.IsMultiStep)
+        {
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(40, color.R, color.G, color.B)),
+                BorderBrush = new SolidColorBrush(color), BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9), Padding = new Thickness(6, 0, 6, 1),
+                Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = $"{cmd.Steps.Count} {Loc.T("proj.steps")}", FontSize = 9,
+                    Foreground = new SolidColorBrush(color),
+                },
+            };
+            Grid.SetColumn(badge, 2);
+            top.Children.Add(badge);
+        }
+
+        var edit = new TextBlock
+        {
+            Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = (Brush)FindResource("Brush.TextMuted"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0),
+            Cursor = Cursors.Hand, Opacity = 0, ToolTip = Loc.T("proj.cmd.edit"),
+        };
+        Grid.SetColumn(edit, 3);
+        edit.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; _addingCmd = false; _editingCmd = cmd; BuildQuickDock(); };
+
+        var del = new TextBlock
+        {
+            Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = (Brush)FindResource("Brush.TextMuted"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
+            Cursor = Cursors.Hand, Opacity = 0, ToolTip = Loc.T("quick.remove"),
+        };
+        Grid.SetColumn(del, 4);
+        del.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; ProjectService.RemoveCommand(proj.Name, cmd); };
+        top.Children.Add(edit);
+        top.Children.Add(del);
+
+        var stack = new StackPanel();
+        stack.Children.Add(top);
+        stack.Children.Add(new TextBlock
+        {
+            Text = string.Join("   ↵   ", cmd.Steps), FontSize = 9.5,
+            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+            FlowDirection = FlowDirection.LeftToRight, Foreground = (Brush)FindResource("Brush.TextMuted"),
+            TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0),
+        });
+
+        var row = new Border
+        {
+            Child = stack,
+            Background = (Brush)FindResource("Brush.Surface"),
+            BorderBrush = (Brush)FindResource("Brush.Border"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 6, 8, 6),
+            Margin = new Thickness(0, 0, 0, 5),
+            Cursor = Cursors.Hand,
+        };
+        row.MouseEnter += (_, _) => { row.BorderBrush = new SolidColorBrush(color); edit.Opacity = 1; del.Opacity = 1; };
+        row.MouseLeave += (_, _) => { row.BorderBrush = (Brush)FindResource("Brush.Border"); edit.Opacity = 0; del.Opacity = 0; };
+        row.MouseLeftButtonUp += (_, _) => RunProjectCommand(proj, cmd);
+        return row;
+    }
+
+    /// <summary>محرّر أمر مباشر داخل الدوك: اسم + خطوات (سطر لكلّ خطوة) + فولدر اختياريّ + حفظ/إلغاء.</summary>
+    private Border BuildCommandEditor(ProjectCommand? cmd, Project proj, Color color)
+    {
+        var panel = new StackPanel();
+        var labelBox = new TextBox
+        {
+            Text = cmd?.Label ?? "", FontSize = 11, Margin = new Thickness(0, 0, 0, 6),
+            Tag = Loc.T("proj.cmd.labelHint"), VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        var stepsBox = new TextBox
+        {
+            Text = cmd?.StepsText ?? "", AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap,
+            MinHeight = 50, FontSize = 10.5, FlowDirection = FlowDirection.LeftToRight,
+            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Tag = Loc.T("proj.cmd.stepsHint"),
+        };
+        var folderGrid = new Grid { Margin = new Thickness(0, 6, 0, 0) };
+        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var folderBox = new TextBox
+        {
+            Text = cmd?.Folder ?? "", FontSize = 10.5, FlowDirection = FlowDirection.LeftToRight,
+            VerticalContentAlignment = VerticalAlignment.Center, Tag = Loc.T("proj.cmd.folderHint"),
+        };
+        var browse = new Button
+        {
+            Content = "", FontFamily = Mdl2, Margin = new Thickness(6, 0, 0, 0),
+            Padding = new Thickness(9, 4, 9, 4), ToolTip = Loc.T("proj.folder.browse"),
+        };
+        Grid.SetColumn(browse, 1);
+        browse.Click += (_, _) =>
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog();
+            if (!string.IsNullOrWhiteSpace(folderBox.Text)) { try { dlg.InitialDirectory = folderBox.Text; } catch { } }
+            if (dlg.ShowDialog() == true) folderBox.Text = dlg.FolderName;
+        };
+        folderGrid.Children.Add(folderBox);
+        folderGrid.Children.Add(browse);
+
+        var buttons = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        var save = new Button
+        {
+            Content = Loc.T("editor.save"), Style = (Style)FindResource("AccentButton"),
+            Padding = new Thickness(14, 5, 14, 5), HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        var cancel = new Button
+        {
+            Content = Loc.T("editor.cancel"), Padding = new Thickness(12, 5, 12, 5),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(save);
+
+        panel.Children.Add(labelBox);
+        panel.Children.Add(stepsBox);
+        panel.Children.Add(folderGrid);
+        panel.Children.Add(buttons);
+
+        cancel.Click += (_, _) => { _addingCmd = false; _editingCmd = null; BuildQuickDock(); };
+        save.Click += (_, _) =>
+        {
+            string steps = stepsBox.Text, lbl = labelBox.Text, folder = folderBox.Text;
+            _addingCmd = false; _editingCmd = null;
+            if (cmd == null)
+            {
+                bool ok = ProjectService.AddCommand(proj.Name, steps, lbl, folder);   // Changed → إعادة بناء
+                if (!ok) { BuildQuickDock(); NotificationService.Secondary(Loc.T("quick.duplicate"), NotificationType.Info); }
+            }
+            else ProjectService.UpdateCommand(cmd, lbl, steps, folder);
+        };
+
+        var box = new Border
+        {
+            Child = panel,
+            Background = (Brush)FindResource("Brush.Bg"),
+            BorderBrush = new SolidColorBrush(color), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(8),
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+        labelBox.Loaded += (_, _) => labelBox.Focus();
+        return box;
+    }
+
+    /// <summary>
+    /// تنفيذ ذكيّ لأمر مشروع: إن كان التيرمنال النشط في فولدر الأمر نفسه ينفّذ خطواته فيه؛ وإلّا يفتح
+    /// تيرمنالاً جديداً في الفولدر (بصدفة المشروع) ويشغّلها. الخطوات تُنفَّذ بالتوالي.
+    /// </summary>
+    private void RunProjectCommand(Project proj, ProjectCommand cmd)
+    {
+        if (cmd.Steps.Count == 0) return;
+        string folder = !string.IsNullOrWhiteSpace(cmd.Folder) ? cmd.Folder! : proj.Folder;
+        string shell = !string.IsNullOrWhiteSpace(proj.Shell) ? proj.Shell : ShellCatalog.DefaultKey;
+
+        var activeEntry = (TerminalTabs.SelectedItem as TabItem)?.Tag as CommandEntry;
+        var activeView = ActiveContainer?.ActiveView;
+        bool sameFolder = activeView != null && activeEntry != null && PathEquals(activeEntry.Path, folder);
+
+        if (sameFolder)
+            foreach (var step in cmd.Steps) activeView!.RunCommand(step);
+        else
+            OpenTerminal(new CommandEntry
+            {
+                Name = string.IsNullOrWhiteSpace(cmd.Label) ? proj.Name : cmd.Label,
+                Path = folder,
+                Shell = shell,
+                Command = string.Join("\n", cmd.Steps),   // OnCoreData يقسّمها وينفّذها بالتوالي
+            });
+    }
+
+    /// <summary>مقارنة مسارين بعد التطبيع (فواصل موحّدة، بلا فراغ/شرطة نهائيّة، غير حسّاسة للحالة).</summary>
+    private static bool PathEquals(string? a, string? b)
+    {
+        static string N(string? s) => (s ?? "").Trim().Replace('/', '\\').TrimEnd('\\');
+        return string.Equals(N(a), N(b), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>«أمر جديد»: يفتح محرّراً فارغاً بأعلى قائمة الأوامر.</summary>
+    private void QuickNewCommand_Click(object sender, RoutedEventArgs e)
+    {
+        if (_quickProject is null) return;
+        _editingCmd = null; _addingCmd = true;
+        BuildQuickDock();
+    }
+
+    /// <summary>«أضف الأمر الحاليّ»: يلتقط آخر أمر نُفِّذ في التيرمنال النشط ويضيفه للمشروع بعد فحص التكرار.</summary>
+    private void QuickAddCurrent_Click(object sender, RoutedEventArgs e)
+    {
+        if (_quickProject is null) return;
+        var last = ActiveContainer?.ActiveView?.LastCommand;
+        if (string.IsNullOrWhiteSpace(last))
+        {
+            NotificationService.Secondary(Loc.T("quick.noCurrent"), NotificationType.Warning);
+            return;
+        }
+        bool added = ProjectService.AddCommand(_quickProject, last);   // Changed → حفظ + إعادة بناء
+        NotificationService.Secondary(
+            added ? Loc.T("quick.added") : Loc.T("quick.duplicate"),
+            added ? NotificationType.Success : NotificationType.Info);
+    }
+
+    /// <summary>يفتح محرّر المشروع النشط (اسم/لون/فولدر/صدفة).</summary>
+    private void QuickEditProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectService.Find(_quickProject) is { } proj) OpenProjectEditor(proj);
+    }
+
+    // ===== محرّر المشروع (اسم/باث/صدفة/تاكات) =====
+
+    private Project? _projEditTarget;
+    private readonly List<string> _projEditTags = new();   // تاكات المشروع قيد التحرير
+    private string _projNewTagColor = "#C96442";           // لون التاك الجديد المختار
+
+    /// <summary>يفتح محرّر المشروع (null = مشروع جديد).</summary>
+    private void OpenProjectEditor(Project? proj)
+    {
+        _projEditTarget = proj;
+        ProjEditTitle.Text = proj is null ? Loc.T("proj.new") : Loc.T("proj.edit");
+        ProjEditName.Text = proj?.Name ?? "";
+        ProjEditFolder.Text = proj?.Folder ?? "";
+        ProjEditShell.ItemsSource = ShellCatalog.All;
+        ProjEditShell.SelectedItem = ShellCatalog.Get(string.IsNullOrWhiteSpace(proj?.Shell) ? null : proj!.Shell);
+        _projEditTags.Clear();
+        if (proj != null) _projEditTags.AddRange(proj.Tags);
+        ProjEditNewTag.Text = "";
+        _projNewTagColor = TagService.NextAutoColor;
+        UpdateNewTagColorDot();
+        BuildProjEditTagChips();
+        ProjectEditorOverlay.Visibility = Visibility.Visible;
+        ProjEditName.Focus();
+        ProjEditName.SelectAll();
+    }
+
+    /// <summary>يعكس لون التاك الجديد المختار على النقطة الملوّنة بجانب حقل الإضافة.</summary>
+    private void UpdateNewTagColorDot()
+    {
+        try { ProjNewTagColorDot.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_projNewTagColor)); }
+        catch { ProjNewTagColorDot.Background = (Brush)FindResource("Brush.Accent"); }
+    }
+
+    /// <summary>يبني رقاقات التاكات في محرّر المشروع (كل تاك معروف رقاقة تبديل؛ النشطة = مسنَدة للمشروع).</summary>
+    private void BuildProjEditTagChips()
+    {
+        ProjEditTagPanel.Children.Clear();
+        foreach (var t in TagService.All)
+        {
+            bool active = _projEditTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
+            ProjEditTagPanel.Children.Add(MakeTagChip(t.Name, t.Color, active, toggle: true));
+        }
+        if (TagService.All.Count == 0)
+            ProjEditTagPanel.Children.Add(new TextBlock
+            {
+                Text = Loc.T("proj.noTags"), Foreground = (Brush)FindResource("Brush.TextMuted"),
+                FontSize = 11, Margin = new Thickness(2),
+            });
+    }
+
+    /// <summary>نقر رقاقة تاك في المحرّر: يعكس إسناد التاك للمشروع قيد التحرير.</summary>
+    private void ProjEditTagChip_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border { Tag: string name }) return;
+        int i = _projEditTags.FindIndex(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) _projEditTags.RemoveAt(i);
+        else _projEditTags.Add(name);
+        BuildProjEditTagChips();
+    }
+
+    private void ProjEditAddTag_Click(object sender, RoutedEventArgs e) => AddProjEditTag();
+    private void ProjEditNewTag_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { AddProjEditTag(); e.Handled = true; }
+    }
+
+    /// <summary>ينشئ تاكاً جديداً باللون المختار ويُسنِده للمشروع قيد التحرير.</summary>
+    private void AddProjEditTag()
+    {
+        string name = ProjEditNewTag.Text.Trim();
+        if (name.Length == 0) return;
+        TagService.GetOrCreate(name, _projNewTagColor);   // يُطلِق OnTagsChanged (حفظ + إعادة رسم)
+        if (!_projEditTags.Any(t => string.Equals(t, name, StringComparison.OrdinalIgnoreCase)))
+            _projEditTags.Add(name);
+        ProjEditNewTag.Text = "";
+        _projNewTagColor = TagService.NextAutoColor;
+        UpdateNewTagColorDot();
+        BuildProjEditTagChips();
+    }
+
+    private void ProjNewTagColorDot_Click(object sender, MouseButtonEventArgs e) => OpenColorPickerForNew();
+
+    private void ProjEditBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = Loc.T("proj.folder.browse") };
+        if (!string.IsNullOrWhiteSpace(ProjEditFolder.Text) && Directory.Exists(ProjEditFolder.Text))
+            dlg.InitialDirectory = ProjEditFolder.Text;
+        if (dlg.ShowDialog() == true) ProjEditFolder.Text = dlg.FolderName;
+    }
+
+    private void ProjEditCancel_Click(object sender, RoutedEventArgs e) => ProjectEditorOverlay.Visibility = Visibility.Collapsed;
+    private void ProjectEditorOverlay_MouseDown(object sender, MouseButtonEventArgs e) => ProjectEditorOverlay.Visibility = Visibility.Collapsed;
+
+    private void ProjEditSave_Click(object sender, RoutedEventArgs e)
+    {
+        string name = ProjEditName.Text.Trim();
+        if (name.Length == 0) { ShowAlert("تنبيه", "أدخل اسم المشروع."); return; }
+        string shellKey = (ProjEditShell.SelectedItem as ShellDef)?.Key ?? "";
+        string folder = ProjEditFolder.Text.Trim();
+
+        if (_projEditTarget is null)
+        {
+            if (ProjectService.Find(name) != null) { ShowAlert("تنبيه", "اسم المشروع مستعمَل."); return; }
+            ProjectService.Create(name);
+        }
+        else
+        {
+            string old = _projEditTarget.Name;
+            if (!string.Equals(old, name, StringComparison.OrdinalIgnoreCase))
+            {
+                if (ProjectService.Find(name) != null) { ShowAlert("تنبيه", "اسم المشروع مستعمَل."); return; }
+                ProjectService.Rename(old, name);
+                if (string.Equals(_quickProject, old, StringComparison.OrdinalIgnoreCase)) _quickProject = name;
+            }
+        }
+        ProjectService.SetFolder(name, folder);
+        ProjectService.SetShell(name, shellKey);
+        ProjectService.SetTags(name, _projEditTags);
+
+        ProjectEditorOverlay.Visibility = Visibility.Collapsed;
+        OpenQuickDock(name);   // افتح لوحة المشروع لإضافة أوامره
+    }
+
+    /// <summary>يُحدَّث عند تغيّر المشاريع (إضافة/تعديل/حذف): يحفظ ويعيد رسم القوائم.</summary>
     private void OnProjectsChanged()
     {
         _projectStore.Save(ProjectService.All);
-        RefreshCommandVisuals();
+        RefreshProjectsList();   // «لوحة المشاريع» + نقاط الشريط
+        // إعادة بناء لوحة الأوامر السريعة إن كانت مفتوحة (لالتقاط أوامر/ألوان محدَّثة).
+        if (_quickProject != null && QuickDock.Visibility == Visibility.Visible) BuildQuickDock();
     }
 
     /// <summary>يعيد رسم شارات الشريط الجانبيّ وقائمة الأوامر (لالتقاط ألوان/وسوم محدَّثة).</summary>
@@ -1596,7 +1973,6 @@ public partial class MainWindow : Window
                 if (_profiles.DefaultProfileId == p.Id) _profiles.DefaultProfileId = null;
                 _profileStore.Save(_profiles);
                 ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
-                EditorShell.ItemsSource = ShellCatalog.All;
                 RefreshProfileManager();
             });
     }
@@ -1655,7 +2031,6 @@ public partial class MainWindow : Window
 
         _profileStore.Save(_profiles);
         ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
-        EditorShell.ItemsSource = ShellCatalog.All;   // يُحدِّث كومبو الصدفة في محرّر الأوامر
         RefreshProfileManager();
         ProfileEditorOverlay.Visibility = Visibility.Collapsed;
     }
@@ -1807,7 +2182,12 @@ public partial class MainWindow : Window
         return _sidebarPinned;
     }
 
-    private void SidebarRail_MouseEnter(object sender, MouseEventArgs e) => ShowSidebarFlyout(true);
+    private void SidebarRail_MouseEnter(object sender, MouseEventArgs e)
+    {
+        // الدوك مفتوح؟ لا نفتح لوحة المشاريع فوقه (حصريّان) كي لا يتداخلا — والتبديل عبر رقاقات الدوك.
+        if (QuickDock.Visibility == Visibility.Visible) return;
+        ShowSidebarFlyout(true);
+    }
     private void SidebarMenu_Click(object sender, RoutedEventArgs e) => ToggleSidebarExpanded();
     private void SidebarFlyout_MouseLeave(object sender, MouseEventArgs e)
     {
@@ -1838,6 +2218,7 @@ public partial class MainWindow : Window
         if (show)
         {
             if (SidebarFlyout.Visibility == Visibility.Visible) return;
+            CloseQuickDock();   // حصريّة: إظهار لوحة المشاريع يطوي الدوك
             SidebarFlyout.Visibility = Visibility.Visible;
             var dur = TimeSpan.FromMilliseconds(150);
             SidebarFlyout.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
@@ -1857,17 +2238,26 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>نقر مختصر أمر في الشريط المطويّ: يشغّله مباشرةً ويُغلق اللوحة (إن لم تكن مثبَّتة).</summary>
+    /// <summary>نقر مربّع مشروع في الشريط المطويّ: يفتح لوحة أوامره ويُغلق اللوحة المنبثقة (إن لم تكن مثبَّتة).</summary>
     private void SidebarDot_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.Tag is not CommandEntry entry) return;
-        EntriesList.SelectedItem = entry;
+        if ((sender as FrameworkElement)?.Tag is not Project proj) return;
         if (!_sidebarPinned) ShowSidebarFlyout(false);
-        OpenTerminal(entry);
+        OpenQuickDock(proj.Name);
     }
 
     /// <summary>يصفّي قائمة الأوامر المحفوظة حسب نصّ البحث (الاسم/الباث/الأمر).</summary>
-    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyEntriesFilter();
+    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshProjectsList();
+
+    /// <summary>يحوّل عجلة الماوس/الباد إلى سكرول أفقيّ لصفوف الرقاقات (الدوك + شريط التاكات).</summary>
+    private void HorizontalChips_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is ScrollViewer sv && e.Delta != 0)
+        {
+            sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta);
+            e.Handled = true;
+        }
+    }
 
     // ===== لوحة الأوامر (Ctrl+Shift+P) =====
 
@@ -2017,6 +2407,7 @@ public partial class MainWindow : Window
             foreach (var item in TerminalTabs.Items)
                 if (item is TabItem { Tag: CommandEntry entry } tab)
                 {
+                    if (entry.IsTransient) continue;   // تبويب لحظيّ (شِل حاوية) — لا يُحفَظ ولا يُسترجَع
                     // نلتقط جلسة الجزء النشط (معرّفها + آخر أمر) لاسترجاعها وإعادة تنفيذ آخر أمر.
                     var view = (tab.Content as TerminalPaneContainer)?.ActiveView;
                     tabs.Add(new TabSnapshot(HeaderTitle(tab) ?? entry.Name, entry.Shell, entry.Path,
