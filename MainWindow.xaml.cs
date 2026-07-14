@@ -1410,6 +1410,16 @@ public partial class MainWindow : Window
 
     private void QuickDockClose_Click(object sender, RoutedEventArgs e) => CloseQuickDock();
 
+    /// <summary>
+    /// النقر داخل منطقة التيرمنال يُغلق لوحتَي المشاريع (المنبثقة) والأوامر (الدوك) — كي يتفرّغ العرض
+    /// للتيرمنال. لا نُعلّم الحدث مُعالَجاً فيصل النقر للتيرمنال (تركيز/تحديد) طبيعيّاً.
+    /// </summary>
+    private void TerminalTabs_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (SidebarFlyout.Visibility == Visibility.Visible) { _sidebarPinned = false; ShowSidebarFlyout(false); }
+        if (QuickDock.Visibility == Visibility.Visible) CloseQuickDock();
+    }
+
     /// <summary>إظهار/إخفاء اللوحة بانزلاق أفقيّ خفيف + تلاشٍ (كلوحة الأوامر الجانبيّة).</summary>
     private void ShowQuickDock(bool show)
     {

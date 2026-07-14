@@ -161,7 +161,7 @@
                                        FontSize="11" Opacity="0.8" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
-                    <TabControl x:Name="TerminalTabs"/>
+                    <TabControl x:Name="TerminalTabs" PreviewMouseDown="TerminalTabs_PreviewMouseDown"/>
                 </Grid>
 
                 <!-- ===== لوحة الأوامر المحفوظة المنبثقة (تفتح بالمرور على الشريط أو بالنقر) ===== -->

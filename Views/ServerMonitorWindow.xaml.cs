@@ -2400,6 +2400,9 @@ public sealed class ContainerRowVm
     /// <summary>الاسم المعروض: المخصّص إن وُجد وإلّا الاسم الحقيقيّ.</summary>
     public string DisplayName => HasCustom ? CustomName : Name;
 
+    /// <summary>تسمية زرّ «دخول» (مُعرَّبة).</summary>
+    public string EnterLabel => Loc.T("srv.containers.enter");
+
     public static ContainerRowVm From(ContainerListItem c) => new()
     {
         Name = c.Name,

@@ -255,6 +255,7 @@ public static class Loc
         ["srv.containers.none"] = ("لا حاويات على هذا الخادم (أو Docker غير مثبّت/بلا صلاحية).", "No containers on this server (or Docker is not installed / no permission)."),
         ["srv.containers.nameTitle"] = ("تسمية الحاوية", "Name container"),
         ["srv.containers.search"] = ("بحث في الحاويات…", "Search containers…"),
+        ["srv.containers.enter"] = ("دخول", "Enter"),
         ["srv.containers.noMatch"] = ("لا نتائج مطابقة للبحث.", "No containers match the search."),
         ["srv.ed.sudo"] = ("استخدم sudo لأوامر Docker", "Use sudo for Docker commands"),
         ["srv.ed.sudoHint"] = ("لِلمستخدمين بلا صلاحيّة docker مباشرة. السرد يحتاج sudo بلا كلمة مرور (NOPASSWD)؛ الكونسول يطلب كلمة المرور داخل التبويب عند الحاجة.", "For users without direct docker access. Listing needs passwordless sudo (NOPASSWD); the console prompts for the password inside the tab if required."),
