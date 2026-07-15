@@ -54,12 +54,11 @@ public partial class AppDialog : Window
                 FontWeight = FontWeights.Medium,
                 Cursor = Cursors.Hand,
             };
-            btn.Style = kind switch
-            {
-                DialogButtonKind.Accent => (Style)Application.Current.FindResource("AccentButton"),
-                DialogButtonKind.Danger => (Style)Application.Current.FindResource("DangerButton"),
-                _ => null!,   // النمط الافتراضيّ (زرّ محايد)
-            };
+            // للمحايد: نترك النمط الضمنيّ (implicit Button style) — لا نضبطه إلى null فيفقد ستايل الثيم
+            if (kind == DialogButtonKind.Accent)
+                btn.Style = (Style)Application.Current.FindResource("AccentButton");
+            else if (kind == DialogButtonKind.Danger)
+                btn.Style = (Style)Application.Current.FindResource("DangerButton");
             string k = key;
             btn.Click += (_, _) => { dlg._result = k; dlg.DialogResult = true; };
             dlg.ButtonPanel.Children.Add(btn);
