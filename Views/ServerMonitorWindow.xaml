@@ -1524,22 +1524,7 @@
                                 <Button x:Name="ConfirmCancel" HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
                                         Click="ConfirmCancel_Click"/>
                                 <Button x:Name="ConfirmOk" HorizontalAlignment="Right" Content="حذف" Padding="22,8"
-                                        Click="ConfirmOk_Click" Cursor="Hand"
-                                        Foreground="{DynamicResource Brush.OnAccent}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="bd" Background="{DynamicResource Brush.Danger}" CornerRadius="8"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="bd" Property="Opacity" Value="0.9"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
+                                        Click="ConfirmOk_Click" Style="{StaticResource DangerButton}"/>
                             </Grid>
                         </StackPanel>
                     </Border>

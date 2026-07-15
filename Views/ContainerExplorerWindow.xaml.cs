@@ -394,7 +394,8 @@ public partial class ContainerExplorerWindow : Window
         string msg = vm.IsDir ? $"{Loc.T("srv.explorer.delDirConfirm")}\n{vm.FullPath}"
                               : $"{Loc.T("srv.explorer.delConfirm")}\n{vm.FullPath}";
         if (AppDialog.Confirm(this, Loc.T("srv.explorer.delete"), msg,
-                (Loc.T("srv.explorer.delete"), "del", false), (Loc.T("srv.ed.cancel"), "cancel", true)) != "del")
+                (Loc.T("srv.ed.cancel"), "cancel", DialogButtonKind.Neutral),
+                (Loc.T("srv.explorer.delete"), "del", DialogButtonKind.Danger)) != "del")
             return;
         await RunFileOpAsync(() => _files.DeleteAsync(vm.FullPath, vm.IsDir)).ConfigureAwait(true);
     }

@@ -1109,7 +1109,7 @@ public partial class MainWindow : Window
             ? $"حذف المشروع «{proj.Name}» و{n} من أوامره؟"
             : $"حذف المشروع «{proj.Name}»؟";
         ShowConfirm("حذف مشروع", msg,
-            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
+            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;
@@ -1248,7 +1248,7 @@ public partial class MainWindow : Window
             ? $"حذف التاك «{name}»؟ سيُفكّ من {linked} مشروعاً (لا تُحذَف المشاريع)."
             : $"حذف التاك «{name}»؟";
         ShowConfirm("حذف تاك", msg,
-            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
+            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;
@@ -1265,7 +1265,7 @@ public partial class MainWindow : Window
     /// بمفتاح الزرّ المختار. الإلغاء (Escape/زرّ إلغاء) لا يستدعي شيئاً — على المستدعي تضمين مفتاح «cancel».
     /// </summary>
     private void ShowConfirm(string title, string message,
-        (string Label, string Key, bool Accent)[] options, Action<string> onResult)
+        (string Label, string Key, Views.DialogButtonKind Kind)[] options, Action<string> onResult)
     {
         var key = Views.AppDialog.Confirm(this, title, message, options);
         if (key != null) onResult(key);
@@ -1975,7 +1975,7 @@ public partial class MainWindow : Window
             return;
         }
         ShowConfirm("حذف بروفايل", $"حذف البروفايل «{p.Name}»؟",
-            new (string, string, bool)[] { ("حذف", "delete", true), ("إلغاء", "cancel", false) },
+            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;

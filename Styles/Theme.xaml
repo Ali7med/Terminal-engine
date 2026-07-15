@@ -227,6 +227,31 @@
         </Setter>
     </Style>
 
+    <!-- زرّ خطر (حذف/إجراء لا رجعة فيه): أحمر واضح مميّز عن اللكنة البرتقاليّة -->
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource AccentButton}">
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Background" Value="#E5484D"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="8"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="#D13B40"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ========== أزرار إطار النافذة ========== -->
     <Style x:Key="ChromeButton" TargetType="Button">
         <Setter Property="Width" Value="44"/>
