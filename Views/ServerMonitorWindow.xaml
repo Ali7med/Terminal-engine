@@ -11,7 +11,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" Background="{DynamicResource Brush.Bg}"
         TextOptions.TextFormattingMode="Ideal"
-        FontFamily="{DynamicResource Font.Ui}" FontSize="13"
+        FontFamily="{DynamicResource Font.Ui}" FontSize="{DynamicResource Size.Ui}"
         NumberSubstitution.Substitution="European"
         Foreground="{DynamicResource Brush.Text}">
 
@@ -101,11 +101,13 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="{DynamicResource Size.Table}"/>
         </Style>
         <Style x:Key="GridCell" TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="10,6"/>
             <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FontSize" Value="{DynamicResource Size.Table}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
@@ -848,6 +850,7 @@
                                             <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
                                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                             <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="FontSize" Value="{DynamicResource Size.Table}"/>
                                         </Style>
                                     </DataGrid.ColumnHeaderStyle>
                                     <DataGrid.CellStyle>
@@ -855,6 +858,7 @@
                                             <Setter Property="BorderThickness" Value="0"/>
                                             <Setter Property="Padding" Value="10,6"/>
                                             <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="FontSize" Value="{DynamicResource Size.Table}"/>
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="DataGridCell">

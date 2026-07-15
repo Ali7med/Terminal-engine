@@ -8,7 +8,7 @@
         WindowStyle="ToolWindow" ShowInTaskbar="False"
         Background="{DynamicResource Brush.Bg}"
         Foreground="{DynamicResource Brush.Text}"
-        FontFamily="{DynamicResource Font.Ui}" FontSize="13">
+        FontFamily="{DynamicResource Font.Ui}" FontSize="{DynamicResource Size.Ui}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

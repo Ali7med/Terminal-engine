@@ -53,6 +53,10 @@ public partial class App : Application
         Environment.SetEnvironmentVariable("MSBUILDTERMINALLOGGER", "off");
         Environment.SetEnvironmentVariable("DOTNET_CLI_TELEMETRY_OPTOUT", "1");
 
+        // خطوط المستخدم: اقرأ fonts.json وطبّقه قبل بناء النوافذ (يستبدل موارد Font.*/Size.*)
+        Services.FontManager.Load();
+        Services.FontManager.Apply();
+
         base.OnStartup(e);
     }
 }

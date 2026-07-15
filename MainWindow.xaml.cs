@@ -195,6 +195,17 @@ public partial class MainWindow : Window
         FontFamilyCombo.SelectedValue = _settings.FontFamily;
         UpdateTextColorSelection();
 
+        // خطوط الواجهة (FontManager) — قيَم منفصلة عن خطّ التيرمنال أعلاه
+        FontUiFamilyBox.Text = FontManager.Current.UiFont;
+        FontMonoFamilyBox.Text = FontManager.Current.MonoFont;
+        UiSizeSlider.Value = FontManager.Current.UiSize;
+        UiSizeValue.Text = FontManager.Current.UiSize.ToString("0.#");
+        MenuSizeSlider.Value = FontManager.Current.MenuSize;
+        MenuSizeValue.Text = FontManager.Current.MenuSize.ToString("0.#");
+        TableSizeSlider.Value = FontManager.Current.TableSize;
+        TableSizeValue.Text = FontManager.Current.TableSize.ToString("0.#");
+        FontJsonPathText.Text = FontManager.JsonPath;
+
         BgOpacitySlider.Value = _settings.BackgroundOpacity;
         BgOpacityValue.Text = _settings.BackgroundOpacity.ToString("0.00");
         UpdateBackgroundUi();
@@ -606,6 +617,73 @@ public partial class MainWindow : Window
             ApplyFontToAllTabs();
             SaveSettings();
         }
+    }
+
+    // ===== خطوط الواجهة (FontManager) — تُحفَظ في fonts.json وتُطبَّق حيّاً على الموارد =====
+
+    private void UiSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (UiSizeValue != null) UiSizeValue.Text = e.NewValue.ToString("0.#");
+        if (_syncingUi) return;
+        FontManager.Current.UiSize = e.NewValue;
+        FontManager.Save(); FontManager.Apply();
+    }
+
+    private void MenuSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MenuSizeValue != null) MenuSizeValue.Text = e.NewValue.ToString("0.#");
+        if (_syncingUi) return;
+        FontManager.Current.MenuSize = e.NewValue;
+        FontManager.Save(); FontManager.Apply();
+    }
+
+    private void TableSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TableSizeValue != null) TableSizeValue.Text = e.NewValue.ToString("0.#");
+        if (_syncingUi) return;
+        FontManager.Current.TableSize = e.NewValue;
+        FontManager.Save(); FontManager.Apply();
+    }
+
+    private void CommitUiFamily()
+    {
+        if (_syncingUi) return;
+        FontManager.Current.UiFont = FontUiFamilyBox.Text?.Trim() ?? "";
+        FontManager.Save(); FontManager.Apply();
+    }
+    private void FontUiFamily_LostFocus(object sender, RoutedEventArgs e) => CommitUiFamily();
+    private void FontUiFamily_KeyDown(object sender, KeyEventArgs e)
+    { if (e.Key == Key.Enter) { CommitUiFamily(); e.Handled = true; } }
+
+    private void CommitMonoFamily()
+    {
+        if (_syncingUi) return;
+        FontManager.Current.MonoFont = FontMonoFamilyBox.Text?.Trim() ?? "";
+        FontManager.Save(); FontManager.Apply();
+    }
+    private void FontMonoFamily_LostFocus(object sender, RoutedEventArgs e) => CommitMonoFamily();
+    private void FontMonoFamily_KeyDown(object sender, KeyEventArgs e)
+    { if (e.Key == Key.Enter) { CommitMonoFamily(); e.Handled = true; } }
+
+    /// <summary>يفتح fonts.json في المحرّر الافتراضيّ (بعد ضمان وجوده) — ليعدّله المستخدم يدويّاً.</summary>
+    private void OpenFontJson_Click(object sender, RoutedEventArgs e)
+    {
+        FontManager.Save();
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(FontManager.JsonPath) { UseShellExecute = true }); }
+        catch { /* لا محرّر مقترن */ }
+    }
+
+    /// <summary>يعيد قراءة fonts.json من القرص ويطبّقه (بعد تعديل يدويّ) ثمّ يزامن اللوحة.</summary>
+    private void ApplyFontJson_Click(object sender, RoutedEventArgs e)
+    {
+        FontManager.ReloadAndApply();
+        SyncSettingsUi();
+    }
+
+    private void ResetFont_Click(object sender, RoutedEventArgs e)
+    {
+        FontManager.ResetToDefaults();
+        SyncSettingsUi();
     }
 
     private void TextColorSwatch_Click(object sender, MouseButtonEventArgs e)

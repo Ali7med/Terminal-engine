@@ -11,7 +11,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" Background="{DynamicResource Brush.Bg}"
         TextOptions.TextFormattingMode="Ideal"
-        FontFamily="{DynamicResource Font.Ui}" FontSize="13"
+        FontFamily="{DynamicResource Font.Ui}" FontSize="{DynamicResource Size.Ui}"
         Foreground="{DynamicResource Brush.Text}">
 
     <shell:WindowChrome.WindowChrome>
@@ -569,6 +569,63 @@
                                                       MinWidth="240"
                                                       DisplayMemberPath="Display" SelectedValuePath="Value"
                                                       SelectionChanged="FontFamilyCombo_SelectionChanged"/>
+
+                                            <!-- ===== خطوط الواجهة (عامّ) — تُحفَظ في fonts.json وتُطبَّق حيّاً ===== -->
+                                            <Border Height="1" Margin="0,22,0,0" Background="{DynamicResource Brush.Border}"/>
+                                            <TextBlock Text="{loc:T settings.uiFonts}" Style="{StaticResource SectionLabel}" Margin="2,16,2,4"/>
+                                            <TextBlock Text="{loc:T settings.fontsHint}" TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
+                                                       FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,10"/>
+
+                                            <TextBlock Text="{loc:T settings.uiFamily}" FontSize="11.5"
+                                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,4"/>
+                                            <TextBox x:Name="FontUiFamilyBox" MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
+                                                     VerticalContentAlignment="Center" Padding="8,6" FlowDirection="LeftToRight"
+                                                     KeyDown="FontUiFamily_KeyDown" LostFocus="FontUiFamily_LostFocus"/>
+
+                                            <TextBlock Text="{loc:T settings.monoFamily}" FontSize="11.5"
+                                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="2,12,2,4"/>
+                                            <TextBox x:Name="FontMonoFamilyBox" MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
+                                                     VerticalContentAlignment="Center" Padding="8,6" FlowDirection="LeftToRight"
+                                                     KeyDown="FontMonoFamily_KeyDown" LostFocus="FontMonoFamily_LostFocus"/>
+
+                                            <TextBlock Text="{loc:T settings.uiSize}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="UiSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="9" Maximum="22" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="UiSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="UiSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T settings.menuSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="MenuSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="10" Maximum="22" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="MenuSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="MenuSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T settings.tableSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="TableSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="9" Maximum="20" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="TableSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="TableSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                                <Button x:Name="OpenFontJsonBtn" Content="{loc:T settings.openJson}" Padding="14,7" Click="OpenFontJson_Click"/>
+                                                <Button x:Name="ApplyFontJsonBtn" Content="{loc:T settings.applyJson}" Margin="8,0,0,0" Padding="14,7"
+                                                        Style="{StaticResource AccentButton}" Click="ApplyFontJson_Click"/>
+                                                <Button x:Name="ResetFontBtn" Content="{loc:T settings.resetFont}" Margin="8,0,0,0" Padding="14,7" Click="ResetFont_Click"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="FontJsonPathText" FontSize="10.5" Margin="2,8,2,0" FlowDirection="LeftToRight"
+                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>

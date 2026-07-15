@@ -4,7 +4,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ResizeMode="NoResize" SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterOwner"
-        FontFamily="{DynamicResource Font.Ui}" FontSize="13"
+        FontFamily="{DynamicResource Font.Ui}" FontSize="{DynamicResource Size.Ui}"
         TextOptions.TextFormattingMode="Ideal">
     <Border Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
             BorderThickness="1" CornerRadius="12" Padding="24" Margin="14">
