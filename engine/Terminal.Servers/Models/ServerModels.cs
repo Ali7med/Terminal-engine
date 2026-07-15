@@ -96,6 +96,28 @@ public sealed record ContainerEntry(string Name, bool IsDir, long Size = 0, char
 /// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
 public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);
 
+/// <summary>عمليّة مع ذاكرتها المقيمة (RSS) من <c>ps --sort=-rss</c> — لعرض «أعلى مستهلكي الذاكرة».</summary>
+public sealed record ProcMemInfo(int Pid, string User, long RssKb, double MemPercent, string Command);
+
+/// <summary>
+/// تفصيل الذاكرة من <c>free -k</c>: الإجماليّ والمستخدَم والحرّ والمشترَك والمؤقّت (buff/cache) والمتاح،
+/// إضافةً للتبديل (Swap). «المستخدَم الحقيقيّ» = الإجماليّ − المتاح (يستبعد الكاش القابل للاسترجاع)،
+/// وهو الأدقّ لتفسير نسبة الاستهلاك بدل عمود <c>used</c> المتفاوت بين إصدارات <c>free</c>.
+/// </summary>
+public sealed record MemoryInfo(
+    long TotalKb, long UsedKb, long FreeKb, long SharedKb, long BuffCacheKb, long AvailableKb,
+    long SwapTotalKb, long SwapUsedKb)
+{
+    /// <summary>المستخدَم الحقيقيّ (تطبيقات + غير قابل للاسترجاع) = الإجماليّ − المتاح.</summary>
+    public long RealUsedKb => System.Math.Max(0, TotalKb - AvailableKb);
+
+    /// <summary>نسبة الاستهلاك الحقيقيّة (0..100).</summary>
+    public double UsedPercent => TotalKb > 0 ? System.Math.Round(RealUsedKb * 100.0 / TotalKb, 1) : 0;
+
+    /// <summary>نسبة التبديل المستخدَم (0..100)، أو 0 إن لا Swap.</summary>
+    public double SwapPercent => SwapTotalKb > 0 ? System.Math.Round(SwapUsedKb * 100.0 / SwapTotalKb, 1) : 0;
+}
+
 /// <summary>خدمة systemd من مخرجات <c>systemctl list-units</c>.</summary>
 public sealed record ServiceInfo(string Name, string Load, string Active, string Sub, string Description)
 {

@@ -7,6 +7,51 @@ namespace Terminal.Servers.Tests;
 public class OutputParsersTests
 {
     [Fact]
+    public void ParseMemory_ReadsMemAndSwap_ComputesRealUsedFromAvailable()
+    {
+        const string free =
+            "              total        used        free      shared  buff/cache   available\n" +
+            "Mem:       16384000    12000000      500000      200000     3884000     2400000\n" +
+            "Swap:       2097152      524288     1572864\n";
+
+        var m = OutputParsers.ParseMemory(free);
+
+        Assert.Equal(16384000, m.TotalKb);
+        Assert.Equal(3884000, m.BuffCacheKb);
+        Assert.Equal(2400000, m.AvailableKb);
+        Assert.Equal(16384000 - 2400000, m.RealUsedKb);       // الحقيقيّ = الإجماليّ − المتاح (لا عمود used)
+        Assert.Equal(85.4, m.UsedPercent, 1);
+        Assert.Equal(524288, m.SwapUsedKb);
+        Assert.Equal(25.0, m.SwapPercent, 1);
+    }
+
+    [Fact]
+    public void ParseMemory_MissingAvailableColumn_EstimatesFromFreePlusCache()
+    {
+        // busybox/إصدار قديم: بلا عمود available
+        const string free =
+            "             total       used       free     shared    buffers\n" +
+            "Mem:       2048000     900000     148000      10000     1000000\n";
+        var m = OutputParsers.ParseMemory(free);
+        Assert.Equal(148000 + 1000000, m.AvailableKb);
+    }
+
+    [Fact]
+    public void ParsePsMem_ReadsRssAndSkipsHeader()
+    {
+        const string ps =
+            "  PID USER        RSS %MEM COMMAND\n" +
+            " 1234 postgres 1048576  6.4 postgres: writer\n" +
+            "  987 root      524288  3.2 /usr/bin/dockerd\n";
+        var list = OutputParsers.ParsePsMem(ps);
+        Assert.Equal(2, list.Count);
+        Assert.Equal(1234, list[0].Pid);
+        Assert.Equal(1048576, list[0].RssKb);
+        Assert.Equal(6.4, list[0].MemPercent, 1);
+        Assert.Equal("postgres: writer", list[0].Command);
+    }
+
+    [Fact]
     public void ParseDf_ReadsRowsAndConvertsToBytes_SkipsHeader()
     {
         const string df =

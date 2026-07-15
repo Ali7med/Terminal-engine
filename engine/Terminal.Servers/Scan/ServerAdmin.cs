@@ -42,6 +42,22 @@ public sealed class ServerAdmin
         return OutputParsers.ParsePs(r.StdOut);
     }
 
+    /// <summary>أعلى العمليّات استهلاكاً للذاكرة (مرتّبة بـ RSS تنازليّاً) — تشمل الخاملة عالية الذاكرة.</summary>
+    public async Task<IReadOnlyList<ProcMemInfo>> ListProcessesByMemoryAsync(int limit = 40, CancellationToken ct = default)
+    {
+        if (limit < 1) limit = 1;
+        string cmd = $"ps -eo pid,user,rss,pmem,args --sort=-rss 2>/dev/null | head -n {limit + 1}";
+        var r = await _ssh.RunAsync(cmd, ct).ConfigureAwait(false);
+        return OutputParsers.ParsePsMem(r.StdOut);
+    }
+
+    /// <summary>تفصيل الذاكرة (Mem + Swap) من <c>free -k</c>.</summary>
+    public async Task<MemoryInfo> MemoryAsync(CancellationToken ct = default)
+    {
+        var r = await _ssh.RunAsync("free -k 2>/dev/null", ct).ConfigureAwait(false);
+        return OutputParsers.ParseMemory(r.StdOut);
+    }
+
     /// <summary>ينهي عمليّة (<c>kill</c> أو <c>kill -9</c>). يرمي إن فشل.</summary>
     public async Task KillAsync(int pid, bool force, CancellationToken ct = default)
     {

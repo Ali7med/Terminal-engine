@@ -133,6 +133,55 @@ public static class OutputParsers
     }
 
     /// <summary>
+    /// يحلّل مخرجات <c>free -k</c> (سطرا «Mem:» و«Swap:») إلى <see cref="MemoryInfo"/>. متسامح مع نقص
+    /// عمود «available» (إصدارات/busybox قديمة): يُقدّره حينها بـ <c>free + buff/cache</c>.
+    /// </summary>
+    public static MemoryInfo ParseMemory(string? output)
+    {
+        long mTotal = 0, mUsed = 0, mFree = 0, mShared = 0, mBuff = 0, mAvail = 0, sTotal = 0, sUsed = 0;
+        foreach (var line in Lines(output))
+        {
+            if (line.StartsWith("Mem:", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = line.Split(Ws, StringSplitOptions.RemoveEmptyEntries);
+                if (p.Length >= 4)
+                {
+                    mTotal = ParseLong(p[1]); mUsed = ParseLong(p[2]); mFree = ParseLong(p[3]);
+                    mShared = p.Length > 4 ? ParseLong(p[4]) : 0;
+                    mBuff = p.Length > 5 ? ParseLong(p[5]) : 0;
+                    mAvail = p.Length > 6 ? ParseLong(p[6]) : mFree + mBuff;   // احتياط للإصدارات القديمة
+                }
+            }
+            else if (line.StartsWith("Swap:", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = line.Split(Ws, StringSplitOptions.RemoveEmptyEntries);
+                if (p.Length >= 3) { sTotal = ParseLong(p[1]); sUsed = ParseLong(p[2]); }
+            }
+        }
+        return new MemoryInfo(mTotal, mUsed, mFree, mShared, mBuff, mAvail, sTotal, sUsed);
+    }
+
+    /// <summary>
+    /// يحلّل مخرجات <c>ps -eo pid,user,rss,pmem,comm --sort=-rss</c> (RSS بالكيلوبايت). يتجاهل الترويسة.
+    /// </summary>
+    public static IReadOnlyList<ProcMemInfo> ParsePsMem(string? output)
+    {
+        var result = new List<ProcMemInfo>();
+        foreach (var line in Lines(output))
+        {
+            var p = line.Split(Ws, StringSplitOptions.RemoveEmptyEntries);
+            if (p.Length < 5) continue;
+            if (!int.TryParse(p[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int pid)) continue; // ترويسة
+            string user = p[1];
+            long rss = ParseLong(p[2]);
+            double mem = ParseDouble(p[3]);
+            string cmd = string.Join(' ', p, 4, p.Length - 4);
+            result.Add(new ProcMemInfo(pid, user, rss, mem, cmd));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// يحلّل مخرجات <c>ps -eo pid,user,pcpu,pmem,comm --sort=-pcpu</c> (بلا ترويسة أو معها).
     /// يتجاهل سطر الترويسة (PID/USER…).
     /// </summary>

@@ -834,6 +834,7 @@ public partial class ServerMonitorWindow : Window
     private Task LoadMgmtAsync()
     {
         _ = LoadMgmtPerfAsync();
+        _ = LoadTopMemAsync();
         _ = LoadProcessesAsync();
         _ = LoadServicesAsync();
         _ = LoadPortsAsync();
@@ -848,29 +849,63 @@ public partial class ServerMonitorWindow : Window
         MgmtTopMem.ItemsSource = null;
         MgmtTopCpu.ItemsSource = null;
         MgmtMemText.Text = MgmtCpuText.Text = "—";
+        MgmtMemBreak.Text = MgmtSwapText.Text = "";
+        MgmtSwapText.Visibility = Visibility.Collapsed;
         MgmtMemBar.Value = MgmtCpuBar.Value = 0;
         _services = new List<ServiceRowVm>();
     }
 
-    /// <summary>يجلب لقطة أداء لبطاقتَي الذاكرة والمعالج في تبويب الإدارة (نفس مصدر لوحة القيادة).</summary>
+    /// <summary>
+    /// بطاقتا الذاكرة والمعالج في الإدارة: الذاكرة من <c>free -k</c> (المستخدَم الحقيقيّ = الإجماليّ − المتاح،
+    /// مع تفصيل تطبيقات/كاش/متاح + Swap)، والحِمل من <c>/proc/loadavg</c>.
+    /// </summary>
     private async Task LoadMgmtPerfAsync()
+    {
+        if (_connection is null) return;
+        var admin = new ServerAdmin(_connection);
+        var ct = _cts?.Token ?? default;
+
+        try
+        {
+            var m = await admin.MemoryAsync(ct).ConfigureAwait(true);
+            MgmtMemText.Text = $"{DiskRowVm.Human(m.RealUsedKb * 1024)} / {DiskRowVm.Human(m.TotalKb * 1024)} · {m.UsedPercent:0}%";
+            MgmtMemBar.Value = m.UsedPercent;
+            MgmtMemBreak.Text =
+                $"{Loc.T("srv.mgmt.memApps")}: {DiskRowVm.Human(m.RealUsedKb * 1024)}  ·  " +
+                $"{Loc.T("srv.mgmt.memCache")}: {DiskRowVm.Human(m.BuffCacheKb * 1024)}  ·  " +
+                $"{Loc.T("srv.mgmt.memAvail")}: {DiskRowVm.Human(m.AvailableKb * 1024)}";
+            if (m.SwapTotalKb > 0)
+            {
+                MgmtSwapText.Text = $"{Loc.T("srv.mgmt.swapLabel")}: {DiskRowVm.Human(m.SwapUsedKb * 1024)} / {DiskRowVm.Human(m.SwapTotalKb * 1024)} · {m.SwapPercent:0}%";
+                MgmtSwapText.Visibility = Visibility.Visible;
+            }
+            else MgmtSwapText.Visibility = Visibility.Collapsed;
+        }
+        catch { /* غير حرِج */ }
+
+        try
+        {
+            var r = await _connection.RunAsync("cat /proc/loadavg", ct).ConfigureAwait(true);
+            var (l1, _, _) = OutputParsers.ParseLoadAvg(r.StdOut ?? "");
+            double loadPct = _cpuCores > 0 ? System.Math.Min(100, l1 / _cpuCores * 100) : 0;
+            MgmtCpuText.Text = _cpuCores > 0
+                ? $"{l1.ToString("0.00", CultureInfo.InvariantCulture)} / {_cpuCores}"
+                : l1.ToString("0.00", CultureInfo.InvariantCulture);
+            MgmtCpuBar.Value = loadPct;
+        }
+        catch { /* غير حرِج */ }
+    }
+
+    /// <summary>أعلى مستهلكي الذاكرة (مرتّبين بـ RSS الفعليّ — يظهر الخامل عالي الذاكرة الذي يغيب عن ترتيب المعالج).</summary>
+    private async Task LoadTopMemAsync()
     {
         if (_connection is null) return;
         try
         {
-            var r = await _connection.RunAsync(PerfMonitor.SnapshotCommand(8), _cts?.Token ?? default).ConfigureAwait(true);
-            var perf = PerfMonitor.ParseSnapshot((r.StdOut ?? "").Replace("\r\n", "\n").Replace('\r', '\n'));
-
-            MgmtMemText.Text = $"{DiskRowVm.Human(perf.MemUsedKb * 1024)} / {DiskRowVm.Human(perf.MemTotalKb * 1024)} · {perf.MemUsedPercent:0}%";
-            MgmtMemBar.Value = perf.MemUsedPercent;
-
-            double loadPct = _cpuCores > 0 ? System.Math.Min(100, perf.LoadAvg1 / _cpuCores * 100) : 0;
-            MgmtCpuText.Text = _cpuCores > 0
-                ? $"{perf.LoadAvg1.ToString("0.00", CultureInfo.InvariantCulture)} / {_cpuCores}"
-                : perf.LoadAvg1.ToString("0.00", CultureInfo.InvariantCulture);
-            MgmtCpuBar.Value = loadPct;
+            var top = await new ServerAdmin(_connection).ListProcessesByMemoryAsync(5, _cts?.Token ?? default).ConfigureAwait(true);
+            MgmtTopMem.ItemsSource = top.Select(MemProcVm.From).ToList();
         }
-        catch { /* غير حرِج — البطاقات تبقى «—» */ }
+        catch { /* غير حرِج */ }
     }
 
     private void MgmtProcRefresh_Click(object sender, RoutedEventArgs e) => _ = LoadProcessesAsync();
@@ -886,8 +921,7 @@ public partial class ServerMonitorWindow : Window
             var procs = await new ServerAdmin(_connection).ListProcessesAsync(50, _cts?.Token ?? default).ConfigureAwait(true);
             var rows = procs.Select(MgmtProcVm.From).ToList();
             MgmtProcesses.ItemsSource = rows;
-            // أعلى ٥ مستهلكي ذاكرة/معالج — من نفس القائمة (بلا استدعاء إضافيّ)
-            MgmtTopMem.ItemsSource = rows.OrderByDescending(p => p.Mem).Take(5).ToList();
+            // أعلى ٥ مستهلكي معالج من نفس القائمة (المرتّبة بالمعالج)؛ الذاكرة لها جلب مستقلّ مرتّب بـ RSS
             MgmtTopCpu.ItemsSource = rows.OrderByDescending(p => p.Cpu).Take(5).ToList();
         }
         catch (Exception ex) { NotificationService.Error(Loc.T("srv.mgmt.processes"), ex.Message); }
@@ -2364,6 +2398,19 @@ public sealed class MgmtProcVm
 
     public static MgmtProcVm From(ProcessInfo p) => new()
     { Pid = p.Pid, User = p.User, Cpu = p.CpuPercent, Mem = p.MemPercent, Command = p.Command };
+}
+
+/// <summary>صفّ «أعلى مستهلكي الذاكرة»: الأمر + الذاكرة المقيمة (RSS) نصّاً + النسبة.</summary>
+public sealed class MemProcVm
+{
+    public string Command { get; init; } = "";
+    public double MemPercent { get; init; }
+    public long RssKb { get; init; }
+    public string RssText => DiskRowVm.Human(RssKb * 1024);
+    public string MemText => MemPercent.ToString("0.#", CultureInfo.InvariantCulture);
+
+    public static MemProcVm From(ProcMemInfo p) => new()
+    { Command = p.Command, MemPercent = p.MemPercent, RssKb = p.RssKb };
 }
 
 /// <summary>صفّ خدمة systemd (الاسم + الحالة active/sub + الوصف).</summary>
