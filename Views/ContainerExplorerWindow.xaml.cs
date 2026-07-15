@@ -43,6 +43,12 @@ public partial class ContainerExplorerWindow : Window
     private CancellationTokenSource? _cts;
     private bool _busy;
 
+    // ===== فرز قائمة الملفّات (المجلّدات دائماً أوّلاً، ثمّ حسب العمود المختار) =====
+    private enum SortKey { Name, Type, Size, Modified }
+    private SortKey _sortKey = SortKey.Name;
+    private bool _sortAsc = true;
+    private List<ContainerFileVm> _currentFiles = new();
+
     // ===== حالة تخطيط الكونسول =====
     private enum ConsoleState { Split, Collapsed, Maximized }
     private ConsoleState _consoleState = ConsoleState.Split;
@@ -75,6 +81,7 @@ public partial class ContainerExplorerWindow : Window
         ShellPicker.SelectedIndex = 0;
         AddConsole("");                    // أوّل تيرمنال (الصدفة الافتراضيّة)
         ApplyLayout();
+        UpdateHeaders();                   // عناوين أعمدة القائمة قبل أوّل تحميل
 
         Loaded += (_, _) => _ = NavigateAsync("/");
     }
@@ -202,7 +209,8 @@ public partial class ContainerExplorerWindow : Window
 
             var entries = await _files.ListAsync(target, ct).ConfigureAwait(true);
             _path = target;
-            FileList.ItemsSource = entries.Select(e => new ContainerFileVm(e, target)).ToList();
+            _currentFiles = entries.Select(e => new ContainerFileVm(e, target)).ToList();
+            ApplySort();
 
             if (entries.Count == 0)
             {
@@ -213,6 +221,7 @@ public partial class ContainerExplorerWindow : Window
         catch (OperationCanceledException) { /* استُبدِل بملاحة أحدث */ }
         catch (Exception ex)
         {
+            _currentFiles = new();
             FileList.ItemsSource = null;
             EmptyText.Text = $"{Loc.T("srv.file.opFail")} {ex.Message}";
             EmptyBox.Visibility = Visibility.Visible;
@@ -230,6 +239,52 @@ public partial class ContainerExplorerWindow : Window
         if (vm.IsDir) _ = NavigateAsync(vm.FullPath);
         else _ = ViewFileAsync(vm.FullPath);
     }
+
+    // ===== الفرز بالنقر على ترويسة العمود =====
+
+    /// <summary>نقر ترويسة عمود: يبدّل الاتّجاه إن كان العمود نفسه، أو يفرز تصاعديّاً بعمود جديد.</summary>
+    private void SortHeader_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string tag
+            || !Enum.TryParse<SortKey>(tag, out var key)) return;
+        if (key == _sortKey) _sortAsc = !_sortAsc;
+        else { _sortKey = key; _sortAsc = true; }
+        ApplySort();
+    }
+
+    /// <summary>يعيد فرز الملفّات الحاليّة (المجلّدات أوّلاً دائماً) ويحدّث مؤشّرات الترويسة.</summary>
+    private void ApplySort()
+    {
+        Comparison<ContainerFileVm> by = _sortKey switch
+        {
+            SortKey.Type     => (a, b) => string.Compare(a.TypeText, b.TypeText, StringComparison.CurrentCultureIgnoreCase),
+            SortKey.Size     => (a, b) => a.Size.CompareTo(b.Size),
+            SortKey.Modified => (a, b) => string.Compare(a.Modified, b.Modified, StringComparison.Ordinal),
+            _                => (a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase),
+        };
+        var sorted = _currentFiles.ToList();
+        sorted.Sort((a, b) =>
+        {
+            if (a.IsDir != b.IsDir) return a.IsDir ? -1 : 1;   // المجلّدات أوّلاً دائماً
+            int r = by(a, b);
+            if (r == 0) r = string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
+            return _sortAsc ? r : -r;
+        });
+        FileList.ItemsSource = sorted;
+        UpdateHeaders();
+    }
+
+    /// <summary>يضبط عناوين الأعمدة المترجَمة ويُلحق سهم الفرز (▲/▼) بالعمود النشط.</summary>
+    private void UpdateHeaders()
+    {
+        HdrName.Content     = HeaderCaption(SortKey.Name,     "srv.explorer.colName");
+        HdrType.Content     = HeaderCaption(SortKey.Type,     "srv.explorer.colType");
+        HdrSize.Content     = HeaderCaption(SortKey.Size,     "srv.explorer.colSize");
+        HdrModified.Content = HeaderCaption(SortKey.Modified, "srv.explorer.colModified");
+    }
+
+    private string HeaderCaption(SortKey key, string locKey)
+        => Loc.T(locKey) + (key == _sortKey ? (_sortAsc ? "  ▲" : "  ▼") : "");
 
     // ===== عارض محتوى الملفّ =====
 
@@ -798,17 +853,49 @@ public sealed class ContainerFileVm
     /// <summary>الحجم مُنسَّقاً (B/KB/MB/GB) للملفّات؛ فارغ للمجلّدات.</summary>
     public string SizeText => IsDir ? "" : FormatSize(Size);
 
-    /// <summary>نوع المدخل نصّاً (مجلّد/رابط/امتداد الملفّ).</summary>
+    /// <summary>نوع المدخل نصّاً مترجَماً (مجلّد/رابط/فئة الامتداد) — يُستعمل للعرض وللفرز بعمود «النوع».</summary>
     public string TypeText
     {
         get
         {
-            if (IsDir) return "مجلّد";
-            if (Type == 'l') return "رابط";
+            if (IsDir) return Loc.T("srv.type.folder");
+            if (Type == 'l') return Loc.T("srv.type.link");
             int dot = Name.LastIndexOf('.');
-            return dot > 0 && dot < Name.Length - 1 ? Name[(dot + 1)..].ToLowerInvariant() : "ملفّ";
+            if (dot <= 0 || dot >= Name.Length - 1) return Loc.T("srv.type.file");
+            string ext = Name[(dot + 1)..].ToLowerInvariant();
+            return ExtTypeKeys.TryGetValue(ext, out var key) ? Loc.T(key) : ext.ToUpperInvariant();
         }
     }
+
+    /// <summary>تصنيف امتدادات شائعة إلى مفتاح ترجمة فئة (غير المُدرَج يُعرَض بامتداده كبيراً).</summary>
+    private static readonly Dictionary<string, string> ExtTypeKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["txt"] = "srv.type.text", ["log"] = "srv.type.text", ["md"] = "srv.type.text",
+        ["ini"] = "srv.type.text", ["cfg"] = "srv.type.text", ["conf"] = "srv.type.text",
+        ["env"] = "srv.type.text", ["properties"] = "srv.type.text",
+        ["json"] = "srv.type.data", ["xml"] = "srv.type.data", ["yaml"] = "srv.type.data",
+        ["yml"] = "srv.type.data", ["toml"] = "srv.type.data", ["csv"] = "srv.type.data",
+        ["sql"] = "srv.type.data", ["db"] = "srv.type.data",
+        ["sh"] = "srv.type.code", ["bash"] = "srv.type.code", ["py"] = "srv.type.code",
+        ["js"] = "srv.type.code", ["ts"] = "srv.type.code", ["php"] = "srv.type.code",
+        ["rb"] = "srv.type.code", ["go"] = "srv.type.code", ["rs"] = "srv.type.code",
+        ["c"] = "srv.type.code", ["cpp"] = "srv.type.code", ["h"] = "srv.type.code",
+        ["java"] = "srv.type.code", ["cs"] = "srv.type.code",
+        ["png"] = "srv.type.image", ["jpg"] = "srv.type.image", ["jpeg"] = "srv.type.image",
+        ["gif"] = "srv.type.image", ["svg"] = "srv.type.image", ["webp"] = "srv.type.image",
+        ["ico"] = "srv.type.image", ["bmp"] = "srv.type.image",
+        ["zip"] = "srv.type.archive", ["tar"] = "srv.type.archive", ["gz"] = "srv.type.archive",
+        ["tgz"] = "srv.type.archive", ["bz2"] = "srv.type.archive", ["xz"] = "srv.type.archive",
+        ["7z"] = "srv.type.archive", ["rar"] = "srv.type.archive",
+        ["mp4"] = "srv.type.video", ["mkv"] = "srv.type.video", ["avi"] = "srv.type.video",
+        ["mov"] = "srv.type.video", ["webm"] = "srv.type.video",
+        ["mp3"] = "srv.type.audio", ["wav"] = "srv.type.audio", ["flac"] = "srv.type.audio",
+        ["ogg"] = "srv.type.audio",
+        ["html"] = "srv.type.web", ["htm"] = "srv.type.web", ["css"] = "srv.type.web",
+        ["pdf"] = "srv.type.doc", ["doc"] = "srv.type.doc", ["docx"] = "srv.type.doc",
+        ["so"] = "srv.type.binary", ["bin"] = "srv.type.binary", ["exe"] = "srv.type.binary",
+        ["dll"] = "srv.type.binary", ["o"] = "srv.type.binary", ["a"] = "srv.type.binary",
+    };
 
     public ContainerFileVm(ContainerEntry e, string parentPath)
     {

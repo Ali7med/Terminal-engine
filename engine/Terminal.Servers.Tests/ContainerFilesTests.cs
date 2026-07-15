@@ -11,8 +11,16 @@ public class ContainerFilesTests
     public void BuildList_UsesExecLsLongWithQuotedPathAndStopParsing()
     {
         string cmd = ContainerFiles.BuildList("abc123", "/var/www");
-        Assert.Contains("docker exec abc123 ls -lA -- '/var/www'", cmd);
+        Assert.Contains("docker exec abc123 ls -lA -- '/var/www'", cmd);   // فرع الاحتياط
         Assert.DoesNotContain("sudo", cmd);
+    }
+
+    [Fact]
+    public void BuildList_RequestsFullTimeIsoWithDefaultFallback()
+    {
+        string cmd = ContainerFiles.BuildList("abc123", "/var/www");
+        Assert.Contains("ls -lA --full-time -- '/var/www' 2>/dev/null", cmd);   // ISO أوّلاً
+        Assert.Contains("||", cmd);                                             // ثمّ الافتراضيّ
     }
 
     [Fact]
@@ -20,6 +28,34 @@ public class ContainerFilesTests
     {
         string cmd = ContainerFiles.BuildList("abc123", "/", sudo: true);
         Assert.StartsWith("sudo -n docker exec abc123 ls", cmd);
+    }
+
+    [Fact]
+    public void Parse_IsoFullTime_Busybox_NormalizesToMinutes()
+    {
+        // busybox --full-time: التاريخ حقلان (بلا منطقة زمنيّة) — YYYY-MM-DD HH:MM:SS
+        const string outp =
+            "-rw-r--r-- 1 root root  123 2026-07-15 10:30:45 alpha.log\n" +
+            "drwxr-xr-x 2 root root 4096 2026-01-02 09:00:00 bin\n";
+        var e = ContainerFiles.Parse(outp);
+        Assert.Equal(2, e.Count);
+        Assert.Equal("bin", e[0].Name); Assert.True(e[0].IsDir);
+        Assert.Equal("2026-01-02 09:00", e[0].Modified);
+        Assert.Equal("alpha.log", e[1].Name);
+        Assert.Equal("2026-07-15 10:30", e[1].Modified);   // الثواني مقصوصة
+        Assert.Equal(123, e[1].Size);
+    }
+
+    [Fact]
+    public void Parse_IsoFullTime_Gnu_StripsTimezoneField()
+    {
+        // GNU --full-time: يضيف كسور ثانية + حقل منطقة زمنيّة (+0000) قبل الاسم
+        const string outp =
+            "-rw-r--r-- 1 root root 42 2026-07-15 10:30:45.123456789 +0000 my file.txt\n";
+        var c = Assert.Single(ContainerFiles.Parse(outp));
+        Assert.Equal("my file.txt", c.Name);           // منطقة TZ لا تُبتلَع في الاسم
+        Assert.Equal("2026-07-15 10:30", c.Modified);
+        Assert.Equal(42, c.Size);
     }
 
     [Fact]

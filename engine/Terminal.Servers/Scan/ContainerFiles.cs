@@ -29,10 +29,17 @@ public sealed class ContainerFiles
     /// <summary>الحدّ الأقصى لعرض محتوى ملفّ (512KB) — يمنع سحب ملفّات ضخمة عبر الشبكة.</summary>
     public const int MaxViewBytes = 512 * 1024;
 
-    /// <summary>أمر سرد مجلّد داخل الحاوية بالتنسيق الطويل (المسار مُقتبَس للصدفة المضيفة فقط — طبقة اقتباس واحدة).</summary>
+    /// <summary>
+    /// أمر سرد مجلّد داخل الحاوية بالتنسيق الطويل. نطلب أوّلاً <c>--full-time</c> ليعطي التاريخ بصيغة ISO
+    /// (<c>YYYY-MM-DD HH:MM:SS</c>) — مدعوم في GNU وأغلب صور busybox — فإن عجزت الصدفة (busybox قديم لا يعرف
+    /// الخيار) نرجع للتنسيق الافتراضيّ عبر <c>||</c>. المسار مُقتبَس للصدفة المضيفة فقط (طبقة اقتباس واحدة).
+    /// </summary>
     public static string BuildList(string containerId, string path, bool sudo = false)
-        => DockerCli.Prefix(sudo) + "docker exec " + containerId +
-           " ls -lA -- " + StorageScanner.ShellQuote(NormalizePath(path)) + " 2>&1";
+    {
+        string pfx = DockerCli.Prefix(sudo) + "docker exec " + containerId + " ls -lA";
+        string tail = " -- " + StorageScanner.ShellQuote(NormalizePath(path));
+        return pfx + " --full-time" + tail + " 2>/dev/null || " + pfx + tail + " 2>&1";
+    }
 
     /// <summary>أمر قراءة أوّل <paramref name="maxBytes"/> بايت من ملفّ داخل الحاوية (<c>head -c</c>).</summary>
     public static string BuildRead(string containerId, string path, bool sudo = false, int maxBytes = MaxViewBytes)
@@ -97,8 +104,9 @@ public sealed class ContainerFiles
     private const string EntryTypes = "d-lbcsp";
 
     /// <summary>
-    /// يحلّل مخرجات <c>ls -lA</c>: لكلّ سطر (perms links owner group size Mon Day Time/Year name)
-    /// يستخرج النوع (أوّل حرف) والحجم (الحقل الخامس) والتاريخ والاسم (بقيّة السطر — يحافظ على المسافات).
+    /// يحلّل مخرجات <c>ls -lA</c> (سواء <c>--full-time</c> بصيغة ISO أو التنسيق الافتراضيّ):
+    /// يستخرج النوع (أوّل حرف) والحجم (الحقل الخامس) ووقت التعديل والاسم (بقيّة السطر — يحافظ على المسافات).
+    /// التاريخ يُطبَّع إلى <c>YYYY-MM-DD HH:MM</c> عند توفّر صيغة ISO (قابل للفرز)، وإلّا يُترك خاماً.
     /// روابط <c>l</c> يُزال منها <c>-&gt; target</c>. مرتّبة: المجلّدات أوّلاً ثمّ أبجديّاً.
     /// </summary>
     public static IReadOnlyList<ContainerEntry> Parse(string stdout)
@@ -111,12 +119,28 @@ public sealed class ContainerFiles
             if (line.Length < 10 || EntryTypes.IndexOf(line[0]) < 0) continue;   // يتخطّى "total N" وغيره
 
             var f = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (f.Length < 9) continue;
+            if (f.Length < 8) continue;
 
             char type = line[0];
             long size = long.TryParse(f[4], out var sz) ? sz : 0;
-            string modified = f[5] + " " + f[6] + " " + f[7];
-            string name = AfterFields(line, 8);   // بقيّة السطر بعد ٨ حقول = الاسم (يحفظ المسافات)
+
+            // التاريخ: صيغة ISO من --full-time (f[5]=YYYY-MM-DD ، f[6]=HH:MM:SS[.ns] ، وقد يليه منطقة TZ)
+            // أو الافتراضيّ (f[5]=Mon ، f[6]=Day ، f[7]=Time/Year). نحدّد موضع بدء الاسم تبعاً لذلك.
+            string modified; int nameField;
+            if (IsIsoDate(f[5]))
+            {
+                string time = f[6].Length >= 5 ? f[6][..5] : f[6];   // HH:MM (نقصّ الثواني/الكسور)
+                modified = f[5] + " " + time;
+                nameField = f.Length > 7 && IsTimezone(f[7]) ? 8 : 7;   // GNU يضيف حقل TZ؛ busybox لا
+            }
+            else
+            {
+                if (f.Length < 9) continue;
+                modified = f[5] + " " + f[6] + " " + f[7];
+                nameField = 8;
+            }
+
+            string name = AfterFields(line, nameField);   // بقيّة السطر = الاسم (يحفظ المسافات)
             if (type == 'l')
             {
                 int arrow = name.IndexOf(" -> ", StringComparison.Ordinal);
@@ -132,6 +156,18 @@ public sealed class ContainerFiles
         files.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         dirs.AddRange(files);
         return dirs;
+    }
+
+    /// <summary>هل النصّ تاريخ ISO (<c>YYYY-MM-DD</c>)؟ — للتمييز بين مخرجات <c>--full-time</c> والافتراضيّة.</summary>
+    private static bool IsIsoDate(string s)
+        => s.Length >= 10 && s[4] == '-' && s[7] == '-' && char.IsDigit(s[0]) && char.IsDigit(s[1]);
+
+    /// <summary>هل النصّ حقل منطقة زمنيّة (<c>+HHMM</c>/<c>-HHMM</c>) كما يضيفه GNU مع <c>--full-time</c>؟</summary>
+    private static bool IsTimezone(string s)
+    {
+        if (s.Length != 5 || (s[0] != '+' && s[0] != '-')) return false;
+        for (int i = 1; i < 5; i++) if (!char.IsDigit(s[i])) return false;
+        return true;
     }
 
     /// <summary>يعيد بقيّة السطر بعد أوّل <paramref name="n"/> حقلاً مفصولاً بمسافات (للاسم مع الحفاظ على مسافاته).</summary>

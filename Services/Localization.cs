@@ -280,6 +280,27 @@ public static class Loc
         ["srv.explorer.view.binary"] = ("ملفّ ثنائيّ — لا يمكن عرضه كنصّ.", "Binary file — cannot be shown as text."),
         ["srv.explorer.view.truncated"] = ("عُرِض أوّل 512KB فقط (الملفّ أكبر).", "Showing first 512KB only (file is larger)."),
 
+        // ترويسات أعمدة قائمة الملفّات (قابلة للنقر للفرز)
+        ["srv.explorer.colName"]     = ("الاسم", "Name"),
+        ["srv.explorer.colType"]     = ("النوع", "Type"),
+        ["srv.explorer.colSize"]     = ("الحجم", "Size"),
+        ["srv.explorer.colModified"] = ("عُدِّل", "Modified"),
+
+        // أنواع المداخل في مستكشف الحاوية (نصّ مترجَم بدل الامتداد الخام)
+        ["srv.type.folder"]  = ("مجلّد", "Folder"),
+        ["srv.type.link"]    = ("رابط", "Link"),
+        ["srv.type.file"]    = ("ملفّ", "File"),
+        ["srv.type.text"]    = ("نصّ", "Text"),
+        ["srv.type.data"]    = ("بيانات", "Data"),
+        ["srv.type.code"]    = ("شفرة", "Code"),
+        ["srv.type.image"]   = ("صورة", "Image"),
+        ["srv.type.archive"] = ("أرشيف", "Archive"),
+        ["srv.type.video"]   = ("فيديو", "Video"),
+        ["srv.type.audio"]   = ("صوت", "Audio"),
+        ["srv.type.web"]     = ("صفحة ويب", "Web page"),
+        ["srv.type.binary"]  = ("ثنائيّ", "Binary"),
+        ["srv.type.doc"]     = ("مستند", "Document"),
+
         // الإدارة (عمليّات + خدمات + منافذ)
         ["srv.mgmt.processes"] = ("العمليّات", "Processes"),
         ["srv.mgmt.services"]  = ("الخدمات", "Services"),

@@ -59,7 +59,56 @@
         <!-- مضيف التقسيم: يُضبَط تخطيطه (صفوف/أعمدة) في الكود حسب الاتّجاه وحالة الكونسول -->
         <Grid Grid.Row="1" x:Name="SplitHost">
             <!-- قائمة الملفّات -->
-            <Grid x:Name="FileArea">
+            <DockPanel x:Name="FileArea">
+                <!-- ترويسة أعمدة قابلة للنقر للفرز (الاسم/النوع/الحجم/عُدِّل) -->
+                <Border DockPanel.Dock="Top" Padding="8,3" Background="{DynamicResource Brush.Surface}"
+                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+                    <Border.Resources>
+                        <Style x:Key="ColHeaderButton" TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="4,3"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FontSize" Value="11.5"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Resources>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="130"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="HdrName" Grid.Column="1" Tag="Name" Click="SortHeader_Click"
+                                Style="{StaticResource ColHeaderButton}" HorizontalContentAlignment="Left"/>
+                        <Button x:Name="HdrType" Grid.Column="2" Tag="Type" Click="SortHeader_Click"
+                                Style="{StaticResource ColHeaderButton}" HorizontalContentAlignment="Right"/>
+                        <Button x:Name="HdrSize" Grid.Column="3" Tag="Size" Click="SortHeader_Click"
+                                Style="{StaticResource ColHeaderButton}" HorizontalContentAlignment="Right"/>
+                        <Button x:Name="HdrModified" Grid.Column="4" Tag="Modified" Click="SortHeader_Click"
+                                Style="{StaticResource ColHeaderButton}" HorizontalContentAlignment="Right"/>
+                    </Grid>
+                </Border>
+                <Grid>
                 <ProgressBar x:Name="Loading" VerticalAlignment="Top" Height="3" IsIndeterminate="True"
                              Visibility="Collapsed" Foreground="{DynamicResource Brush.Accent}"
                              Background="Transparent" BorderThickness="0"/>
@@ -124,7 +173,8 @@
                     <TextBlock x:Name="EmptyText" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0"
                                MaxWidth="460" Foreground="{DynamicResource Brush.TextMuted}"/>
                 </StackPanel>
-            </Grid>
+                </Grid>
+            </DockPanel>
 
             <!-- فاصل قابل للسحب (اتّجاهه يُضبَط في الكود) -->
             <GridSplitter x:Name="ConsoleSplitter" Height="6" HorizontalAlignment="Stretch"
