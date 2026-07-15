@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using ICSharpCode.AvalonEdit.Highlighting;
 using Terminal.Servers.Models;
 using Terminal.Servers.Scan;
 using Terminal.Servers.Ssh;
@@ -318,6 +319,7 @@ public partial class ContainerExplorerWindow : Window
             else
             {
                 ViewerText.Text = content;
+                ApplyViewerHighlighting(path);   // تلوين نحويّ حسب الامتداد
                 if (System.Text.Encoding.UTF8.GetByteCount(content) >= ContainerFiles.MaxViewBytes)
                     ViewerNote.Text = Loc.T("srv.explorer.view.truncated");
             }
@@ -332,6 +334,21 @@ public partial class ContainerExplorerWindow : Window
         {
             ViewerLoading.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>يختار تلويناً نحويّاً لعارض الملفّ حسب امتداد المسار (أو بلا تلوين إن لم يُعرَف).</summary>
+    private void ApplyViewerHighlighting(string path)
+    {
+        try
+        {
+            string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            var mgr = HighlightingManager.Instance;
+            var def = mgr.GetDefinitionByExtension(ext);
+            // JSON غير مسجّل افتراضيّاً في AvalonEdit — نلوّنه بتعريف JavaScript (أقرب بنية)
+            if (def == null && ext == ".json") def = mgr.GetDefinition("JavaScript");
+            ViewerText.SyntaxHighlighting = def;
+        }
+        catch { ViewerText.SyntaxHighlighting = null; }
     }
 
     private void ViewerClose_Click(object sender, RoutedEventArgs e) => CloseViewer();
@@ -382,11 +399,17 @@ public partial class ContainerExplorerWindow : Window
     private async void ViewerSave_Click(object sender, RoutedEventArgs e)
     {
         if (!_editing || _viewerPath.Length == 0) return;
+
+        // أوتو-فورمات عند الحفظ: يُصلَّح تنسيق JSON/XML ويُهذَّب النصّ (مسافات ذيليّة) — يُعرَض المُنسَّق ثمّ يُحفَظ
+        string formatted = TextFormatter.Auto(ViewerText.Text, _viewerPath);
+        if (!string.Equals(formatted, ViewerText.Text, StringComparison.Ordinal))
+            ViewerText.Text = formatted;
+
         string tmp = System.IO.Path.GetTempFileName();
         ViewerLoading.Visibility = Visibility.Visible;
         try
         {
-            System.IO.File.WriteAllText(tmp, ViewerText.Text, new System.Text.UTF8Encoding(false));
+            System.IO.File.WriteAllText(tmp, formatted, new System.Text.UTF8Encoding(false));
             await UploadLocalToContainerAsync(tmp, _viewerPath).ConfigureAwait(true);
             EndEdit();
             ViewerNote.Text = Loc.T("srv.explorer.saved");

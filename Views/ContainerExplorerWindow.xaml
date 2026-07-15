@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         xmlns:loc="clr-namespace:TerminalLauncher.Services"
+        xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
         Title="مستكشف الحاوية" Height="640" Width="960" MinHeight="380" MinWidth="560"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.Bg}"
@@ -311,14 +312,11 @@
                                TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextMuted}"/>
                     <Border Margin="12,0,12,0" Background="{DynamicResource Brush.Bg}" CornerRadius="6"
                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
-                        <TextBox x:Name="ViewerText" IsReadOnly="True" FlowDirection="LeftToRight"
-                                 FontFamily="Consolas, monospace" FontSize="12.5" Background="Transparent"
-                                 BorderThickness="0" Padding="8" TextWrapping="NoWrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                            <TextBox.Resources>
-                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
-                            </TextBox.Resources>
-                        </TextBox>
+                        <avalon:TextEditor x:Name="ViewerText" IsReadOnly="True" FlowDirection="LeftToRight"
+                                           FontFamily="{DynamicResource Font.Mono}" FontSize="12.5"
+                                           Background="Transparent" Foreground="{DynamicResource Brush.Text}"
+                                           ShowLineNumbers="True" WordWrap="False" Padding="8"
+                                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                     </Border>
                 </DockPanel>
             </Border>
