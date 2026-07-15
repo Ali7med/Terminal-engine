@@ -70,8 +70,8 @@ public partial class ContainerExplorerWindow : Window
         ViewerDownloadBtn.Content = Loc.T("srv.explorer.download");
         ViewerEditBtn.Content = Loc.T("srv.explorer.edit");
         ViewerSaveBtn.Content = Loc.T("srv.explorer.save");
-        InputOk.Content = Loc.T("srv.ed.ok");
-        InputCancel.Content = Loc.T("srv.ed.cancel");
+        InputOk.Content = Loc.T("dlg.save");
+        InputCancel.Content = Loc.T("dlg.cancel");
 
         _browseConn = new SshNetConnection(info);
         _files = new ContainerFiles(_browseConn, containerId, sudo);
@@ -459,7 +459,7 @@ public partial class ContainerExplorerWindow : Window
 
     private async void NewFolder_Click(object sender, RoutedEventArgs e)
     {
-        string? name = await PromptAsync(Loc.T("srv.explorer.newFolder"), "").ConfigureAwait(true);
+        string? name = await PromptAsync(Loc.T("srv.explorer.newFolder"), "", Loc.T("srv.explorer.namePlaceholder")).ConfigureAwait(true);
         if (string.IsNullOrWhiteSpace(name)) return;
         string dest = ContainerFiles.Join(_path, name.Trim());
         await RunFileOpAsync(() => _files.MakeDirectoryAsync(dest)).ConfigureAwait(true);
@@ -765,17 +765,29 @@ public partial class ContainerExplorerWindow : Window
 
     private TaskCompletionSource<string?>? _inputTcs;
 
-    /// <summary>يعرض لوحة إدخال نصّ ويعيد النصّ عند «حسناً» أو null عند الإلغاء.</summary>
-    private Task<string?> PromptAsync(string title, string initial)
+    /// <summary>يعرض لوحة إدخال نصّ ويعيد النصّ عند «حفظ» أو null عند الإلغاء. زرّ الحفظ يُعطَّل ما دام الحقل فارغاً.</summary>
+    private Task<string?> PromptAsync(string title, string initial, string placeholder = "")
     {
         InputTitle.Text = title;
+        InputPlaceholder.Text = placeholder;
         InputBox.Text = initial;
+        UpdateInputState();
         InputOverlay.Visibility = Visibility.Visible;
         InputBox.Focus();
         InputBox.SelectAll();
         _inputTcs?.TrySetResult(null);
         _inputTcs = new TaskCompletionSource<string?>();
         return _inputTcs.Task;
+    }
+
+    /// <summary>يحدّث ظهور النصّ الإرشاديّ وتفعيل زرّ الحفظ تبعاً لمحتوى الحقل.</summary>
+    private void InputBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateInputState();
+
+    private void UpdateInputState()
+    {
+        bool empty = string.IsNullOrWhiteSpace(InputBox.Text);
+        InputPlaceholder.Visibility = InputBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        InputOk.IsEnabled = !empty;
     }
 
     private void CloseInput(string? result)
@@ -786,14 +798,20 @@ public partial class ContainerExplorerWindow : Window
         tcs?.TrySetResult(result);
     }
 
-    private void InputOk_Click(object sender, RoutedEventArgs e) => CloseInput(InputBox.Text);
+    private void InputOk_Click(object sender, RoutedEventArgs e) => TryCommitInput();
     private void InputCancel_Click(object sender, RoutedEventArgs e) => CloseInput(null);
     private void InputOverlay_MouseDown(object sender, MouseButtonEventArgs e) => CloseInput(null);
     private void InputCard_MouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
     private void InputBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) { CloseInput(InputBox.Text); e.Handled = true; }
+        if (e.Key == Key.Enter) { TryCommitInput(); e.Handled = true; }
         else if (e.Key == Key.Escape) { CloseInput(null); e.Handled = true; }
+    }
+
+    /// <summary>يقبل الإدخال فقط إن لم يكن فارغاً (مطابقةً لتعطيل زرّ الحفظ).</summary>
+    private void TryCommitInput()
+    {
+        if (!string.IsNullOrWhiteSpace(InputBox.Text)) CloseInput(InputBox.Text);
     }
 
     protected override void OnClosed(EventArgs e)

@@ -272,6 +272,7 @@ public static class Loc
         ["srv.explorer.delConfirm"] = ("سيُحذف هذا الملفّ نهائيّاً. لا يمكن التراجع.", "This file will be permanently deleted. This can’t be undone."),
         ["srv.explorer.delDirConfirm"] = ("سيُحذف هذا المجلّد بمحتوياته نهائيّاً. لا يمكن التراجع.", "This folder and its contents will be permanently deleted. This can’t be undone."),
         ["srv.explorer.newFolder"] = ("مجلّد جديد", "New folder"),
+        ["srv.explorer.namePlaceholder"] = ("الاسم", "Name"),
         ["srv.explorer.upload"] = ("رفع ملفّ", "Upload file"),
         ["srv.explorer.edit"] = ("تعديل", "Edit"),
         ["srv.explorer.save"] = ("حفظ", "Save"),
@@ -304,6 +305,7 @@ public static class Loc
         // أزرار الحوارات + حوارات الحذف في النافذة الرئيسيّة (تُراعي اللغة)
         ["dlg.cancel"] = ("إلغاء", "Cancel"),
         ["dlg.delete"] = ("حذف", "Delete"),
+        ["dlg.save"]   = ("حفظ", "Save"),
         ["dlg.proj.title"]   = ("حذف المشروع؟", "Delete project?"),
         ["dlg.proj.msg"]     = ("سيُحذف المشروع «{0}» نهائيّاً. لا يمكن التراجع عن هذا.", "“{0}” will be permanently deleted. This can’t be undone."),
         ["dlg.proj.msgN"]    = ("سيُحذف المشروع «{0}» و{1} من أوامره نهائيّاً. لا يمكن التراجع عن هذا.", "“{0}” and its {1} command(s) will be permanently deleted. This can’t be undone."),

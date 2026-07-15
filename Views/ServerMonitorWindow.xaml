@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:TerminalLauncher.Views"
+        xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         Title="مراقب الخوادم" Height="680" Width="1080"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="480" MinWidth="820"
@@ -750,7 +751,7 @@
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <Separator/>
-                                                        <MenuItem x:Name="DetailDelete" Header="حذف" Click="DetailDelete_Click">
+                                                        <MenuItem x:Name="DetailDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="DetailDelete_Click">
                                                             <MenuItem.Icon>
                                                                 <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                                                            Foreground="{DynamicResource Brush.Danger}"/>
@@ -887,7 +888,7 @@
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator/>
-                                            <MenuItem x:Name="FileDelete" Header="حذف" Click="FileDelete_Click">
+                                            <MenuItem x:Name="FileDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="FileDelete_Click">
                                                 <MenuItem.Icon>
                                                     <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                                                Foreground="{DynamicResource Brush.Danger}"/>
@@ -906,6 +907,14 @@
                                         <DataGridTextColumn x:Name="ColPath" Header="المسار" Binding="{Binding Path}"
                                                             Width="3*" MinWidth="120"
                                                             ElementStyle="{StaticResource EllipsisCell}"/>
+                                        <DataGridTemplateColumn Width="36" CanUserResize="False" CanUserReorder="False" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button ctrl:MenuButton.IsMenuTrigger="True" HorizontalAlignment="Center"
+                                                            Style="{StaticResource KebabButton}"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
 
@@ -976,6 +985,14 @@
                                                     <DataGridTextColumn x:Name="ProcColCpu" Header="CPU%" Binding="{Binding CpuText}" SortMemberPath="Cpu" Width="Auto"/>
                                                     <DataGridTextColumn x:Name="ProcColMem" Header="MEM%" Binding="{Binding MemText}" SortMemberPath="Mem" Width="Auto"/>
                                                     <DataGridTextColumn x:Name="ProcColCmd" Header="الأمر" Binding="{Binding Command}" Width="*"/>
+                                                    <DataGridTemplateColumn Width="36" CanUserResize="False" CanUserReorder="False" CanUserSort="False">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <Button ctrl:MenuButton.IsMenuTrigger="True" HorizontalAlignment="Center"
+                                                                        Style="{StaticResource KebabButton}"/>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </DockPanel>
@@ -1112,6 +1129,7 @@
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
 
                                                             <!-- مؤشّر الحالة -->
@@ -1153,6 +1171,9 @@
                                                                     Style="{StaticResource AccentButton}" Content="{Binding EnterLabel}"
                                                                     Tag="{Binding}" IsEnabled="{Binding Running}"
                                                                     Click="ContainerRowEnter_Click"/>
+                                                            <!-- زرّ الثلاث نقاط: تسمية / إزالة الاسم -->
+                                                            <Button Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center"
+                                                                    ctrl:MenuButton.IsMenuTrigger="True" Style="{StaticResource KebabButton}"/>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -1579,7 +1600,7 @@
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <Separator/>
-                                        <MenuItem x:Name="CtxDelete" Header="حذف" Click="DeleteBtn_Click">
+                                        <MenuItem x:Name="CtxDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="DeleteBtn_Click">
                                             <MenuItem.Icon>
                                                 <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                                            Foreground="{DynamicResource Brush.Danger}"/>
@@ -1593,6 +1614,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Width="10" Height="10" CornerRadius="5" VerticalAlignment="Center"
                                                     Margin="0,0,10,0" Background="{Binding EffectiveColor}"/>
@@ -1602,6 +1624,18 @@
                                                            Foreground="{DynamicResource Brush.TextMuted}"
                                                            FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
+                                            <Button Grid.Column="2" ctrl:MenuButton.IsMenuTrigger="True" VerticalAlignment="Center">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource KebabButton}">
+                                                        <Setter Property="Visibility" Value="Hidden"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

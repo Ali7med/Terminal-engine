@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         Title="مشغّل الأوامر" Height="700" Width="1120"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="480" MinWidth="820"
@@ -207,10 +208,11 @@
                                 </ListBox.Resources>
                                 <ListBox.ContextMenu>
                                     <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
-                                        <MenuItem Header="▶  فتح" Click="RunButton_Click"/>
-                                        <MenuItem Header="✎  تعديل" Click="EditButton_Click"/>
+                                        <MenuItem Header="فتح" InputGestureText="↵" Click="RunButton_Click"/>
+                                        <MenuItem Header="تعديل" InputGestureText="E" Click="EditButton_Click"/>
                                         <Separator/>
-                                        <MenuItem Header="🗑  حذف" Click="DeleteButton_Click"/>
+                                        <MenuItem Header="حذف" InputGestureText="Del"
+                                                  Style="{StaticResource MenuItem.Danger}" Click="DeleteButton_Click"/>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
@@ -219,6 +221,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
@@ -235,6 +238,20 @@
                                                 <TextBlock Text="{Binding Commands.Count}" FontSize="10.5"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Border>
+                                            <!-- زرّ الثلاث نقاط: يظهر عند المرور ويفتح قائمة الصفّ (فتح/تعديل/حذف) -->
+                                            <Button Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center"
+                                                    ctrl:MenuButton.IsMenuTrigger="True">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource KebabButton}">
+                                                        <Setter Property="Visibility" Value="Hidden"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
