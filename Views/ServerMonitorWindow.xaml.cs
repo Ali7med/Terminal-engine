@@ -550,10 +550,12 @@ public partial class ServerMonitorWindow : Window
         ConfirmTitle.Text = title;
         ConfirmMessage.Text = message;
         ConfirmPath.Text = path;
+        ConfirmCancel.Content = Loc.T("dlg.cancel");
+        ConfirmOk.Content = Loc.T("dlg.delete");
         _confirmTcs?.TrySetResult(false);   // أنهِ أيّ حوار سابق
         _confirmTcs = new TaskCompletionSource<bool>();
         ConfirmOverlay.Visibility = Visibility.Visible;
-        ConfirmOk.Focus();
+        ConfirmCancel.Focus();   // التركيز الآمن على الإلغاء لا الحذف
         return _confirmTcs.Task;
     }
 

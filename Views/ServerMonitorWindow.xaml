@@ -1508,7 +1508,7 @@
                                                FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                Foreground="{DynamicResource Brush.Danger}"/>
                                 </Border>
-                                <TextBlock x:Name="ConfirmTitle" Text="تأكيد الحذف" FontSize="16" FontWeight="SemiBold"
+                                <TextBlock x:Name="ConfirmTitle" Text="تأكيد الحذف" FontSize="18" FontWeight="Bold"
                                            VerticalAlignment="Center" Margin="12,0,0,0"/>
                             </StackPanel>
                             <TextBlock x:Name="ConfirmMessage" TextWrapping="Wrap"
@@ -1520,12 +1520,13 @@
                                            FontSize="12" TextWrapping="Wrap"
                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                             </Border>
-                            <Grid Margin="0,20,0,0">
-                                <Button x:Name="ConfirmCancel" HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
-                                        Click="ConfirmCancel_Click"/>
-                                <Button x:Name="ConfirmOk" HorizontalAlignment="Right" Content="حذف" Padding="22,8"
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+                                <Button x:Name="ConfirmCancel" Content="إلغاء" Padding="22,10" MinWidth="96"
+                                        FontSize="13.5" FontWeight="Medium" Click="ConfirmCancel_Click"/>
+                                <Button x:Name="ConfirmOk" Content="حذف" Padding="22,10" MinWidth="96" Margin="10,0,0,0"
+                                        FontSize="13.5" FontWeight="Medium" IsDefault="False"
                                         Click="ConfirmOk_Click" Style="{StaticResource DangerButton}"/>
-                            </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </Border>

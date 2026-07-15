@@ -196,7 +196,7 @@ public static class Loc
         ["srv.ed.save"]        = ("حفظ", "Save"),
         ["srv.ed.cancel"]      = ("إلغاء", "Cancel"),
         ["srv.ed.ok"]          = ("حسناً", "OK"),
-        ["srv.ed.deleteConfirm"] = ("حذف هذا الخادم نهائيّاً؟", "Delete this server permanently?"),
+        ["srv.ed.deleteConfirm"] = ("سيُحذف هذا الخادم نهائيّاً. لا يمكن التراجع عن هذا.", "This server will be permanently deleted. This can’t be undone."),
 
         // مستكشف المجلّدات (الموجة 2)
         ["srv.tab.dashboard"]  = ("لوحة القيادة", "Dashboard"),
@@ -245,7 +245,7 @@ public static class Loc
         ["srv.up.title"]       = ("رفع", "Upload"),
         ["srv.up.uploading"]   = ("جارٍ الرفع", "Uploading"),
         ["srv.up.cancelled"]   = ("أُلغي الرفع", "Upload cancelled"),
-        ["srv.file.deleteManyConfirm"] = ("حذف الملفّات المحدّدة نهائيّاً؟", "Delete the selected files permanently?"),
+        ["srv.file.deleteManyConfirm"] = ("ستُحذف الملفّات المحدّدة نهائيّاً. لا يمكن التراجع.", "The selected files will be permanently deleted. This can’t be undone."),
 
         // الملفّات والعمليّات (الموجة 3)
         ["srv.tab.files"]      = ("الملفّات", "Files"),
@@ -269,8 +269,8 @@ public static class Loc
         ["srv.explorer.redock"] = ("إرجاع للواجهة", "Dock back"),
         ["srv.explorer.rename"] = ("إعادة تسمية", "Rename"),
         ["srv.explorer.delete"] = ("حذف", "Delete"),
-        ["srv.explorer.delConfirm"] = ("حذف هذا الملفّ نهائيّاً؟", "Delete this file permanently?"),
-        ["srv.explorer.delDirConfirm"] = ("حذف هذا المجلّد بمحتوياته نهائيّاً؟", "Delete this folder and its contents permanently?"),
+        ["srv.explorer.delConfirm"] = ("سيُحذف هذا الملفّ نهائيّاً. لا يمكن التراجع.", "This file will be permanently deleted. This can’t be undone."),
+        ["srv.explorer.delDirConfirm"] = ("سيُحذف هذا المجلّد بمحتوياته نهائيّاً. لا يمكن التراجع.", "This folder and its contents will be permanently deleted. This can’t be undone."),
         ["srv.explorer.newFolder"] = ("مجلّد جديد", "New folder"),
         ["srv.explorer.upload"] = ("رفع ملفّ", "Upload file"),
         ["srv.explorer.edit"] = ("تعديل", "Edit"),
@@ -300,6 +300,20 @@ public static class Loc
         ["srv.type.web"]     = ("صفحة ويب", "Web page"),
         ["srv.type.binary"]  = ("ثنائيّ", "Binary"),
         ["srv.type.doc"]     = ("مستند", "Document"),
+
+        // أزرار الحوارات + حوارات الحذف في النافذة الرئيسيّة (تُراعي اللغة)
+        ["dlg.cancel"] = ("إلغاء", "Cancel"),
+        ["dlg.delete"] = ("حذف", "Delete"),
+        ["dlg.proj.title"]   = ("حذف المشروع؟", "Delete project?"),
+        ["dlg.proj.msg"]     = ("سيُحذف المشروع «{0}» نهائيّاً. لا يمكن التراجع عن هذا.", "“{0}” will be permanently deleted. This can’t be undone."),
+        ["dlg.proj.msgN"]    = ("سيُحذف المشروع «{0}» و{1} من أوامره نهائيّاً. لا يمكن التراجع عن هذا.", "“{0}” and its {1} command(s) will be permanently deleted. This can’t be undone."),
+        ["dlg.tag.title"]    = ("حذف التاك؟", "Delete tag?"),
+        ["dlg.tag.msg"]      = ("سيُحذف التاك «{0}» نهائيّاً. لا يمكن التراجع.", "“{0}” will be permanently deleted. This can’t be undone."),
+        ["dlg.tag.msgN"]     = ("سيُحذف التاك «{0}» ويُفكّ من {1} مشروعاً (لا تُحذَف المشاريع). لا يمكن التراجع.", "“{0}” will be deleted and detached from {1} project(s) (projects are kept). This can’t be undone."),
+        ["dlg.profile.title"]     = ("حذف البروفايل؟", "Delete profile?"),
+        ["dlg.profile.msg"]       = ("سيُحذف البروفايل «{0}» نهائيّاً. لا يمكن التراجع.", "“{0}” will be permanently deleted. This can’t be undone."),
+        ["dlg.profile.pickTitle"] = ("بروفايلات الصدفات", "Shell profiles"),
+        ["dlg.profile.pickMsg"]   = ("اختر بروفايلاً مخصّصاً لحذفه.", "Select a custom profile to delete."),
 
         // الإدارة (عمليّات + خدمات + منافذ)
         ["srv.mgmt.processes"] = ("العمليّات", "Processes"),
@@ -342,7 +356,7 @@ public static class Loc
         ["srv.docker.sshMissing"] = ("عميل OpenSSH (ssh.exe) غير متوفّر على هذا الجهاز. فعّل «OpenSSH Client» من إعدادات ويندوز (الميزات الاختياريّة) ثمّ أعد المحاولة.", "The OpenSSH client (ssh.exe) is not available on this machine. Enable 'OpenSSH Client' from Windows optional features and try again."),
         ["srv.file.delete"]    = ("حذف", "Delete"),
         ["srv.file.deleteTitle"] = ("حذف الملفّ", "Delete file"),
-        ["srv.file.deleteConfirm"] = ("حذف هذا الملفّ نهائيّاً؟", "Delete this file permanently?"),
+        ["srv.file.deleteConfirm"] = ("سيُحذف هذا الملفّ نهائيّاً. لا يمكن التراجع.", "This file will be permanently deleted. This can’t be undone."),
         ["srv.file.downloadOk"]= ("تمّ التنزيل بنجاح.", "Download complete."),
         ["srv.file.downloadFail"] = ("تعذّر التنزيل:", "Download failed:"),
         ["srv.file.opFail"]    = ("فشلت العمليّة:", "Operation failed:"),

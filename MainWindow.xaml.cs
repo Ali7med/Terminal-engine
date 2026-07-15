@@ -1106,10 +1106,10 @@ public partial class MainWindow : Window
         if (Selected is not { } proj) return;
         int n = proj.Commands.Count;
         string msg = n > 0
-            ? $"حذف المشروع «{proj.Name}» و{n} من أوامره؟"
-            : $"حذف المشروع «{proj.Name}»؟";
-        ShowConfirm("حذف مشروع", msg,
-            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
+            ? string.Format(Loc.T("dlg.proj.msgN"), proj.Name, n)
+            : string.Format(Loc.T("dlg.proj.msg"), proj.Name);
+        ShowConfirm(Loc.T("dlg.proj.title"), msg,
+            new[] { (Loc.T("dlg.cancel"), "cancel", Views.DialogButtonKind.Neutral), (Loc.T("dlg.delete"), "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;
@@ -1245,10 +1245,10 @@ public partial class MainWindow : Window
     {
         int linked = ProjectService.All.Count(p => p.HasTag(name));
         string msg = linked > 0
-            ? $"حذف التاك «{name}»؟ سيُفكّ من {linked} مشروعاً (لا تُحذَف المشاريع)."
-            : $"حذف التاك «{name}»؟";
-        ShowConfirm("حذف تاك", msg,
-            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
+            ? string.Format(Loc.T("dlg.tag.msgN"), name, linked)
+            : string.Format(Loc.T("dlg.tag.msg"), name);
+        ShowConfirm(Loc.T("dlg.tag.title"), msg,
+            new[] { (Loc.T("dlg.cancel"), "cancel", Views.DialogButtonKind.Neutral), (Loc.T("dlg.delete"), "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;
@@ -1971,11 +1971,11 @@ public partial class MainWindow : Window
     {
         if (ProfileList.SelectedItem is not ShellProfile { IsBuiltIn: false } p)
         {
-            ShowAlert("بروفايلات الصدفات", "اختر بروفايلاً مخصّصاً لحذفه.");
+            ShowAlert(Loc.T("dlg.profile.pickTitle"), Loc.T("dlg.profile.pickMsg"));
             return;
         }
-        ShowConfirm("حذف بروفايل", $"حذف البروفايل «{p.Name}»؟",
-            new[] { ("إلغاء", "cancel", Views.DialogButtonKind.Neutral), ("حذف", "delete", Views.DialogButtonKind.Danger) },
+        ShowConfirm(Loc.T("dlg.profile.title"), string.Format(Loc.T("dlg.profile.msg"), p.Name),
+            new[] { (Loc.T("dlg.cancel"), "cancel", Views.DialogButtonKind.Neutral), (Loc.T("dlg.delete"), "delete", Views.DialogButtonKind.Danger) },
             key =>
             {
                 if (key != "delete") return;

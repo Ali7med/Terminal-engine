@@ -41,14 +41,17 @@ public partial class AppDialog : Window
         dlg.TitleText.Text = title;
         dlg.MessageText.Text = message;
 
+        Button? safe = null, first = null;
         foreach (var (label, key, kind) in options)
         {
             var btn = new Button
             {
                 Content = label,
-                Padding = new Thickness(16, 8, 16, 8),
-                Margin = new Thickness(0, 0, 8, 0),
-                MinWidth = 76,
+                Padding = new Thickness(22, 10, 22, 10),
+                Margin = new Thickness(10, 0, 0, 0),   // فراغ أماميّ فقط ⇒ الزرّ الأخير ملاصق للحافّة
+                MinWidth = 96,
+                FontSize = 13.5,
+                FontWeight = FontWeights.Medium,
                 Cursor = Cursors.Hand,
             };
             btn.Style = kind switch
@@ -60,6 +63,16 @@ public partial class AppDialog : Window
             string k = key;
             btn.Click += (_, _) => { dlg._result = k; dlg.DialogResult = true; };
             dlg.ButtonPanel.Children.Add(btn);
+            first ??= btn;
+            if (kind != DialogButtonKind.Danger) safe = btn;   // آخر زرّ غير خطر = التركيز الآمن
+        }
+
+        // التركيز الافتراضيّ على الزرّ الآمن (إلغاء/محايد) لا الخطر — فـ Enter لا يحذف عن طريق الخطأ
+        var focusTarget = safe ?? first;
+        if (focusTarget != null)
+        {
+            focusTarget.IsDefault = true;
+            dlg.Loaded += (_, _) => focusTarget.Focus();
         }
 
         dlg.ShowDialog();
@@ -68,7 +81,7 @@ public partial class AppDialog : Window
 
     /// <summary>حوار تنبيه بزرّ «حسناً» واحد (بديل <c>MessageBox</c> ذي الزرّ الواحد).</summary>
     public static void Alert(Window? owner, string title, string message)
-        => Confirm(owner, title, message, ("حسناً", "ok", true));
+        => Confirm(owner, title, message, (Services.Loc.T("srv.ed.ok"), "ok", true));
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
