@@ -833,6 +833,7 @@ public partial class ServerMonitorWindow : Window
 
     private Task LoadMgmtAsync()
     {
+        _ = LoadMgmtPerfAsync();
         _ = LoadProcessesAsync();
         _ = LoadServicesAsync();
         _ = LoadPortsAsync();
@@ -844,7 +845,32 @@ public partial class ServerMonitorWindow : Window
         MgmtProcesses.ItemsSource = null;
         MgmtServices.ItemsSource = null;
         MgmtPorts.ItemsSource = null;
+        MgmtTopMem.ItemsSource = null;
+        MgmtTopCpu.ItemsSource = null;
+        MgmtMemText.Text = MgmtCpuText.Text = "—";
+        MgmtMemBar.Value = MgmtCpuBar.Value = 0;
         _services = new List<ServiceRowVm>();
+    }
+
+    /// <summary>يجلب لقطة أداء لبطاقتَي الذاكرة والمعالج في تبويب الإدارة (نفس مصدر لوحة القيادة).</summary>
+    private async Task LoadMgmtPerfAsync()
+    {
+        if (_connection is null) return;
+        try
+        {
+            var r = await _connection.RunAsync(PerfMonitor.SnapshotCommand(8), _cts?.Token ?? default).ConfigureAwait(true);
+            var perf = PerfMonitor.ParseSnapshot((r.StdOut ?? "").Replace("\r\n", "\n").Replace('\r', '\n'));
+
+            MgmtMemText.Text = $"{DiskRowVm.Human(perf.MemUsedKb * 1024)} / {DiskRowVm.Human(perf.MemTotalKb * 1024)} · {perf.MemUsedPercent:0}%";
+            MgmtMemBar.Value = perf.MemUsedPercent;
+
+            double loadPct = _cpuCores > 0 ? System.Math.Min(100, perf.LoadAvg1 / _cpuCores * 100) : 0;
+            MgmtCpuText.Text = _cpuCores > 0
+                ? $"{perf.LoadAvg1.ToString("0.00", CultureInfo.InvariantCulture)} / {_cpuCores}"
+                : perf.LoadAvg1.ToString("0.00", CultureInfo.InvariantCulture);
+            MgmtCpuBar.Value = loadPct;
+        }
+        catch { /* غير حرِج — البطاقات تبقى «—» */ }
     }
 
     private void MgmtProcRefresh_Click(object sender, RoutedEventArgs e) => _ = LoadProcessesAsync();
@@ -858,7 +884,11 @@ public partial class ServerMonitorWindow : Window
         try
         {
             var procs = await new ServerAdmin(_connection).ListProcessesAsync(50, _cts?.Token ?? default).ConfigureAwait(true);
-            MgmtProcesses.ItemsSource = procs.Select(MgmtProcVm.From).ToList();
+            var rows = procs.Select(MgmtProcVm.From).ToList();
+            MgmtProcesses.ItemsSource = rows;
+            // أعلى ٥ مستهلكي ذاكرة/معالج — من نفس القائمة (بلا استدعاء إضافيّ)
+            MgmtTopMem.ItemsSource = rows.OrderByDescending(p => p.Mem).Take(5).ToList();
+            MgmtTopCpu.ItemsSource = rows.OrderByDescending(p => p.Cpu).Take(5).ToList();
         }
         catch (Exception ex) { NotificationService.Error(Loc.T("srv.mgmt.processes"), ex.Message); }
         finally { MgmtProcLoading.Visibility = Visibility.Collapsed; }

@@ -338,6 +338,11 @@ public static class Loc
         ["dlg.profile.pickMsg"]   = ("اختر بروفايلاً مخصّصاً لحذفه.", "Select a custom profile to delete."),
 
         // الإدارة (عمليّات + خدمات + منافذ)
+        ["srv.mgmt.memory"]    = ("🧠 الذاكرة", "🧠 Memory"),
+        ["srv.mgmt.cpu"]       = ("⚙ الحِمل / الأنوية", "⚙ Load / cores"),
+        ["srv.mgmt.swap"]      = ("💾 التبديل (Swap)", "💾 Swap"),
+        ["srv.mgmt.topMem"]    = ("أعلى مستهلكي الذاكرة", "Top memory consumers"),
+        ["srv.mgmt.topCpu"]    = ("أعلى مستهلكي المعالج", "Top CPU consumers"),
         ["srv.mgmt.processes"] = ("العمليّات", "Processes"),
         ["srv.mgmt.services"]  = ("الخدمات", "Services"),
         ["srv.mgmt.ports"]     = ("المنافذ المُنصِتة", "Listening ports"),
