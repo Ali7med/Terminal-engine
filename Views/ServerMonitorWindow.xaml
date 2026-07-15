@@ -4,6 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:TerminalLauncher.Views"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
+        xmlns:loc="clr-namespace:TerminalLauncher.Services"
         Title="مراقب الخوادم" Height="680" Width="1080"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="480" MinWidth="820"
@@ -30,8 +31,13 @@
                     <ControlTemplate TargetType="RadioButton">
                         <Border Background="Transparent" Padding="16,9">
                             <StackPanel>
-                                <TextBlock Text="{TemplateBinding Content}" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="{TemplateBinding Tag}" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                               Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <TextBlock Text="{TemplateBinding Content}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <Border x:Name="ul" Height="2.5" Margin="0,7,0,0" CornerRadius="2" Background="Transparent"/>
                             </StackPanel>
                         </Border>
@@ -260,17 +266,17 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal">
-                                    <RadioButton x:Name="ModeDashboard" GroupName="SrvMode" IsChecked="True"
+                                    <RadioButton x:Name="ModeDashboard" GroupName="SrvMode" IsChecked="True" Tag="&#xE80F;"
                                                  Style="{StaticResource ServerModeTab}" Content="لوحة القيادة" Checked="Mode_Checked"/>
-                                    <RadioButton x:Name="ModeDisks" GroupName="SrvMode"
+                                    <RadioButton x:Name="ModeDisks" GroupName="SrvMode" Tag="&#xEDA2;"
                                                  Style="{StaticResource ServerModeTab}" Content="الأقراص" Checked="Mode_Checked"/>
-                                    <RadioButton x:Name="ModeFolders" GroupName="SrvMode"
+                                    <RadioButton x:Name="ModeFolders" GroupName="SrvMode" Tag="&#xE8B7;"
                                                  Style="{StaticResource ServerModeTab}" Content="المجلّدات" Checked="Mode_Checked"/>
-                                    <RadioButton x:Name="ModeFiles" GroupName="SrvMode"
+                                    <RadioButton x:Name="ModeFiles" GroupName="SrvMode" Tag="&#xE8A5;"
                                                  Style="{StaticResource ServerModeTab}" Content="الملفّات" Checked="Mode_Checked"/>
-                                    <RadioButton x:Name="ModeMgmt" GroupName="SrvMode"
+                                    <RadioButton x:Name="ModeMgmt" GroupName="SrvMode" Tag="&#xE713;"
                                                  Style="{StaticResource ServerModeTab}" Content="الإدارة" Checked="Mode_Checked"/>
-                                    <RadioButton x:Name="ModeContainers" GroupName="SrvMode"
+                                    <RadioButton x:Name="ModeContainers" GroupName="SrvMode" Tag="&#xE7B8;"
                                                  Style="{StaticResource ServerModeTab}" Content="الحاويات" Checked="Mode_Checked"/>
                                 </StackPanel>
 
@@ -1119,9 +1125,17 @@
                                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                                         <Border.ContextMenu>
                                                             <ContextMenu>
-                                                                <MenuItem Header="تسمية…" Click="ContainerRename_Click"/>
-                                                                <MenuItem Header="إزالة الاسم" Click="ContainerClearName_Click"
-                                                                          Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}"/>
+                                                                <MenuItem Header="{loc:T srv.containers.rename}" Click="ContainerRename_Click">
+                                                                    <MenuItem.Icon>
+                                                                        <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    </MenuItem.Icon>
+                                                                </MenuItem>
+                                                                <MenuItem Header="{loc:T srv.containers.clearName}" Click="ContainerClearName_Click"
+                                                                          Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}">
+                                                                    <MenuItem.Icon>
+                                                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    </MenuItem.Icon>
+                                                                </MenuItem>
                                                             </ContextMenu>
                                                         </Border.ContextMenu>
                                                         <Grid>

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
+        xmlns:loc="clr-namespace:TerminalLauncher.Services"
         Title="مشغّل الأوامر" Height="700" Width="1120"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="480" MinWidth="820"
@@ -208,11 +209,17 @@
                                 </ListBox.Resources>
                                 <ListBox.ContextMenu>
                                     <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
-                                        <MenuItem Header="فتح" InputGestureText="↵" Click="RunButton_Click"/>
-                                        <MenuItem Header="تعديل" InputGestureText="E" Click="EditButton_Click"/>
+                                        <MenuItem Header="{loc:T ctx.open}" InputGestureText="↵" Click="RunButton_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:T ctx.edit}" InputGestureText="E" Click="EditButton_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
-                                        <MenuItem Header="حذف" InputGestureText="Del"
-                                                  Style="{StaticResource MenuItem.Danger}" Click="DeleteButton_Click"/>
+                                        <MenuItem Header="{loc:T dlg.delete}" InputGestureText="Del"
+                                                  Style="{StaticResource MenuItem.Danger}" Click="DeleteButton_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>

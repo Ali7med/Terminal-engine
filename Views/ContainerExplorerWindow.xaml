@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
+        xmlns:loc="clr-namespace:TerminalLauncher.Services"
         Title="مستكشف الحاوية" Height="640" Width="960" MinHeight="380" MinWidth="560"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.Bg}"
@@ -131,17 +132,29 @@
                             <Grid>
                                 <Grid.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="فتح" Click="MenuOpen_Click"/>
-                                        <MenuItem Header="تعديل" Click="MenuEdit_Click"
-                                                  Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}"/>
-                                        <MenuItem Header="تنزيل…" Click="MenuDownload_Click"
-                                                  Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}"/>
-                                        <MenuItem Header="الكونسول هنا" Click="MenuConsoleHere_Click"
-                                                  Visibility="{Binding IsDir, Converter={StaticResource Conv.BoolToVis}}"/>
+                                        <MenuItem Header="{loc:T ctx.open}" Click="MenuOpen_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:T ctx.edit}" Click="MenuEdit_Click"
+                                                  Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:T ctx.download}" Click="MenuDownload_Click"
+                                                  Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:T ctx.consoleHere}" Click="MenuConsoleHere_Click"
+                                                  Visibility="{Binding IsDir, Converter={StaticResource Conv.BoolToVis}}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
                                         <Separator/>
-                                        <MenuItem Header="إعادة تسمية…" InputGestureText="R" Click="MenuRename_Click"/>
-                                        <MenuItem Header="حذف" InputGestureText="Del"
-                                                  Style="{StaticResource MenuItem.Danger}" Click="MenuDelete_Click"/>
+                                        <MenuItem Header="{loc:T ctx.rename}" InputGestureText="R" Click="MenuRename_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="{loc:T dlg.delete}" InputGestureText="Del"
+                                                  Style="{StaticResource MenuItem.Danger}" Click="MenuDelete_Click">
+                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
                                 <Grid.ColumnDefinitions>
@@ -232,8 +245,12 @@
                                                 </Border.Style>
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
-                                                        <MenuItem Header="إعادة تسمية…" Click="ConsoleTabRename_Click"/>
-                                                        <MenuItem Header="إغلاق" Click="ConsoleTabCloseMenu_Click"/>
+                                                        <MenuItem Header="{loc:T ctx.rename}" Click="ConsoleTabRename_Click">
+                                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <MenuItem Header="{loc:T ctx.close}" Click="ConsoleTabCloseMenu_Click">
+                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                        </MenuItem>
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
                                                 <StackPanel Orientation="Horizontal">
