@@ -87,8 +87,11 @@ public sealed record ContainerListItem(string Id, string Name, string State, str
     public string ShortId => Id.Length > 12 ? Id.Substring(0, 12) : Id;
 }
 
-/// <summary>مدخل في مستكشف ملفّات الحاوية (اسم + هل هو مجلّد) من <c>ls -1Ap</c>.</summary>
-public sealed record ContainerEntry(string Name, bool IsDir);
+/// <summary>
+/// مدخل في مستكشف ملفّات الحاوية من <c>ls -lA</c>: الاسم، هل مجلّد، الحجم (بايت)، نوع المدخل
+/// (<c>d</c> مجلّد · <c>-</c> ملفّ · <c>l</c> رابط رمزيّ · غيرها خاصّ)، ووقت التعديل كنصّ خام.
+/// </summary>
+public sealed record ContainerEntry(string Name, bool IsDir, long Size = 0, char Type = '-', string Modified = "");
 
 /// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
 public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);

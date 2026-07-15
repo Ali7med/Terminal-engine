@@ -8,10 +8,10 @@ namespace Terminal.Servers.Tests;
 public class ContainerFilesTests
 {
     [Fact]
-    public void BuildList_UsesExecLsWithQuotedPathAndStopParsing()
+    public void BuildList_UsesExecLsLongWithQuotedPathAndStopParsing()
     {
         string cmd = ContainerFiles.BuildList("abc123", "/var/www");
-        Assert.Contains("docker exec abc123 ls -1Ap -- '/var/www'", cmd);
+        Assert.Contains("docker exec abc123 ls -lA -- '/var/www'", cmd);
         Assert.DoesNotContain("sudo", cmd);
     }
 
@@ -23,21 +23,37 @@ public class ContainerFilesTests
     }
 
     [Fact]
-    public void Parse_DirsFirstThenFilesAlphabetical_TrailingSlashMarksDir()
+    public void Parse_LongFormat_DirsFirst_WithSizeAndType()
     {
-        const string outp = "zeta.txt\nbin/\nalpha.log\netc/\n";
+        const string outp =
+            "total 20\n" +
+            "-rw-r--r--    1 root     root          4096 Jul 15 10:30 zeta.txt\n" +
+            "drwxr-xr-x    2 root     root          4096 Jul 15 10:30 bin\n" +
+            "-rw-r--r--    1 root     root           123 Jul 14 09:00 alpha.log\n" +
+            "drwxr-xr-x    5 root     root          4096 Jul 15 10:30 etc\n" +
+            "lrwxrwxrwx    1 root     root             7 Jul 15 10:30 link -> alpha.log\n";
         var e = ContainerFiles.Parse(outp);
 
-        Assert.Equal(4, e.Count);
-        Assert.Equal("bin", e[0].Name);   Assert.True(e[0].IsDir);
+        Assert.Equal(5, e.Count);
+        Assert.Equal("bin", e[0].Name);   Assert.True(e[0].IsDir);   Assert.Equal('d', e[0].Type);
         Assert.Equal("etc", e[1].Name);   Assert.True(e[1].IsDir);
-        Assert.Equal("alpha.log", e[2].Name); Assert.False(e[2].IsDir);
-        Assert.Equal("zeta.txt", e[3].Name);  Assert.False(e[3].IsDir);
+        Assert.Equal("alpha.log", e[2].Name); Assert.False(e[2].IsDir); Assert.Equal(123, e[2].Size);
+        Assert.Equal("link", e[3].Name);  Assert.Equal('l', e[3].Type);   // -> target مُزال
+        Assert.Equal("zeta.txt", e[4].Name);  Assert.Equal(4096, e[4].Size);
     }
 
     [Fact]
-    public void Parse_SkipsDotEntriesAndBlanks()
-        => Assert.Empty(ContainerFiles.Parse("./\n../\n\n"));
+    public void Parse_HandlesNameWithSpaces()
+    {
+        const string outp = "-rw-r--r-- 1 root root 42 Jul 15 10:30 my  file .txt\n";
+        var c = Assert.Single(ContainerFiles.Parse(outp));
+        Assert.Equal("my  file .txt", c.Name);
+        Assert.Equal(42, c.Size);
+    }
+
+    [Fact]
+    public void Parse_SkipsTotalLineAndBlanks()
+        => Assert.Empty(ContainerFiles.Parse("total 0\n\n"));
 
     [Fact]
     public void BuildRead_UsesHeadWithByteCapAndQuotedPath()

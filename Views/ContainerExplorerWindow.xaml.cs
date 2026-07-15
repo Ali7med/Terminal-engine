@@ -781,21 +781,52 @@ public sealed class ConsoleTabVm : INotifyPropertyChanged
     private void OnPropertyChanged(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
 }
 
-/// <summary>صفّ في قائمة المستكشف: اسم + هل مجلّد + المسار الكامل + أيقونة.</summary>
+/// <summary>صفّ في قائمة المستكشف: اسم + نوع + حجم + تاريخ + مسار + أيقونة.</summary>
 public sealed class ContainerFileVm
 {
     public string Name { get; }
     public bool IsDir { get; }
     public bool IsFile => !IsDir;
+    public char Type { get; }
+    public long Size { get; }
+    public string Modified { get; }
     public string FullPath { get; }
 
-    /// <summary>أيقونة Segoe MDL2: مجلّد (E8B7) أو مستند (E7C3).</summary>
-    public string Glyph => System.Char.ConvertFromUtf32(IsDir ? 0xE8B7 : 0xE7C3);
+    /// <summary>أيقونة Segoe MDL2: مجلّد (E8B7) · رابط رمزيّ (E71B) · مستند (E7C3).</summary>
+    public string Glyph => System.Char.ConvertFromUtf32(IsDir ? 0xE8B7 : Type == 'l' ? 0xE71B : 0xE7C3);
+
+    /// <summary>الحجم مُنسَّقاً (B/KB/MB/GB) للملفّات؛ فارغ للمجلّدات.</summary>
+    public string SizeText => IsDir ? "" : FormatSize(Size);
+
+    /// <summary>نوع المدخل نصّاً (مجلّد/رابط/امتداد الملفّ).</summary>
+    public string TypeText
+    {
+        get
+        {
+            if (IsDir) return "مجلّد";
+            if (Type == 'l') return "رابط";
+            int dot = Name.LastIndexOf('.');
+            return dot > 0 && dot < Name.Length - 1 ? Name[(dot + 1)..].ToLowerInvariant() : "ملفّ";
+        }
+    }
 
     public ContainerFileVm(ContainerEntry e, string parentPath)
     {
         Name = e.Name;
         IsDir = e.IsDir;
+        Type = e.Type;
+        Size = e.Size;
+        Modified = e.Modified;
         FullPath = ContainerFiles.Join(parentPath, e.Name);
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 0) return "";
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double v = bytes;
+        int u = 0;
+        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
+        return u == 0 ? $"{bytes} {units[0]}" : $"{v:0.#} {units[u]}";
     }
 }

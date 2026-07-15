@@ -77,8 +77,8 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <StackPanel.ContextMenu>
+                            <Grid>
+                                <Grid.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="فتح" Click="MenuOpen_Click"/>
                                         <MenuItem Header="تعديل" Click="MenuEdit_Click"
@@ -91,13 +91,29 @@
                                         <MenuItem Header="إعادة تسمية…" Click="MenuRename_Click"/>
                                         <MenuItem Header="حذف" Click="MenuDelete_Click"/>
                                     </ContextMenu>
-                                </StackPanel.ContextMenu>
-                                <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                </Grid.ContextMenu>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="130"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="15"
                                            VerticalAlignment="Center" Width="24"
                                            Foreground="{DynamicResource Brush.Accent}"/>
-                                <TextBlock Text="{Binding Name}" FlowDirection="LeftToRight" VerticalAlignment="Center"
-                                           FontSize="13" Foreground="{DynamicResource Brush.Text}"/>
-                            </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FlowDirection="LeftToRight" VerticalAlignment="Center"
+                                           FontSize="13" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.Text}"/>
+                                <TextBlock Grid.Column="2" Text="{Binding TypeText}" VerticalAlignment="Center" FontSize="11.5"
+                                           HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" FontSize="11.5"
+                                           HorizontalAlignment="Right" FlowDirection="LeftToRight" Margin="10,0,0,0"
+                                           FontFamily="Consolas, monospace" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                <TextBlock Grid.Column="4" Text="{Binding Modified}" VerticalAlignment="Center" FontSize="11.5"
+                                           HorizontalAlignment="Right" FlowDirection="LeftToRight" Margin="10,0,4,0"
+                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

@@ -17,7 +17,7 @@ namespace TerminalLauncher.Services;
 public static class AppVersion
 {
     /// <summary>رقم الإصدار الحالي (MAJOR.MINOR.PATCH). يستهلكه شريط العنوان ولوحة «ما الجديد» وبطاقة «حول».</summary>
-    public const string Current = "1.33.2";
+    public const string Current = "1.34.0";
 
     /// <summary>تاريخ إصدار النسخة الحالية (ISO: yyyy-MM-dd) — يُعرض ضمن ترويسة النسخة في لوحة «ما الجديد».</summary>
     public const string ReleasedDate = "2026-07-14";

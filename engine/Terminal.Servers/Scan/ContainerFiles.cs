@@ -8,10 +8,10 @@ using Terminal.Servers.Ssh;
 namespace Terminal.Servers.Scan;
 
 /// <summary>
-/// يسرد محتوى مجلّد <b>داخل</b> حاوية Docker عبر <c>docker exec &lt;id&gt; ls -1Ap -- &lt;path&gt;</c>.
-/// نستعمل <c>ls -1Ap</c> (سطر لكلّ مدخل، بلا <c>. ..</c>، ولاحقة <c>/</c> للمجلّدات) — مدعوم في busybox
-/// (صور alpine) وGNU سواءً، فلا نعتمد على <c>find -printf</c> غير المتوفّر في busybox. المسار يُمرَّر
-/// كوسيط لـ <c>ls</c> مباشرةً (بلا صدفة داخل الحاوية) فلا يُفسَّر، و<c>--</c> يوقف تحليل الخيارات.
+/// يسرد محتوى مجلّد <b>داخل</b> حاوية Docker عبر <c>docker exec &lt;id&gt; ls -lA -- &lt;path&gt;</c>
+/// (تنسيق طويل: صلاحيّات/حجم/تاريخ/اسم، بلا <c>. ..</c>) — مدعوم في busybox (صور alpine) وGNU سواءً،
+/// فلا نعتمد على <c>find -printf</c> غير المتوفّر في busybox. المسار يُمرَّر كوسيط لـ <c>ls</c> مباشرةً
+/// (بلا صدفة داخل الحاوية) فلا يُفسَّر، و<c>--</c> يوقف تحليل الخيارات.
 /// </summary>
 public sealed class ContainerFiles
 {
@@ -29,10 +29,10 @@ public sealed class ContainerFiles
     /// <summary>الحدّ الأقصى لعرض محتوى ملفّ (512KB) — يمنع سحب ملفّات ضخمة عبر الشبكة.</summary>
     public const int MaxViewBytes = 512 * 1024;
 
-    /// <summary>أمر سرد مجلّد داخل الحاوية (المسار مُقتبَس للصدفة المضيفة فقط — طبقة اقتباس واحدة).</summary>
+    /// <summary>أمر سرد مجلّد داخل الحاوية بالتنسيق الطويل (المسار مُقتبَس للصدفة المضيفة فقط — طبقة اقتباس واحدة).</summary>
     public static string BuildList(string containerId, string path, bool sudo = false)
         => DockerCli.Prefix(sudo) + "docker exec " + containerId +
-           " ls -1Ap -- " + StorageScanner.ShellQuote(NormalizePath(path)) + " 2>&1";
+           " ls -lA -- " + StorageScanner.ShellQuote(NormalizePath(path)) + " 2>&1";
 
     /// <summary>أمر قراءة أوّل <paramref name="maxBytes"/> بايت من ملفّ داخل الحاوية (<c>head -c</c>).</summary>
     public static string BuildRead(string containerId, string path, bool sudo = false, int maxBytes = MaxViewBytes)
@@ -93,7 +93,14 @@ public sealed class ContainerFiles
         }
     }
 
-    /// <summary>يحلّل مخرجات <c>ls -1Ap</c> إلى مداخل (لاحقة '/' = مجلّد)، مرتّبةً: المجلّدات أوّلاً ثمّ أبجديّاً.</summary>
+    // أنواع المداخل المعروفة في أوّل حرف من سطر ls -l (المتبقّي = "total N" أو سطر غير صالح فيُتخطّى).
+    private const string EntryTypes = "d-lbcsp";
+
+    /// <summary>
+    /// يحلّل مخرجات <c>ls -lA</c>: لكلّ سطر (perms links owner group size Mon Day Time/Year name)
+    /// يستخرج النوع (أوّل حرف) والحجم (الحقل الخامس) والتاريخ والاسم (بقيّة السطر — يحافظ على المسافات).
+    /// روابط <c>l</c> يُزال منها <c>-&gt; target</c>. مرتّبة: المجلّدات أوّلاً ثمّ أبجديّاً.
+    /// </summary>
     public static IReadOnlyList<ContainerEntry> Parse(string stdout)
     {
         var dirs = new List<ContainerEntry>();
@@ -101,17 +108,44 @@ public sealed class ContainerFiles
         foreach (var raw in (stdout ?? string.Empty).Split('\n'))
         {
             string line = raw.TrimEnd('\r');
-            if (line.Length == 0) continue;
+            if (line.Length < 10 || EntryTypes.IndexOf(line[0]) < 0) continue;   // يتخطّى "total N" وغيره
 
-            bool isDir = line.EndsWith('/');
-            string name = isDir ? line[..^1] : line;
+            var f = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (f.Length < 9) continue;
+
+            char type = line[0];
+            long size = long.TryParse(f[4], out var sz) ? sz : 0;
+            string modified = f[5] + " " + f[6] + " " + f[7];
+            string name = AfterFields(line, 8);   // بقيّة السطر بعد ٨ حقول = الاسم (يحفظ المسافات)
+            if (type == 'l')
+            {
+                int arrow = name.IndexOf(" -> ", StringComparison.Ordinal);
+                if (arrow >= 0) name = name[..arrow];
+            }
+            name = name.Trim();
             if (name.Length == 0 || name is "." or "..") continue;
-            (isDir ? dirs : files).Add(new ContainerEntry(name, isDir));
+
+            bool isDir = type == 'd';
+            (isDir ? dirs : files).Add(new ContainerEntry(name, isDir, size, type, modified));
         }
         dirs.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         files.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         dirs.AddRange(files);
         return dirs;
+    }
+
+    /// <summary>يعيد بقيّة السطر بعد أوّل <paramref name="n"/> حقلاً مفصولاً بمسافات (للاسم مع الحفاظ على مسافاته).</summary>
+    private static string AfterFields(string line, int n)
+    {
+        int i = 0, field = 0;
+        while (i < line.Length)
+        {
+            while (i < line.Length && !char.IsWhiteSpace(line[i])) i++;   // تخطّي الحقل
+            field++;
+            while (i < line.Length && char.IsWhiteSpace(line[i])) i++;     // تخطّي المسافات
+            if (field == n) return line[i..];
+        }
+        return "";
     }
 
     /// <summary>يسرد مجلّداً داخل الحاوية. يرمي إن فشل <c>docker exec</c> (حاوية متوقّفة/مسار غير موجود).</summary>
