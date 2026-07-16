@@ -1,0 +1,61 @@
+name: CI
+
+# بناء + اختبارات على كلّ دفع/طلب دمج للفرع الرئيس، وعند التشغيل اليدويّ.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    # التطبيق WPF على net10.0-windows ⇒ لا يُبنى إلّا على ويندوز.
+    # (مشاريع المحرّك net10.0 محايدة، لكن نبنيها هنا نفسه لتوفير مُشغّل ثانٍ.)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      # لا يوجد ملفّ حلّ (.sln) في المستودع، فنستهدف المشاريع صراحةً.
+      # TerminalLauncher.csproj يجرّ مشاريع المحرّك الثلاثة عبر ProjectReference،
+      # أمّا مشاريع الاختبار فمستقلّة ولا يشير إليها أحد ⇒ تُذكَر بأسمائها.
+      - name: Restore
+        run: |
+          dotnet restore TerminalLauncher.csproj
+          dotnet restore engine/Terminal.Core.Tests/Terminal.Core.Tests.csproj
+          dotnet restore engine/Terminal.Storage.Tests/Terminal.Storage.Tests.csproj
+          dotnet restore engine/Terminal.Servers.Tests/Terminal.Servers.Tests.csproj
+
+      - name: Build app (WPF)
+        run: dotnet build TerminalLauncher.csproj --no-restore -c Release
+
+      - name: Test - Terminal.Core
+        run: dotnet test engine/Terminal.Core.Tests/Terminal.Core.Tests.csproj --no-restore -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/test-results
+
+      - name: Test - Terminal.Storage
+        run: dotnet test engine/Terminal.Storage.Tests/Terminal.Storage.Tests.csproj --no-restore -c Release --logger "trx;LogFileName=storage.trx" --results-directory artifacts/test-results
+
+      - name: Test - Terminal.Servers
+        run: dotnet test engine/Terminal.Servers.Tests/Terminal.Servers.Tests.csproj --no-restore -c Release --logger "trx;LogFileName=servers.trx" --results-directory artifacts/test-results
+
+      # تُرفع دائماً — نتائج الفشل هي الأهمّ.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: warn

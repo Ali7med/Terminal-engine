@@ -45,6 +45,20 @@ public partial class TerminalTabView : UserControl
     // آخر نصّ أمر سُجِّل من كتل OSC 133 — لمنع التكرار في حلقة التحديث (40ms).
     private string? _lastRecordedBlockCommand;
 
+    // ===== إشعار انتهاء الأوامر الطويلة (T-211) =====
+    // نموذج كتل المحرّك بلا أختام زمنيّة، فنقيس المدّة هنا: مفتاح القاموس StartLine المطلق (هويّة ثابتة
+    // للكتلة)، وقيمته ختمُ أوّل رؤية لها وهي تعمل + هل رأت شاشةً بديلة (تطبيق TUI) أثناء عملها.
+    // الحذف عند الاكتمال يجعل الإشعار يُطلَق مرّةً واحدة لكلّ كتلة رغم حلقة التحديث (40ms).
+    // الختم من Stopwatch (ساعة رتيبة) لا DateTime: مزامنة NTP أو تغيّر التوقيت الصيفيّ أثناء أمرٍ
+    // طويل يقفز بساعة الحائط، فتخرج مدّة سالبة أو بساعةٍ زائدة.
+    private readonly Dictionary<long, (long StartedAt, bool SawAlt)> _runningBlocks = new();
+
+    /// <summary>عتبة «الأمر الطويل»: ما دونها لا يستحقّ إشعاراً.</summary>
+    private static readonly TimeSpan LongCommandThreshold = TimeSpan.FromSeconds(30);
+
+    /// <summary>أقصى طول لنصّ الأمر داخل الإشعار (يُقصّ بعدها بعلامة حذف).</summary>
+    private const int NotifyCommandMaxLength = 60;
+
     // ===== تاريخ الجلسة (خاصّ بهذا التيرمنال) =====
     // قائمة أوامر هذه الجلسة بالترتيب (للتنقّل بالأسهم + إعادة تنفيذ آخر أمر عند الاسترجاع). تُخزَّن في
     // SQLite بمفتاح SessionId فتبقى بين التشغيلات، وتُحذَف عند إغلاق المستخدم للجلسة.
@@ -342,7 +356,8 @@ public partial class TerminalTabView : UserControl
         ScreenSnapshot snap = CoreSnapshotAdapter.ToLauncher(core);
         _lastSnapshot = snap;
 
-        CaptureCompletedBlockCommand(snap);   // التقاط أوامر كتل OSC 133 المكتملة (T-106)
+        CaptureCompletedBlockCommand(snap);    // التقاط أوامر كتل OSC 133 المكتملة (T-106)
+        TrackLongCommandBlocks(snap);          // إشعار انتهاء الأوامر الطويلة (T-211)
 
         // شاشة بديلة نشطة ⇒ تتبّع الإدخال غير موثوق (تطبيق كامل الشاشة) ⇒ نظّف السطر والشبح (T-205).
         if (snap.AltScreen && (_inputLine.Length > 0 || Renderer.GhostText != null))
@@ -389,6 +404,9 @@ public partial class TerminalTabView : UserControl
     {
         lock (_screenLock) _coreScreen?.Clear();
         _lastSnapshot = null;
+        // المسح/إعادة التشغيل يصفّر أسطر المحرّك المطلقة ⇒ مفاتيح StartLine المتتبَّعة تصبح صالحة
+        // لكتلٍ جديدة مختلفة تماماً؛ نُسقطها كي لا تُنسب بدايةٌ قديمة لأمرٍ جديد (T-211).
+        _runningBlocks.Clear();
         _matches.Clear();
         _matchIndex = -1;
         Renderer.ClearSearchMatches();
@@ -559,6 +577,103 @@ public partial class TerminalTabView : UserControl
             RecordHistory(cmd);
             return;
         }
+    }
+
+    // ===== إشعار انتهاء الأوامر الطويلة (T-211) =====
+
+    /// <summary>
+    /// يتتبّع الكتل الجارية ويكتشف انتقالها إلى مكتملة، فيُطلق إشعاراً للأوامر الطويلة.
+    /// المحرّك لا يختم الكتل زمنيّاً، فنختم أوّل رؤية للكتلة وهي تعمل ونحسب الفارق عند اكتمالها.
+    /// إزالة المدخلة عند الاكتمال هي آليّة منع التكرار: حلقة التحديث (40ms) ترى الكتلة مكتملةً
+    /// آلاف المرّات بعدها، لكن <see cref="Dictionary{TKey,TValue}.Remove(TKey, out TValue)"/>
+    /// ينجح مرّةً واحدة فقط. كتلةٌ لم نرها تعمل قطّ (كانت مكتملةً عند أوّل لقطة) تُتجاهَل: لا مدّة لها.
+    /// </summary>
+    private void TrackLongCommandBlocks(ScreenSnapshot snap)
+    {
+        if (snap.Blocks.Count == 0) return;
+        foreach (var b in snap.Blocks)
+        {
+            if (b.State == BlockState.Running)
+            {
+                if (_runningBlocks.TryGetValue(b.StartLine, out var tracked))
+                {
+                    // نراكم «رأت شاشة بديلة» طوال عمل الكتلة: التطبيق الكامل (vim) يستعيد الشاشة
+                    // الرئيسة قبل خروجه، فلقطة لحظة الاكتمال وحدها لا تكفي للتعرّف عليه.
+                    if (snap.AltScreen && !tracked.SawAlt)
+                        _runningBlocks[b.StartLine] = (tracked.StartedAt, true);
+                }
+                else _runningBlocks[b.StartLine] = (System.Diagnostics.Stopwatch.GetTimestamp(), snap.AltScreen);
+            }
+            else if (_runningBlocks.Remove(b.StartLine, out var done))
+            {
+                NotifyCommandFinished(b, System.Diagnostics.Stopwatch.GetElapsedTime(done.StartedAt),
+                                      done.SawAlt || snap.AltScreen);
+            }
+        }
+    }
+
+    /// <summary>
+    /// يُظهر إشعار انتهاء أمرٍ طويل إن استوفى الشروط: مدّة ≥ <see cref="LongCommandThreshold"/>،
+    /// ولم تكن الكتلة تطبيق شاشة بديلة (vim/htop ليس «أمراً» ننتظر انتهاءه)، ونصّ الأمر غير فارغ،
+    /// والنافذة المستضيفة غير نشطة. النجاح/الفشل من <see cref="BlockSnapshot.State"/> — وهو مشتقٌّ
+    /// من رمز الخروج في المحرّك (رمز مفقود أو 0 ⇒ نجاح)، فيغطّي الكتل بلا رمز دون تفريعٍ إضافيّ.
+    /// </summary>
+    private void NotifyCommandFinished(BlockSnapshot b, TimeSpan elapsed, bool sawAltScreen)
+    {
+        if (elapsed < LongCommandThreshold) return;   // أمر قصير ⇒ لا إزعاج
+        if (sawAltScreen) return;                     // تطبيق كامل الشاشة ⇒ ليس أمراً
+        if (IsHostWindowActive()) return;             // المستخدم ينظر إلى النافذة ⇒ صمت
+
+        string cmd = ShortCommandText(b);
+        if (cmd.Length == 0) return;                  // كتلة بلا نصّ أمر ⇒ لا شيء يُعرَض
+
+        bool failed = b.State == BlockState.Failed;
+        string title = Services.Loc.T(failed ? "notify.cmdFailed" : "notify.cmdDone");
+        string message = $"{cmd} · {FormatDuration(elapsed)}";
+        if (failed) Services.NotificationService.Error(title, message);
+        else Services.NotificationService.Success(title, message);
+    }
+
+    /// <summary>
+    /// النافذة المستضيفة لهذا الجزء نشطة؟ نسأل <see cref="Window.GetWindow"/> لا النافذة الرئيسة،
+    /// لأنّ العرض قد يكون مفصولاً في <see cref="TerminalHostWindow"/>: المعيار هو النافذة التي
+    /// يراها المستخدم فعلاً وفيها هذا التيرمنال. null (خارج شجرة مرئيّة) ⇒ غير نشطة: لا أحد يراه.
+    /// </summary>
+    private bool IsHostWindowActive() => Window.GetWindow(this)?.IsActive == true;
+
+    /// <summary>
+    /// نصّ أمر الكتلة في سطرٍ واحد مقصوصاً لـ<see cref="NotifyCommandMaxLength"/> محرفاً.
+    /// كتل OSC 133 لا تحمل نصّ الأمر (المحرّك يملؤه للكتل الاستدلاليّة فقط)، فـ<see cref="BlockCommandText"/>
+    /// يستخرجه من أسطر المحثّ؛ نأخذ آخر سطر غير فارغ كي يظهر الأمر لا زخرفةُ محثٍّ متعدّد الأسطر.
+    /// </summary>
+    private string ShortCommandText(BlockSnapshot b)
+    {
+        string raw = BlockCommandText(b);
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+
+        string cmd = "";
+        var lines = raw.Split('\n');
+        for (int i = lines.Length - 1; i >= 0; i--)
+        {
+            cmd = lines[i].Trim();
+            if (cmd.Length > 0) break;
+        }
+        if (cmd.Length == 0) return "";
+        return cmd.Length <= NotifyCommandMaxLength
+            ? cmd
+            : cmd[..(NotifyCommandMaxLength - 1)].TrimEnd() + "…";
+    }
+
+    /// <summary>
+    /// مدّة مقروءة بوحداتٍ محايدة لغويّاً وأرقام لاتينيّة: «45s» / «2m 14s» / «1h 5m».
+    /// (تنسيق الأعداد الصحيحة في .NET لاتينيّ دائماً، كما في <see cref="Elapsed"/>.)
+    /// </summary>
+    private static string FormatDuration(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
+        if (span.TotalHours >= 1) return $"{(int)span.TotalHours}h {span.Minutes}m";
+        if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes}m {span.Seconds}s";
+        return $"{span.Seconds}s";
     }
 
     // أحدث الأوامر المخزّنة (DISTINCT) المحمّلة عند فتح المنسدلة — يُصفّى منها البحث محلّياً.

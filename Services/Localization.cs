@@ -348,6 +348,19 @@ public static class Loc
         ["srv.mgmt.memFree"]   = ("حرّ", "Free"),
         ["srv.mgmt.memAvail"]  = ("متاح", "Available"),
         ["ctx.options"]        = ("خيارات", "Options"),
+
+        // تقرير الأخطاء غير المتوقّعة (CrashReporter)
+        ["crash.title"]    = ("حدث خطأ غير متوقّع", "Unexpected error"),
+        ["crash.message"]  = ("حصل خطأ غير متوقّع وحُفِظت تفاصيله في ملفّ سجلّ.\nيمكنك متابعة العمل، لكن يُستحسن إعادة تشغيل التطبيق إن تكرّر.",
+                              "An unexpected error occurred and the details were saved to a log file.\nYou can keep working, but restarting is advised if it repeats."),
+        ["crash.fatal"]    = ("حدث خطأ أوقف التطبيق. حُفِظت التفاصيل في ملفّ السجلّ.",
+                              "An error stopped the app. The details were saved to the log file."),
+        ["crash.openLog"]  = ("فتح ملفّ السجلّ", "Open log file"),
+        ["crash.continue"] = ("متابعة", "Continue"),
+
+        // إشعار انتهاء أمر طويل (يظهر حين تكون النافذة غير نشطة)
+        ["notify.cmdDone"]   = ("انتهى الأمر", "Command finished"),
+        ["notify.cmdFailed"] = ("فشل الأمر", "Command failed"),
         ["srv.mgmt.swapLabel"] = ("التبديل (Swap)", "Swap"),
         ["srv.mgmt.processes"] = ("العمليّات", "Processes"),
         ["srv.mgmt.services"]  = ("الخدمات", "Services"),
