@@ -1736,10 +1736,14 @@
                                             </Grid.ColumnDefinitions>
                                             <Border Width="10" Height="10" CornerRadius="5" VerticalAlignment="Center"
                                                     Margin="0,0,10,0" Background="{Binding EffectiveColor}"/>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
+                                                <!-- LTR content (user@host:port); HorizontalAlignment mirrors with the
+                                                     parent's flow so both lines share the same start edge. -->
                                                 <TextBlock Text="{Binding DisplaySubtitle}" FontSize="10.5"
                                                            Foreground="{DynamicResource Brush.TextMuted}"
+                                                           HorizontalAlignment="Left" Margin="0,1,0,0"
                                                            FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                             <Button Grid.Column="2" ctrl:MenuButton.IsMenuTrigger="True" VerticalAlignment="Center">
