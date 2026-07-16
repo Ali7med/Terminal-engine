@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using TerminalLauncher.Controls;
 using TerminalLauncher.Interop;
 using TerminalLauncher.Models;
@@ -621,49 +622,57 @@ public partial class MainWindow : Window
 
     // ===== خطوط الواجهة (FontManager) — تُحفَظ في fonts.json وتُطبَّق حيّاً على الموارد =====
 
+    /// <summary>
+    /// يعدّل إعدادات الخطّ ويطبّقه فوراً، ويؤجّل الكتابة للقرص قليلاً: سحب المنزلق يُطلق عشرات النبضات
+    /// في الثانية، وكتابة <c>fonts.json</c> في كلّ نبضة تُثقل واجهة المستخدم بلا داعٍ.
+    /// </summary>
+    private void CommitFont(Action<FontSettings> set)
+    {
+        if (_syncingUi) return;
+        set(FontManager.Current);
+        FontManager.Apply();
+        _fontSaveDebounce ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _fontSaveDebounce.Tick -= FontSaveTick;
+        _fontSaveDebounce.Tick += FontSaveTick;
+        _fontSaveDebounce.Stop();
+        _fontSaveDebounce.Start();
+    }
+
+    private DispatcherTimer? _fontSaveDebounce;
+
+    private void FontSaveTick(object? sender, EventArgs e)
+    {
+        _fontSaveDebounce?.Stop();
+        FontManager.Save();
+    }
+
     private void UiSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (UiSizeValue != null) UiSizeValue.Text = e.NewValue.ToString("0.#");
-        if (_syncingUi) return;
-        FontManager.Current.UiSize = e.NewValue;
-        FontManager.Save(); FontManager.Apply();
+        CommitFont(s => s.UiSize = e.NewValue);
     }
 
     private void MenuSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (MenuSizeValue != null) MenuSizeValue.Text = e.NewValue.ToString("0.#");
-        if (_syncingUi) return;
-        FontManager.Current.MenuSize = e.NewValue;
-        FontManager.Save(); FontManager.Apply();
+        CommitFont(s => s.MenuSize = e.NewValue);
     }
 
     private void TableSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (TableSizeValue != null) TableSizeValue.Text = e.NewValue.ToString("0.#");
-        if (_syncingUi) return;
-        FontManager.Current.TableSize = e.NewValue;
-        FontManager.Save(); FontManager.Apply();
+        CommitFont(s => s.TableSize = e.NewValue);
     }
 
-    private void CommitUiFamily()
-    {
-        if (_syncingUi) return;
-        FontManager.Current.UiFont = FontUiFamilyBox.Text?.Trim() ?? "";
-        FontManager.Save(); FontManager.Apply();
-    }
-    private void FontUiFamily_LostFocus(object sender, RoutedEventArgs e) => CommitUiFamily();
+    private void FontUiFamily_LostFocus(object sender, RoutedEventArgs e)
+        => CommitFont(s => s.UiFont = FontUiFamilyBox.Text?.Trim() ?? "");
     private void FontUiFamily_KeyDown(object sender, KeyEventArgs e)
-    { if (e.Key == Key.Enter) { CommitUiFamily(); e.Handled = true; } }
+    { if (e.Key == Key.Enter) { CommitFont(s => s.UiFont = FontUiFamilyBox.Text?.Trim() ?? ""); e.Handled = true; } }
 
-    private void CommitMonoFamily()
-    {
-        if (_syncingUi) return;
-        FontManager.Current.MonoFont = FontMonoFamilyBox.Text?.Trim() ?? "";
-        FontManager.Save(); FontManager.Apply();
-    }
-    private void FontMonoFamily_LostFocus(object sender, RoutedEventArgs e) => CommitMonoFamily();
+    private void FontMonoFamily_LostFocus(object sender, RoutedEventArgs e)
+        => CommitFont(s => s.MonoFont = FontMonoFamilyBox.Text?.Trim() ?? "");
     private void FontMonoFamily_KeyDown(object sender, KeyEventArgs e)
-    { if (e.Key == Key.Enter) { CommitMonoFamily(); e.Handled = true; } }
+    { if (e.Key == Key.Enter) { CommitFont(s => s.MonoFont = FontMonoFamilyBox.Text?.Trim() ?? ""); e.Handled = true; } }
 
     /// <summary>يفتح fonts.json في المحرّر الافتراضيّ (بعد ضمان وجوده) — ليعدّله المستخدم يدويّاً.</summary>
     private void OpenFontJson_Click(object sender, RoutedEventArgs e)

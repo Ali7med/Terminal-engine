@@ -19,7 +19,10 @@ public static class TextFormatter
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    /// <summary>ينسّق النصّ حسب امتداد المسار؛ يُبقي الأصل إن كان التنسيق غير صالح.</summary>
+    /// <summary>
+    /// ينسّق النصّ حسب امتداد المسار؛ يعود للتهذيب البسيط إن تعذّر التحليل (فلا يُفسِد ملفّاً غير صالح)
+    /// أو إن كان التجميل سيُتلف محتوى لا يمكن إعادة بنائه (تعليقات JSON مثلاً).
+    /// </summary>
     public static string Auto(string text, string path)
     {
         string ext = Path.GetExtension(path).ToLowerInvariant();
@@ -34,19 +37,32 @@ public static class TextFormatter
                     return FormatXml(text);
             }
         }
-        catch { return NormalizeWhitespace(text); }   // تحليل فاشل → تهذيب فقط (لا نكسر الملفّ)
+        catch { /* تحليل فاشل → تهذيب فقط أدناه */ }
         return NormalizeWhitespace(text);
     }
 
+    /// <summary>
+    /// يجمّل JSON صالحاً. التعليقات <b>ممنوعة</b> عمداً (<c>Disallow</c>): <c>JsonDocument</c> لا يحتفظ بها،
+    /// فلو سمحنا بتخطّيها لحُذفت صامتةً عند الحفظ. ملفّ فيه تعليقات (JSONC) يفشل تحليله فيُهذَّب فقط
+    /// ويبقى محتواه سليماً. الفواصل الذيليّة مسموحة لأنّ إصلاحها لا يفقد شيئاً.
+    /// </summary>
     private static string FormatJson(string text)
     {
-        var opts = new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
+        var opts = new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Disallow };
         using var doc = JsonDocument.Parse(text, opts);
         return JsonSerializer.Serialize(doc.RootElement, JsonPretty) + "\n";
     }
 
+    /// <summary>
+    /// يجمّل XML. <c>XDocument.ToString()</c> لا يكتب إعلان الـ XML، فنعيد كتابته يدويّاً إن وُجد
+    /// (بعض المستهلكين يشترطونه: plist، أدوات حسّاسة للترميز).
+    /// </summary>
     private static string FormatXml(string text)
-        => XDocument.Parse(text).ToString(SaveOptions.None) + "\n";
+    {
+        var doc = XDocument.Parse(text);
+        string body = doc.ToString(SaveOptions.None);
+        return doc.Declaration is { } d ? d + "\n" + body + "\n" : body + "\n";
+    }
 
     /// <summary>تهذيب عامّ: إزالة المسافات الذيليّة لكلّ سطر + توحيد الأسطر (LF) + سطر أخير واحد.</summary>
     public static string NormalizeWhitespace(string text)

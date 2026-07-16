@@ -42,6 +42,10 @@
                            VerticalScrollBarVisibility="Auto"
                            Background="{DynamicResource Brush.TerminalBg}"
                            Foreground="{DynamicResource Brush.Text}"
-                           Padding="4,2"/>
+                           Padding="4,2">
+            <avalon:TextEditor.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+            </avalon:TextEditor.Resources>
+        </avalon:TextEditor>
     </Grid>
 </UserControl>

@@ -42,10 +42,12 @@ public sealed class PerfMonitor
     {
         var (load, free, up, ps) = Split(combined ?? string.Empty);
         var (l1, l5, l15) = OutputParsers.ParseLoadAvg(load);
-        var (total, used, freeKb) = OutputParsers.ParseFree(free);
+        // نستعمل التفصيل الكامل ونأخذ «المستخدَم الحقيقيّ» (الإجماليّ − المتاح) بدل عمود used الخام،
+        // كي تتطابق نسبة الذاكرة في لوحة القيادة مع بطاقة تبويب الإدارة (مصدر واحد للحقيقة).
+        var mem = OutputParsers.ParseMemory(free);
         var procs = OutputParsers.ParsePs(ps);
         string uptime = up.Trim();
-        return new PerfSnapshot(l1, l5, l15, total, used, freeKb, uptime, procs);
+        return new PerfSnapshot(l1, l5, l15, mem.TotalKb, mem.RealUsedKb, mem.FreeKb, uptime, procs);
     }
 
     private static (string Load, string Free, string Up, string Ps) Split(string text)

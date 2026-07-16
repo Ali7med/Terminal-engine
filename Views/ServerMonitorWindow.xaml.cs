@@ -870,16 +870,19 @@ public partial class ServerMonitorWindow : Window
             var m = await admin.MemoryAsync(ct).ConfigureAwait(true);
             MgmtMemText.Text = $"{DiskRowVm.Human(m.RealUsedKb * 1024)} / {DiskRowVm.Human(m.TotalKb * 1024)} · {m.UsedPercent:0}%";
             MgmtMemBar.Value = m.UsedPercent;
+
+            // تقسيم حقيقيّ يجمع للإجماليّ: تطبيقات + كاش + حرّ. («المتاح» يتداخل مع الكاش والحرّ
+            // فلا يصلح جزءاً من التقسيم — يُعرَض منفصلاً كمؤشّر «كم يمكن لتطبيق جديد أن يأخذ».)
             MgmtMemBreak.Text =
-                $"{Loc.T("srv.mgmt.memApps")}: {DiskRowVm.Human(m.RealUsedKb * 1024)}  ·  " +
+                $"{Loc.T("srv.mgmt.memApps")}: {DiskRowVm.Human(m.UsedKb * 1024)}  ·  " +
                 $"{Loc.T("srv.mgmt.memCache")}: {DiskRowVm.Human(m.BuffCacheKb * 1024)}  ·  " +
-                $"{Loc.T("srv.mgmt.memAvail")}: {DiskRowVm.Human(m.AvailableKb * 1024)}";
+                $"{Loc.T("srv.mgmt.memFree")}: {DiskRowVm.Human(m.FreeKb * 1024)}";
+
+            string extra = $"{Loc.T("srv.mgmt.memAvail")}: {DiskRowVm.Human(m.AvailableKb * 1024)}";
             if (m.SwapTotalKb > 0)
-            {
-                MgmtSwapText.Text = $"{Loc.T("srv.mgmt.swapLabel")}: {DiskRowVm.Human(m.SwapUsedKb * 1024)} / {DiskRowVm.Human(m.SwapTotalKb * 1024)} · {m.SwapPercent:0}%";
-                MgmtSwapText.Visibility = Visibility.Visible;
-            }
-            else MgmtSwapText.Visibility = Visibility.Collapsed;
+                extra += $"  ·  {Loc.T("srv.mgmt.swapLabel")}: {DiskRowVm.Human(m.SwapUsedKb * 1024)} / {DiskRowVm.Human(m.SwapTotalKb * 1024)} · {m.SwapPercent:0}%";
+            MgmtSwapText.Text = extra;
+            MgmtSwapText.Visibility = Visibility.Visible;
         }
         catch { /* غير حرِج */ }
 

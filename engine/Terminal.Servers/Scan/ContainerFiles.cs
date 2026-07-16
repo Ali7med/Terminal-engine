@@ -32,13 +32,17 @@ public sealed class ContainerFiles
     /// <summary>
     /// أمر سرد مجلّد داخل الحاوية بالتنسيق الطويل. نطلب أوّلاً <c>--full-time</c> ليعطي التاريخ بصيغة ISO
     /// (<c>YYYY-MM-DD HH:MM:SS</c>) — مدعوم في GNU وأغلب صور busybox — فإن عجزت الصدفة (busybox قديم لا يعرف
-    /// الخيار) نرجع للتنسيق الافتراضيّ عبر <c>||</c>. المسار مُقتبَس للصدفة المضيفة فقط (طبقة اقتباس واحدة).
+    /// الخيار) نرجع للتنسيق الافتراضيّ. المسار مُقتبَس للصدفة المضيفة فقط (طبقة اقتباس واحدة).
+    ///
+    /// المخرجات تُلتقَط في متغيّر ثمّ تُطبَع عند النجاح فقط: لو طبع <c>ls</c> السردَ ثمّ خرج برمز غير صفريّ
+    /// (GNU يخرج 1 على «مشاكل طفيفة» مثل مدخل يتعذّر فحصه) لا يختلط سرده مع سرد الاحتياط فتتكرّر الصفوف.
     /// </summary>
     public static string BuildList(string containerId, string path, bool sudo = false)
     {
         string pfx = DockerCli.Prefix(sudo) + "docker exec " + containerId + " ls -lA";
         string tail = " -- " + StorageScanner.ShellQuote(NormalizePath(path));
-        return pfx + " --full-time" + tail + " 2>/dev/null || " + pfx + tail + " 2>&1";
+        return "o=$(" + pfx + " --full-time" + tail + " 2>/dev/null) && printf '%s\\n' \"$o\" || "
+             + pfx + tail + " 2>&1";
     }
 
     /// <summary>أمر قراءة أوّل <paramref name="maxBytes"/> بايت من ملفّ داخل الحاوية (<c>head -c</c>).</summary>
@@ -106,7 +110,8 @@ public sealed class ContainerFiles
     /// <summary>
     /// يحلّل مخرجات <c>ls -lA</c> (سواء <c>--full-time</c> بصيغة ISO أو التنسيق الافتراضيّ):
     /// يستخرج النوع (أوّل حرف) والحجم (الحقل الخامس) ووقت التعديل والاسم (بقيّة السطر — يحافظ على المسافات).
-    /// التاريخ يُطبَّع إلى <c>YYYY-MM-DD HH:MM</c> عند توفّر صيغة ISO (قابل للفرز)، وإلّا يُترك خاماً.
+    /// التاريخ يُطبَّع إلى <c>YYYY-MM-DD HH:MM</c> عند توفّر صيغة ISO (قابل للفرز)، وإلّا يُترك خاماً
+    /// مع مفتاح فرز زمنيّ مستقلّ (<see cref="ContainerEntry.ModifiedSort"/>).
     /// روابط <c>l</c> يُزال منها <c>-&gt; target</c>. مرتّبة: المجلّدات أوّلاً ثمّ أبجديّاً.
     /// </summary>
     public static IReadOnlyList<ContainerEntry> Parse(string stdout)
@@ -126,17 +131,20 @@ public sealed class ContainerFiles
 
             // التاريخ: صيغة ISO من --full-time (f[5]=YYYY-MM-DD ، f[6]=HH:MM:SS[.ns] ، وقد يليه منطقة TZ)
             // أو الافتراضيّ (f[5]=Mon ، f[6]=Day ، f[7]=Time/Year). نحدّد موضع بدء الاسم تبعاً لذلك.
-            string modified; int nameField;
+            string modified, sortKey; int nameField;
             if (IsIsoDate(f[5]))
             {
                 string time = f[6].Length >= 5 ? f[6][..5] : f[6];   // HH:MM (نقصّ الثواني/الكسور)
-                modified = f[5] + " " + time;
-                nameField = f.Length > 7 && IsTimezone(f[7]) ? 8 : 7;   // GNU يضيف حقل TZ؛ busybox لا
+                modified = sortKey = f[5] + " " + time;
+                // حقل TZ يضيفه GNU مع كسور الثانية (full-iso). نشترط الكسر كي لا يُخطئ اسمَ ملفّ
+                // يبدأ بنمط ‎±HHMM‎ على صيغة busybox (التي لا تحوي TZ أصلاً) فيُبتَر الاسم.
+                nameField = f.Length > 7 && f[6].Contains('.') && IsTimezone(f[7]) ? 8 : 7;
             }
             else
             {
                 if (f.Length < 9) continue;
                 modified = f[5] + " " + f[6] + " " + f[7];
+                sortKey = LegacySortKey(f[5], f[6], f[7]);
                 nameField = 8;
             }
 
@@ -150,7 +158,7 @@ public sealed class ContainerFiles
             if (name.Length == 0 || name is "." or "..") continue;
 
             bool isDir = type == 'd';
-            (isDir ? dirs : files).Add(new ContainerEntry(name, isDir, size, type, modified));
+            (isDir ? dirs : files).Add(new ContainerEntry(name, isDir, size, type, modified, sortKey));
         }
         dirs.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         files.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
@@ -161,6 +169,25 @@ public sealed class ContainerFiles
     /// <summary>هل النصّ تاريخ ISO (<c>YYYY-MM-DD</c>)؟ — للتمييز بين مخرجات <c>--full-time</c> والافتراضيّة.</summary>
     private static bool IsIsoDate(string s)
         => s.Length >= 10 && s[4] == '-' && s[7] == '-' && char.IsDigit(s[0]) && char.IsDigit(s[1]);
+
+    private static readonly string[] Months =
+        { "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" };
+
+    /// <summary>
+    /// مفتاح فرز زمنيّ للتنسيق الافتراضيّ (<c>Mon Day Time|Year</c>) — يحوّله إلى <c>YYYY-MM-DD HH:MM</c>
+    /// كي يفرز زمنيّاً لا أبجديّاً بأسماء الأشهر. <c>ls</c> يطبع الوقت للملفّات الحديثة (أقلّ من ٦ أشهر)
+    /// والسنة للأقدم؛ فنمنح صيغةَ الوقت سنةً قصوى (9999) لتبقى الأحدث، بلا اعتماد على ساعة النظام.
+    /// </summary>
+    private static string LegacySortKey(string mon, string day, string timeOrYear)
+    {
+        int m = System.Array.IndexOf(Months, mon.ToLowerInvariant()) + 1;
+        if (m == 0) return "0000-00-00 00:00";   // شهر غير معروف → الأقدم
+        bool isTime = timeOrYear.Contains(':');
+        string year = isTime ? "9999" : timeOrYear.PadLeft(4, '0');
+        string time = isTime ? timeOrYear : "00:00";
+        _ = int.TryParse(day, out int d);
+        return $"{year}-{m:00}-{d:00} {time}";
+    }
 
     /// <summary>هل النصّ حقل منطقة زمنيّة (<c>+HHMM</c>/<c>-HHMM</c>) كما يضيفه GNU مع <c>--full-time</c>؟</summary>
     private static bool IsTimezone(string s)

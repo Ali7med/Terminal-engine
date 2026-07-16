@@ -316,7 +316,11 @@
                                            FontFamily="{DynamicResource Font.Mono}" FontSize="12.5"
                                            Background="Transparent" Foreground="{DynamicResource Brush.Text}"
                                            ShowLineNumbers="True" WordWrap="False" Padding="8"
-                                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                            <avalon:TextEditor.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                            </avalon:TextEditor.Resources>
+                        </avalon:TextEditor>
                     </Border>
                 </DockPanel>
             </Border>

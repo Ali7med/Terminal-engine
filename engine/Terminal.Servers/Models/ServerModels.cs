@@ -89,9 +89,12 @@ public sealed record ContainerListItem(string Id, string Name, string State, str
 
 /// <summary>
 /// مدخل في مستكشف ملفّات الحاوية من <c>ls -lA</c>: الاسم، هل مجلّد، الحجم (بايت)، نوع المدخل
-/// (<c>d</c> مجلّد · <c>-</c> ملفّ · <c>l</c> رابط رمزيّ · غيرها خاصّ)، ووقت التعديل كنصّ خام.
+/// (<c>d</c> مجلّد · <c>-</c> ملفّ · <c>l</c> رابط رمزيّ · غيرها خاصّ)، ووقت التعديل للعرض،
+/// و<paramref name="ModifiedSort"/> مفتاح فرز زمنيّ موحّد (<c>YYYY-MM-DD HH:MM</c>) — لأنّ نصّ العرض
+/// في التنسيق الافتراضيّ (<c>Mon Day Time</c>) يفرز أبجديّاً بأسماء الأشهر لا زمنيّاً.
 /// </summary>
-public sealed record ContainerEntry(string Name, bool IsDir, long Size = 0, char Type = '-', string Modified = "");
+public sealed record ContainerEntry(
+    string Name, bool IsDir, long Size = 0, char Type = '-', string Modified = "", string ModifiedSort = "");
 
 /// <summary>عمليّة قيد التشغيل من مخرجات <c>ps</c>/<c>top</c>.</summary>
 public sealed record ProcessInfo(int Pid, string User, double CpuPercent, double MemPercent, string Command);

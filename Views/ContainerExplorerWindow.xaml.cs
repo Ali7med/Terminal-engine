@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using ICSharpCode.AvalonEdit.Highlighting;
 using Terminal.Servers.Models;
 using Terminal.Servers.Scan;
 using Terminal.Servers.Ssh;
@@ -260,7 +259,8 @@ public partial class ContainerExplorerWindow : Window
         {
             SortKey.Type     => (a, b) => string.Compare(a.TypeText, b.TypeText, StringComparison.CurrentCultureIgnoreCase),
             SortKey.Size     => (a, b) => a.Size.CompareTo(b.Size),
-            SortKey.Modified => (a, b) => string.Compare(a.Modified, b.Modified, StringComparison.Ordinal),
+            // ModifiedSort مفتاح زمنيّ موحّد — نصّ العرض في التنسيق الافتراضيّ يفرز أبجديّاً بأسماء الأشهر
+            SortKey.Modified => (a, b) => string.Compare(a.ModifiedSort, b.ModifiedSort, StringComparison.Ordinal),
             _                => (a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase),
         };
         var sorted = _currentFiles.ToList();
@@ -338,18 +338,7 @@ public partial class ContainerExplorerWindow : Window
 
     /// <summary>يختار تلويناً نحويّاً لعارض الملفّ حسب امتداد المسار (أو بلا تلوين إن لم يُعرَف).</summary>
     private void ApplyViewerHighlighting(string path)
-    {
-        try
-        {
-            string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
-            var mgr = HighlightingManager.Instance;
-            var def = mgr.GetDefinitionByExtension(ext);
-            // JSON غير مسجّل افتراضيّاً في AvalonEdit — نلوّنه بتعريف JavaScript (أقرب بنية)
-            if (def == null && ext == ".json") def = mgr.GetDefinition("JavaScript");
-            ViewerText.SyntaxHighlighting = def;
-        }
-        catch { ViewerText.SyntaxHighlighting = null; }
-    }
+        => ViewerText.SyntaxHighlighting = SyntaxHighlighting.ForPath(path);
 
     private void ViewerClose_Click(object sender, RoutedEventArgs e) => CloseViewer();
     private void ViewerOverlay_MouseDown(object sender, MouseButtonEventArgs e) => CloseViewer();
@@ -886,26 +875,30 @@ public sealed class ContainerFileVm
     public char Type { get; }
     public long Size { get; }
     public string Modified { get; }
+    /// <summary>مفتاح فرز زمنيّ موحّد (من المحرّك) — نصّ العرض قد يكون بصيغة <c>Mon Day Time</c> غير قابلة للفرز.</summary>
+    public string ModifiedSort { get; }
     public string FullPath { get; }
 
     /// <summary>أيقونة Segoe MDL2: مجلّد (E8B7) · رابط رمزيّ (E71B) · مستند (E7C3).</summary>
     public string Glyph => System.Char.ConvertFromUtf32(IsDir ? 0xE8B7 : Type == 'l' ? 0xE71B : 0xE7C3);
 
     /// <summary>الحجم مُنسَّقاً (B/KB/MB/GB) للملفّات؛ فارغ للمجلّدات.</summary>
-    public string SizeText => IsDir ? "" : FormatSize(Size);
+    public string SizeText => IsDir ? "" : DiskRowVm.Human(Size);
 
-    /// <summary>نوع المدخل نصّاً مترجَماً (مجلّد/رابط/فئة الامتداد) — يُستعمل للعرض وللفرز بعمود «النوع».</summary>
-    public string TypeText
+    /// <summary>
+    /// نوع المدخل نصّاً مترجَماً (مجلّد/رابط/فئة الامتداد) — للعرض وللفرز بعمود «النوع».
+    /// يُحسَب مرّةً عند الإنشاء: الفرز يقارنه O(n log n) مرّة، وتبديل اللغة يعيد بناء القائمة أصلاً.
+    /// </summary>
+    public string TypeText { get; }
+
+    private string ComputeTypeText()
     {
-        get
-        {
-            if (IsDir) return Loc.T("srv.type.folder");
-            if (Type == 'l') return Loc.T("srv.type.link");
-            int dot = Name.LastIndexOf('.');
-            if (dot <= 0 || dot >= Name.Length - 1) return Loc.T("srv.type.file");
-            string ext = Name[(dot + 1)..].ToLowerInvariant();
-            return ExtTypeKeys.TryGetValue(ext, out var key) ? Loc.T(key) : ext.ToUpperInvariant();
-        }
+        if (IsDir) return Loc.T("srv.type.folder");
+        if (Type == 'l') return Loc.T("srv.type.link");
+        int dot = Name.LastIndexOf('.');
+        if (dot <= 0 || dot >= Name.Length - 1) return Loc.T("srv.type.file");
+        string ext = Name[(dot + 1)..].ToLowerInvariant();
+        return ExtTypeKeys.TryGetValue(ext, out var key) ? Loc.T(key) : ext.ToUpperInvariant();
     }
 
     /// <summary>تصنيف امتدادات شائعة إلى مفتاح ترجمة فئة (غير المُدرَج يُعرَض بامتداده كبيراً).</summary>
@@ -945,16 +938,8 @@ public sealed class ContainerFileVm
         Type = e.Type;
         Size = e.Size;
         Modified = e.Modified;
+        ModifiedSort = e.ModifiedSort;
         FullPath = ContainerFiles.Join(parentPath, e.Name);
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 0) return "";
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        double v = bytes;
-        int u = 0;
-        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
-        return u == 0 ? $"{bytes} {units[0]}" : $"{v:0.#} {units[u]}";
+        TypeText = ComputeTypeText();
     }
 }

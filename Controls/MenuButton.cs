@@ -25,7 +25,17 @@ public static class MenuButton
     {
         if (d is not ButtonBase btn) return;
         btn.Click -= OnClick;
-        if (e.NewValue is true) btn.Click += OnClick;
+        if (e.NewValue is not true) return;
+        btn.Click += OnClick;
+
+        // تلميح مُعرَّب يتبع اللغة (لا يمكن ربطه من Setter داخل Style، فنضبطه هنا حيث السلوك مرفق أصلاً)
+        if (btn.ToolTip is null)
+        {
+            btn.ToolTip = Services.Loc.T("ctx.options");
+            void retitle() => btn.Dispatcher.Invoke(() => btn.ToolTip = Services.Loc.T("ctx.options"));
+            Services.Loc.Changed += retitle;
+            btn.Unloaded += (_, _) => Services.Loc.Changed -= retitle;
+        }
     }
 
     private static void OnClick(object sender, RoutedEventArgs e)
@@ -39,7 +49,19 @@ public static class MenuButton
         // حدّد الصفّ الحاوي أوّلاً كي تعمل معالِجات القائمة المعتمدة على العنصر المحدَّد (SelectedItem)
         SelectContainingRow(btn);
 
-        // نضع القائمة عند الزرّ نفسه: DataContext الزرّ = DataContext الصفّ، فتبقى بيانات العنصر سليمة
+        // نضع القائمة عند الزرّ نفسه: DataContext الزرّ = DataContext الصفّ، فتبقى بيانات العنصر سليمة.
+        // القائمة مشتركة مع الكلك الأيمن، فنستعيد موضعها الأصليّ عند الإغلاق وإلّا فُتحت لاحقاً عند
+        // زرّ ⋮ قديم بدل مؤشّر الفأرة.
+        var oldPlacement = menu.Placement;
+        var oldTarget = menu.PlacementTarget;
+        void restore(object? s, System.EventArgs _)
+        {
+            menu.Closed -= restore;
+            menu.Placement = oldPlacement;
+            menu.PlacementTarget = oldTarget;
+        }
+        menu.Closed += restore;
+
         menu.PlacementTarget = btn;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
@@ -54,14 +76,25 @@ public static class MenuButton
         return null;
     }
 
+    /// <summary>
+    /// يجعل صفّ الزرّ هو المحدَّد <b>وحده</b>. الإفراغ أوّلاً ضروريّ: في قوائم الاختيار المتعدّد (Extended)
+    /// يضيف <c>IsSelected = true</c> الصفَّ للتحديد القائم، فتطال إجراءاتُ القائمة (حذف مثلاً) صفوفاً
+    /// حدّدها المستخدم سابقاً ولم يقصدها — والكلك الأيمن العاديّ يستبدل التحديد ولا يضيف إليه.
+    /// </summary>
     private static void SelectContainingRow(DependencyObject start)
     {
         for (var node = VisualTreeHelper.GetParent(start); node != null; node = VisualTreeHelper.GetParent(node))
         {
             switch (node)
             {
-                case ListBoxItem lbi: lbi.IsSelected = true; return;
-                case System.Windows.Controls.DataGridRow row: row.IsSelected = true; return;
+                case ListBoxItem lbi:
+                    (ItemsControl.ItemsControlFromItemContainer(lbi) as ListBox)?.UnselectAll();
+                    lbi.IsSelected = true;
+                    return;
+                case DataGridRow row:
+                    (ItemsControl.ItemsControlFromItemContainer(row) as DataGrid)?.UnselectAll();
+                    row.IsSelected = true;
+                    return;
             }
         }
     }

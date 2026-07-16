@@ -54,9 +54,7 @@ public partial class FileEditorPanel : UserControl
         Editor.Text = text;
         Editor.TextChanged += Editor_TextChanged;
 
-        string ext = Path.GetExtension(path);
-        try { Editor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinitionByExtension(ext); }
-        catch { Editor.SyntaxHighlighting = null; }
+        Editor.SyntaxHighlighting = SyntaxHighlighting.ForPath(path);
 
         FileNameText.Text = Path.GetFileName(path);
         SetDirty(false);

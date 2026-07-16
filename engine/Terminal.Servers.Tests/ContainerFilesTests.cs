@@ -24,10 +24,19 @@ public class ContainerFilesTests
     }
 
     [Fact]
+    public void BuildList_CapturesFirstOutput_SoFailedAttemptCannotConcatWithFallback()
+    {
+        // ls قد يطبع السرد ثمّ يخرج برمز غير صفريّ ⇒ لو طُبع مباشرةً لاختلط مع سرد الاحتياط (صفوف مكرّرة)
+        string cmd = ContainerFiles.BuildList("abc123", "/var/www");
+        Assert.StartsWith("o=$(", cmd);
+        Assert.Contains(") && printf '%s\\n' \"$o\" ||", cmd);
+    }
+
+    [Fact]
     public void BuildList_Sudo_PrefixesNonInteractiveSudo()
     {
         string cmd = ContainerFiles.BuildList("abc123", "/", sudo: true);
-        Assert.StartsWith("sudo -n docker exec abc123 ls", cmd);
+        Assert.Contains("sudo -n docker exec abc123 ls", cmd);
     }
 
     [Fact]
@@ -56,6 +65,44 @@ public class ContainerFilesTests
         Assert.Equal("my file.txt", c.Name);           // منطقة TZ لا تُبتلَع في الاسم
         Assert.Equal("2026-07-15 10:30", c.Modified);
         Assert.Equal(42, c.Size);
+    }
+
+    [Fact]
+    public void Parse_Busybox_KeepsNameStartingWithTimezoneLikeToken()
+    {
+        // بلا كسور ثانية ⇒ لا حقل TZ (busybox). اسم يبدأ بنمط ‎±HHMM‎ يجب ألّا يُبتَر.
+        const string outp =
+            "-rw-r--r-- 1 root root 42 2026-07-15 10:30:45 +0300 offsets.txt\n" +
+            "-rw-r--r-- 1 root root 11 2026-07-15 10:30:45 +0200\n";
+        var e = ContainerFiles.Parse(outp);
+        Assert.Equal(2, e.Count);
+        Assert.Contains(e, x => x.Name == "+0300 offsets.txt");
+        Assert.Contains(e, x => x.Name == "+0200");     // ملفّ اسمه منطقة زمنيّة لا يختفي
+    }
+
+    [Fact]
+    public void Parse_LegacyDates_GetChronologicalSortKey_NotAlphabeticalByMonth()
+    {
+        const string outp =
+            "-rw-r--r-- 1 root root 1 Apr 30 2025 old-april.txt\n" +
+            "-rw-r--r-- 1 root root 1 Jan 2 10:15 recent-jan.txt\n" +
+            "-rw-r--r-- 1 root root 1 Dec 12 09:15 recent-dec.txt\n" +
+            "-rw-r--r-- 1 root root 1 Sep 1 2020 old-sep.txt\n";
+        var byOldest = ContainerFiles.Parse(outp)
+            .OrderBy(x => x.ModifiedSort, System.StringComparer.Ordinal)
+            .Select(x => x.Name).ToList();
+
+        // الأقدم أوّلاً: 2020 ثمّ 2025 ثمّ الحديثة (صيغة الوقت) مرتّبة بالشهر/اليوم لا أبجديّاً
+        Assert.Equal(new[] { "old-sep.txt", "old-april.txt", "recent-jan.txt", "recent-dec.txt" }, byOldest);
+    }
+
+    [Fact]
+    public void Parse_IsoSortKey_MatchesDisplayText()
+    {
+        const string outp = "-rw-r--r-- 1 root root 1 2026-07-15 10:30:45 a.txt\n";
+        var c = Assert.Single(ContainerFiles.Parse(outp));
+        Assert.Equal("2026-07-15 10:30", c.Modified);
+        Assert.Equal("2026-07-15 10:30", c.ModifiedSort);
     }
 
     [Fact]
