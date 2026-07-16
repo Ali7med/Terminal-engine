@@ -1,0 +1,117 @@
+name: Release
+
+# بناء مثبّت Velopack ونشره في إصدارات GitHub.
+# يُطلق عند دفع وسم بصيغة v* (مثال: v1.44.0)،
+# أو يدوياً كتجربة جافّة (dry-run): يبني ويتحقّق ويرفع أثراً — بلا إنشاء إصدار.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# مطلوب كي ينشئ GITHUB_TOKEN المدمج الإصدارَ ويرفع ملفّاته.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # التطبيق WPF على net10.0-windows ⇒ لا يُبنى إلّا على ويندوز.
+    runs-on: windows-latest
+
+    steps:
+      # التاريخ والوسوم كاملةً: يفيد التشخيص ويتيح قراءة سياق الوسم.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      # Services/AppVersion.cs هو المصدر الوحيد لحقيقة رقم الإصدار (الدستور).
+      # نستخرجه هنا وقت البناء بدل تكراره في الـ YAML أو في الـ csproj.
+      - name: Extract version from AppVersion.cs
+        id: version
+        shell: pwsh
+        run: |
+          $raw = Get-Content -Raw 'Services/AppVersion.cs'
+          if ($raw -notmatch 'public\s+const\s+string\s+Current\s*=\s*"([^"]+)"') {
+            throw 'تعذّر استخراج AppVersion.Current من Services/AppVersion.cs — هل تغيّرت صيغة التصريح؟'
+          }
+          $version = $Matches[1]
+          Write-Host "AppVersion.Current = $version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # حارس الانجراف: الوسم المدفوع يجب أن يطابق AppVersion.Current تماماً (v1.44.0 ⇔ 1.44.0).
+      # إصدارٌ برقم مخالف أسوأ من لا إصدار ⇒ نفشل بصوت عالٍ قبل بناء أيّ شيء.
+      - name: Verify tag matches AppVersion
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $expected = 'v${{ steps.version.outputs.version }}'
+          if ($tag -ne $expected) {
+            throw "الوسم '$tag' لا يطابق AppVersion.Current ⇒ المتوقّع '$expected'. حدّث Services/AppVersion.cs أو أعد وسم الإصدار."
+          }
+          Write-Host "الوسم '$tag' يطابق AppVersion.Current."
+
+      # لا يوجد ملفّ حلّ (.sln) في المستودع، فنستهدف المشروع صراحةً — كما في CI.
+      # قائم بذاته (self-contained) كي لا يشترط المثبّت وجود .NET على جهاز المستخدم.
+      - name: Publish (self-contained win-x64)
+        run: dotnet publish TerminalLauncher.csproj -c Release -r win-x64 --self-contained -o publish
+
+      # أداة Velopack CLI. نثبّت إصداراً مثبّتاً (pinned) كي لا يكسر تحديثٌ مفاجئ خطَّ الإصدار.
+      - name: Install Velopack CLI (vpk)
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk --version 1.2.0
+          # نضمن وجود مجلّد أدوات dotnet العامّة في PATH لبقيّة الخطوات.
+          "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+      # vpk pack: المعرّف ثابت، والإصدار من AppVersion.cs، والمصدر مجلّد النشر أعلاه.
+      # mainExe اسم الملفّ فقط (لا مسار). المخرجات ⇒ Releases/ (وهو الافتراضي، نصرّح به للوضوح).
+      - name: Velopack pack
+        shell: pwsh
+        run: >
+          vpk pack
+          --packId TerminalLauncher
+          --packVersion ${{ steps.version.outputs.version }}
+          --packDir publish
+          --mainExe TerminalLauncher.exe
+          --packTitle "Terminal Launcher"
+          --packAuthors "Ali7med"
+          --icon "Assets\AppIcon\app.ico"
+          --outputDir Releases
+
+      # تشخيص: نُظهر ما أنتجه vpk فعلاً قبل الرفع (تتغيّر الأسماء بتغيّر نسخة Velopack).
+      - name: List Velopack output
+        shell: pwsh
+        run: Get-ChildItem Releases | Format-Table Name, Length
+
+      # يُرفع دائماً — يجعل التشغيل اليدويّ تجربةً جافّة مفيدة، ويحفظ المخرجات عند فشل النشر.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: velopack-${{ steps.version.outputs.version }}
+          path: Releases
+          if-no-files-found: error
+
+      # الإصدار على GitHub — عند دفع وسم فقط. التشغيل اليدويّ يبني ويتحقّق بلا نشر.
+      # Releases/* يلتقط Setup.exe و.nupkg وملفّات RELEASES مهما تغيّرت تسمياتها.
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TerminalLauncher ${{ steps.version.outputs.version }}
+          files: Releases/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

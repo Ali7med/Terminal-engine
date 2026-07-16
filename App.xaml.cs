@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace TerminalLauncher;
 
@@ -62,5 +63,12 @@ public partial class App : Application
         Services.FontManager.Apply();
 
         base.OnStartup(e);
+
+        // التحديث التلقائيّ: يُؤجَّل إلى خمول الواجهة (ApplicationIdle) — أي بعد ظهور النافذة
+        // الرئيسة — فلا يُثقل الإقلاع (وهو ثقيل أصلاً). بلا انتظار: الخدمة لا ترمي أبداً، وتعود
+        // فوراً إن لم يكن التطبيق مثبَّتاً عبر Velopack (تطوير) فلا شبكة حينها.
+        // ملاحظة: خطّافات Velopack تُعالَج قبل هذا كلّه في Program.Main.
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,
+            new Action(() => _ = Services.UpdateService.CheckAndDownloadAsync()));
     }
 }

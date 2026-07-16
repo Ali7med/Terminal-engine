@@ -12,6 +12,23 @@
     <ApplicationIcon>Assets\AppIcon\app.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- التحديث التلقائيّ (Velopack): نقطة الدخول اليدويّة Program.Main تسبق كلّ شيء آخر كي تُعالَج
+       وسائط خطّافات التثبيت/التحديث قبل كتلة إعادة الإطلاق المنفصلة في App.OnStartup. تعيين
+       StartupObject يلغي Main المولَّدة تلقائيّاً من ApplicationDefinition (App.xaml). -->
+  <PropertyGroup>
+    <StartupObject>TerminalLauncher.Program</StartupObject>
+  </PropertyGroup>
+
+  <!-- إعدادات النشر لتغليف vpk: مكتفٍ بذاته على win-x64، بملفّات مفكوكة (بلا PublishSingleFile)
+       لأنّ Velopack يدير تخطيطه الخاصّ ويحتاج الملفّات مفكوكة للتحديثات الفارقيّة (delta).
+       مقصورة على النشر عبر _IsPublishing كي يبقى `dotnet build` كما كان تماماً (يبنيه الـ CI). -->
+  <PropertyGroup>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(_IsPublishing)' == 'true'">win-x64</RuntimeIdentifier>
+    <SelfContained Condition="'$(_IsPublishing)' == 'true'">true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <Resource Include="Assets\Fonts\*.ttf" />
     <!-- نفس الأيقونة كمورد كي تقرأها النوافذ عبر pack URI (Window.Icon). -->
@@ -42,6 +59,8 @@
     <PackageReference Include="SkiaSharp.HarfBuzz" Version="3.119.0" />
     <!-- محرّر نصّ ناضج بتلوين نحويّ حقيقيّ — للوحة تحرير الملفّ داخل التاب (T-7). -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <!-- التحديث التلقائيّ + تغليف المثبّت (Velopack): مصدر التحديث إصدارات GitHub العامّة. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
     <!-- DPAPI (System.Security.Cryptography.ProtectedData) لتعمية أسرار الخوادم — موفَّرة ضمن
          إطار net10.0-windows (Windows Desktop)، فلا حاجة لحزمة NuGet منفصلة. -->
   </ItemGroup>

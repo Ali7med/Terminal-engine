@@ -361,6 +361,11 @@ public static class Loc
         // إشعار انتهاء أمر طويل (يظهر حين تكون النافذة غير نشطة)
         ["notify.cmdDone"]   = ("انتهى الأمر", "Command finished"),
         ["notify.cmdFailed"] = ("فشل الأمر", "Command failed"),
+
+        // التحديث التلقائيّ (Velopack) — فحص صامت ثمّ إشعار، والتطبيق عند إعادة التشغيل
+        ["update.ready"]    = ("تحديث جاهز", "Update ready"),
+        ["update.readyMsg"] = ("نُزِّلت النسخة {0} — تُطبَّق تلقائيّاً عند إعادة تشغيل التطبيق.",
+                               "Version {0} was downloaded — it will be applied when you restart the app."),
         ["srv.mgmt.swapLabel"] = ("التبديل (Swap)", "Swap"),
         ["srv.mgmt.processes"] = ("العمليّات", "Processes"),
         ["srv.mgmt.services"]  = ("الخدمات", "Services"),
