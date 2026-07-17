@@ -66,3 +66,9 @@ $RECYCLE.BIN/
 .claude/
 *.secret
 *.local.json
+
+# ---------- Velopack packaging output ----------
+# مخرجات النشر والتغليف: يصنعها `dotnet publish` و`vpk pack` محلّياً وفي CI.
+# ضخمة (المثبّت وحده ~90م.ب) ومُشتقّة بالكامل ⇒ لا تدخل المستودع أبداً.
+/publish/
+/Releases/
