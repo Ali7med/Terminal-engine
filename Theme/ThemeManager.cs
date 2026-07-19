@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
@@ -424,10 +424,21 @@ public static class ThemeManager
             EndPoint = new Point(1 - sx, 1),
         };
         foreach (var (offset, hex) in stops)
-            b.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(hex), offset));
+            b.GradientStops.Add(new GradientStop(Themed(Hex(hex)), offset));
         b.Freeze();
         return b;
     }
+
+    /// <summary>هل الثيم المطبَّق فاتح؟ (تستعمله نسخ الخلفيّات الفاتحة).</summary>
+    private static bool LightMode => Current.Mode == ThemeMode.Light;
+
+    /// <summary>
+    /// نسخة الخلفيّة الموافقة للثيم: في الوضع الداكن يبقى اللون كما صُمّم، وفي الفاتح يُرفَع نحو
+    /// الأبيض مع بقاء الصبغة — فيحتفظ «الجمر» بدفئه و«المحيط» ببرودته بدل أن ينقلبا رماداً.
+    /// </summary>
+    private static Color Themed(Color c) => LightMode ? Mix(c, Colors.White, 0.82) : c;
+
+    private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 
     /// <summary>
     /// حقل عمق: قاعدة مصمتة تعلوها هالات نصف قطريّة ناعمة (لون، مركز س/ص نسبيّ، نصف قطر نسبيّ) ثمّ
@@ -438,12 +449,12 @@ public static class ThemeManager
         var group = new DrawingGroup();
         var rect = new Rect(0, 0, 1, 1);
         group.Children.Add(new GeometryDrawing(
-            Freeze(new SolidColorBrush((Color)ColorConverter.ConvertFromString(baseHex))),
+            Freeze(new SolidColorBrush(Themed(Hex(baseHex)))),
             null, new RectangleGeometry(rect)));
 
         foreach (var (hex, cx, cy, r) in blobs)
         {
-            var c = (Color)ColorConverter.ConvertFromString(hex);
+            var c = Themed(Hex(hex));
             var g = new RadialGradientBrush
             {
                 Center = new Point(cx, cy),
@@ -459,9 +470,11 @@ public static class ThemeManager
         }
 
         // تعتيم الحوافّ: يشدّ الانتباه للوسط ويُبقي حوافّ النافذة هادئة خلف الشريط الجانبيّ والرأس.
+        // على الفاتح يكفي ظلّ خفيف جداً — التعتيم الداكن نفسه يجعل الحوافّ متّسخة لا هادئة.
+        byte vigA = LightMode ? (byte)0x1E : (byte)0x70;
         var vig = new RadialGradientBrush { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.75, RadiusY = 0.75 };
         vig.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0, 0, 0), 0.55));
-        vig.GradientStops.Add(new GradientStop(Color.FromArgb(0x70, 0, 0, 0), 1.0));
+        vig.GradientStops.Add(new GradientStop(Color.FromArgb(vigA, 0, 0, 0), 1.0));
         vig.Freeze();
         group.Children.Add(new GeometryDrawing(vig, null, new RectangleGeometry(rect)));
 
