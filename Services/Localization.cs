@@ -55,8 +55,17 @@ public static class Loc
         ["sidebar.projects"]   = ("المشاريع", "Projects"),
         // يُعرض بجوار رقاقات الكيبورد (ctrl shift T) فلا يذكر الاختصار نصّاً.
         ["hint.empty"]         = ("تيرمنال فارغ", "new empty terminal"),
-        // النصّ البديل في حقل البحث المركزيّ بشريط العنوان.
-        ["hdr.search"]         = ("ابحث في المشاريع والأوامر…", "Search projects, commands…"),
+        // النصّ البديل في حقل البحث المركزيّ بشريط العنوان (يفتح لوحة البحث المتقدّم).
+        ["hdr.search"]         = ("ابحث في كل شيء…", "Search everything…"),
+
+        // لوحة البحث المتقدّم: عناوين الأقسام ورقاقات الفئات.
+        ["palette.suggested"]  = ("مقترَح", "Suggested"),
+        ["palette.results"]    = ("النتائج ({0})", "Results ({0})"),
+        ["palette.cat.actions"]  = ("أفعال", "actions"),
+        ["palette.cat.projects"] = ("مشاريع", "projects"),
+        ["palette.cat.commands"] = ("أوامر", "commands"),
+        ["palette.cat.tabs"]     = ("تبويبات", "tabs"),
+        ["palette.cat.shells"]   = ("صدفات", "shells"),
         ["settings.title"]     = ("الإعدادات", "Settings"),
         ["settings.appearance"]= ("المظهر", "Appearance"),
         ["settings.theme"]     = ("الثيم", "Theme"),

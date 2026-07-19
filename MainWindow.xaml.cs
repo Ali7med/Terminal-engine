@@ -2666,19 +2666,22 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// حبّة البحث في شريط العنوان: تعكس نصّها على بحث اللوحة الجانبيّة (مصدر التصفية الوحيد) وتفتح
-    /// اللوحة عند أوّل حرف — بلا سحب التركيز من الحقل الذي يكتب فيه المستخدم.
+    /// حبّة بحث الرأس هي مِقبض «البحث المتقدّم»: الكتابة فيها تُمرَّر إلى لوحة البحث ثمّ تُفرَّغ الحبّة،
+    /// فلا يوجد حقلا بحث بحالتين — الحبّة تفتح، واللوحة تبحث. (اللوحة الجانبيّة لها بحثها الخاصّ.)
     /// </summary>
     private void HeaderSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (SidebarSearch.Text != HeaderSearch.Text) SidebarSearch.Text = HeaderSearch.Text;
-        if (HeaderSearch.Text.Length > 0 && !_sidebarExpanded) SetSidebarExpanded(true);
+        string term = HeaderSearch.Text;
+        if (term.Length == 0 || _commandPaletteOpen) return;
+        HeaderSearch.Text = "";              // يُطلِق الحدث ثانيةً بنصّ فارغ فيخرج فوراً
+        OpenCommandPalette(term);
     }
 
-    /// <summary>التركيز على حبّة البحث يوسّع لوحة المشاريع (النتائج تظهر فور الكتابة).</summary>
+    /// <summary>التركيز على حبّة البحث يفتح لوحة البحث المتقدّم وينقل التركيز إليها.</summary>
     private void HeaderSearch_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (!_sidebarExpanded) SetSidebarExpanded(true);
+        if (_commandPaletteOpen) return;
+        OpenCommandPalette();
     }
 
     /// <summary>يحوّل عجلة الماوس/الباد إلى سكرول أفقيّ لصفوف الرقاقات (الدوك + شريط التاكات).</summary>
@@ -2738,17 +2741,59 @@ public partial class MainWindow : Window
             _paletteSource.Add(new CommandPaletteItem
             {
                 Icon = "", Title = captured.Name, Hint = captured.Path,
+                Category = PaletteCategory.Command,
                 Invoke = () => OpenTerminal(captured),
+            });
+        }
+
+        // المشاريع: يفتح دوك أوامر المشروع.
+        foreach (var proj in ProjectService.All)
+        {
+            var capturedProj = proj;
+            _paletteSource.Add(new CommandPaletteItem
+            {
+                Category = PaletteCategory.Project,
+                Title = capturedProj.Name, Hint = capturedProj.Folder,
+                Invoke = () => OpenQuickDock(capturedProj.Name),
+            });
+        }
+
+        // التبويبات المفتوحة: البحث المتقدّم يتنقّل بينها لا يفتح جديداً فقط.
+        foreach (var item in TerminalTabs.Items)
+        {
+            if (item is not TabItem tab) continue;
+            var capturedTab = tab;
+            _paletteSource.Add(new CommandPaletteItem
+            {
+                Category = PaletteCategory.Tab,
+                Title = HeaderTitle(capturedTab) ?? "تيرمنال",
+                Hint = (capturedTab.Tag as CommandEntry)?.Path ?? "",
+                Invoke = () => TerminalTabs.SelectedItem = capturedTab,
+            });
+        }
+
+        // الصدفات المتاحة: فتح تبويب ببروفايل محدّد.
+        foreach (var profile in ShellCatalog.Profiles.Where(p => p.Available))
+        {
+            var capturedShell = profile.Id;
+            _paletteSource.Add(new CommandPaletteItem
+            {
+                Category = PaletteCategory.Shell,
+                Title = profile.DisplayLabel,
+                Invoke = () => OpenTerminalForProfile(capturedShell),
             });
         }
     }
 
-    private void OpenCommandPalette()
+    private void OpenCommandPalette(string initialTerm = "")
     {
         BuildPaletteSource();
         _commandPaletteOpen = true;
-        CommandPaletteInput.Text = "";
-        FilterPalette("");
+        _paletteCategory = null;             // كل فتحة تبدأ بلا حصر فئة
+        BuildPaletteChips();
+        CommandPaletteInput.Text = initialTerm;
+        CommandPaletteInput.CaretIndex = initialTerm.Length;
+        FilterPalette(initialTerm);
         CommandPaletteOverlay.Visibility = Visibility.Visible;
 
         var anim = new DoubleAnimation
@@ -2766,18 +2811,63 @@ public partial class MainWindow : Window
     {
         _commandPaletteOpen = false;
         CommandPaletteOverlay.Visibility = Visibility.Collapsed;
+        // بعد الإغلاق قد يعود التركيز لحبّة بحث الرأس، وتركيزها يفتح اللوحة ⇒ دورة لا تنتهي.
+        // ننقل التركيز للتيرمنال النشط (أو نُفرِغه) فينكسر الحبل.
+        Keyboard.ClearFocus();
+        ActiveContainer?.ActiveView?.FocusTerminal();
     }
 
     private void CommandPaletteOverlay_MouseDown(object sender, MouseButtonEventArgs e) => CloseCommandPalette();
     private void CommandPaletteCard_MouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
-    /// <summary>تصفية Contains غير حسّاسة لحالة الأحرف على العنوان (والمسار للأوامر المحفوظة).</summary>
+    /// <summary>الفئة المحصورة حاليّاً في اللوحة (null = كل الفئات).</summary>
+    private PaletteCategory? _paletteCategory;
+
+    /// <summary>تسمية الفئة المعروضة على رقاقتها.</summary>
+    private static string CategoryLabel(PaletteCategory c) => c switch
+    {
+        PaletteCategory.Project => Loc.T("palette.cat.projects"),
+        PaletteCategory.Command => Loc.T("palette.cat.commands"),
+        PaletteCategory.Tab     => Loc.T("palette.cat.tabs"),
+        PaletteCategory.Shell   => Loc.T("palette.cat.shells"),
+        _                       => Loc.T("palette.cat.actions"),
+    };
+
+    /// <summary>
+    /// يبني رقاقات الفئات: تظهر فقط الفئات التي فيها عناصر فعليّاً، ونقر الرقاقة النشطة يلغي الحصر.
+    /// </summary>
+    private void BuildPaletteChips()
+    {
+        PaletteChips.Children.Clear();
+        var present = _paletteSource.Select(i => i.Category).Distinct().ToList();
+        var accent = ((SolidColorBrush)FindResource("Brush.Accent")).Color;
+
+        foreach (var cat in present)
+        {
+            int count = _paletteSource.Count(i => i.Category == cat);
+            var captured = cat;
+            var chip = MakeFilterChip(null, $"{CategoryLabel(cat)}  {count}", null, _paletteCategory == cat);
+            chip.Margin = new Thickness(0, 0, 6, 6);
+            chip.MouseLeftButtonUp -= ProjectFilterChip_Click;   // رقاقة لوحة لا رقاقة فلترة مشاريع
+            chip.MouseLeftButtonUp += (_, _) =>
+            {
+                _paletteCategory = _paletteCategory == captured ? null : captured;
+                BuildPaletteChips();
+                FilterPalette(CommandPaletteInput.Text);
+            };
+            ApplyChipActiveLook(chip, _paletteCategory == cat, accent);
+            PaletteChips.Children.Add(chip);
+        }
+    }
+
+    /// <summary>تصفية Contains غير حسّاسة لحالة الأحرف على العنوان والتلميح، ضمن الفئة المحصورة إن وُجدت.</summary>
     private void FilterPalette(string term)
     {
         term = term.Trim();
         var filtered = new List<CommandPaletteItem>();
         foreach (var item in _paletteSource)
         {
+            if (_paletteCategory is { } cat && item.Category != cat) continue;
             if (term.Length == 0
                 || item.Title.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || item.Hint.Contains(term, StringComparison.OrdinalIgnoreCase))
@@ -2785,6 +2875,11 @@ public partial class MainWindow : Window
         }
         CommandPaletteList.ItemsSource = filtered;
         if (filtered.Count > 0) CommandPaletteList.SelectedIndex = 0;
+
+        // العنوان يتبع الحالة: «مقترَح» قبل الكتابة، و«النتائج (N)» أثناء البحث.
+        PaletteSectionLabel.Text = term.Length == 0
+            ? Loc.T("palette.suggested")
+            : string.Format(Loc.T("palette.results"), filtered.Count);
     }
 
     private void CommandPaletteInput_TextChanged(object sender, TextChangedEventArgs e)
