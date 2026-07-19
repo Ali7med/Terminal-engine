@@ -106,16 +106,17 @@
             <!-- ===== المحتوى ===== -->
             <Grid x:Name="ContentGrid" Grid.Row="1" Margin="14,4,14,14">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="SidebarCol" Width="60"/>
+                    <!-- عرض الشريط الجانبيّ: 280 موسَّعاً (الافتراضي) · 60 مطويّاً — يضبطه SetSidebarExpanded -->
+                    <ColumnDefinition x:Name="SidebarCol" Width="280"/>
                     <ColumnDefinition x:Name="SplitterCol" Width="0"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- الشريط الجانبيّ المطويّ: أيقونة + إضافة + مختصرات الأوامر؛ يفتح لوحةً كاملة بالمرور -->
-                <!-- الشريط الجانبيّ يطفو فوق الخلفيّة بلا بطاقة ولا حدّ — الفصل بالمسافة وحدها. -->
+                <!-- الحالة المطويّة للشريط الجانبيّ: أيقونات فقط (60px). تتبادل الظهور مع SidebarPanel
+                     الموسَّع في العمود نفسه — لا تظهران معاً. الشريط يطفو فوق الخلفيّة بلا بطاقة ولا حدّ. -->
                 <Border x:Name="SidebarRail" Grid.Column="0" Background="Transparent"
                         BorderThickness="0" CornerRadius="{DynamicResource Radius.Card}" Padding="0"
-                        MouseEnter="SidebarRail_MouseEnter">
+                        Visibility="Collapsed">
                     <DockPanel Margin="0,8">
                         <Button x:Name="SidebarMenuBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
                                 Content="&#xE712;" FontFamily="Segoe MDL2 Assets" FontSize="16" Height="38"
@@ -160,44 +161,87 @@
 
                 <!-- منطقة التيرمنالات -->
                 <Grid Grid.Column="2">
-                    <!-- تلميح الفراغ: بلا سطح خاصّ — السطح الوحيد هو إطار التيرمنال، فيظهر التلميح داخله وسطاً -->
-                    <Border x:Name="EmptyHintCard" Background="Transparent">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="34"
-                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.55"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="HintLine1" Text="اختر أمراً واضغط «تشغيل» لفتح تيرمنال"
-                                       Foreground="{DynamicResource Brush.Text}" Margin="0,16,0,0"
-                                       Opacity="0.9" HorizontalAlignment="Center"/>
-                            <!-- الاختصار يُعرض رقاقاتِ كيبورد لا نصّاً — أسهل مسحاً بالعين وأهدأ بصريّاً -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0"
-                                        FlowDirection="LeftToRight">
-                                <Border Style="{StaticResource KeyCap}">
-                                    <TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/>
-                                </Border>
-                                <Border Style="{StaticResource KeyCap}">
-                                    <TextBlock Text="shift" Style="{StaticResource KeyCapText}"/>
-                                </Border>
-                                <Border Style="{StaticResource KeyCap}">
-                                    <TextBlock Text="T" Style="{StaticResource KeyCapText}"/>
-                                </Border>
-                                <TextBlock x:Name="HintLine2" Text="تيرمنال فارغ" VerticalAlignment="Center"
-                                           Margin="6,0,0,0" FontSize="{DynamicResource Size.Small}"
-                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                    <!-- لوحة البداية: بطاقة مرسوّة أسفل منطقة التيرمنال (لا في وسطها) تسرد اختصارات
+                         البدء صفّاً صفّاً برقاقات كيبورد — كما في التصميم المرجعيّ. تختفي مع أوّل تبويب. -->
+                    <Border x:Name="EmptyHintCard" Style="{StaticResource Card}"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                            Margin="0,0,0,10" Padding="18,16">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                           VerticalAlignment="Center" Margin="0,0,9,0"
+                                           Foreground="{DynamicResource Brush.Accent}"/>
+                                <TextBlock x:Name="HintLine1" Text="جلسة تيرمنال جديدة"
+                                           FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
                             </StackPanel>
+
+                            <!-- كلّ صفّ: رقاقات الاختصار ثمّ وصفه. الرقاقات LTR دائماً (رموز كيبورد). -->
+                            <Grid x:Name="HintRows">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                                            FlowDirection="LeftToRight" Margin="0,0,10,6">
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="shift" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="T" Style="{StaticResource KeyCapText}"/></Border>
+                                </StackPanel>
+                                <TextBlock x:Name="HintLine2" Grid.Row="0" Grid.Column="1" Text="تيرمنال فارغ"
+                                           VerticalAlignment="Center" Margin="0,0,0,6"
+                                           FontSize="{DynamicResource Size.Small}"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal"
+                                            FlowDirection="LeftToRight" Margin="0,0,10,6">
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="shift" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="P" Style="{StaticResource KeyCapText}"/></Border>
+                                </StackPanel>
+                                <TextBlock x:Name="HintLine3" Grid.Row="1" Grid.Column="1" Text="لوحة الأوامر"
+                                           VerticalAlignment="Center" Margin="0,0,0,6"
+                                           FontSize="{DynamicResource Size.Small}"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal"
+                                            FlowDirection="LeftToRight" Margin="0,0,10,6">
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="shift" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="D" Style="{StaticResource KeyCapText}"/></Border>
+                                </StackPanel>
+                                <TextBlock x:Name="HintLine4" Grid.Row="2" Grid.Column="1" Text="انقسام جنباً لجنب"
+                                           VerticalAlignment="Center" Margin="0,0,0,6"
+                                           FontSize="{DynamicResource Size.Small}"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal"
+                                            FlowDirection="LeftToRight" Margin="0,0,10,0">
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="shift" Style="{StaticResource KeyCapText}"/></Border>
+                                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="E" Style="{StaticResource KeyCapText}"/></Border>
+                                </StackPanel>
+                                <TextBlock x:Name="HintLine5" Grid.Row="3" Grid.Column="1" Text="انقسام فوق/تحت"
+                                           VerticalAlignment="Center"
+                                           FontSize="{DynamicResource Size.Small}"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     <TabControl x:Name="TerminalTabs" PreviewMouseDown="TerminalTabs_PreviewMouseDown"/>
                 </Grid>
 
-                <!-- ===== لوحة الأوامر المحفوظة المنبثقة (تفتح بالمرور على الشريط أو بالنقر) ===== -->
-                <Border x:Name="SidebarFlyout" Grid.ColumnSpan="3" Visibility="Collapsed"
-                        HorizontalAlignment="Left" Width="300" VerticalAlignment="Stretch"
-                        MouseLeave="SidebarFlyout_MouseLeave">
-                    <Border Style="{StaticResource CardStrong}" Padding="14">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#000000" BlurRadius="32" ShadowDepth="0" Opacity="0.5"/>
-                        </Border.Effect>
+                <!-- ===== لوحة المشاريع الدائمة (الحالة الموسَّعة للشريط الجانبيّ) =====
+                     مرسوّة في العمود ٠ لا طافيةً فوق المحتوى: القائمة حاضرة دائماً كما في التصميم
+                     المرجعيّ، والطيّ يصغّر العمود إلى الشريط الأيقونيّ بدل إخفاء كلّ شيء. -->
+                <Border x:Name="SidebarPanel" Grid.Column="0" VerticalAlignment="Stretch">
+                    <Border Style="{StaticResource Card}" Padding="12">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="2,0,0,10">
                                 <TextBlock x:Name="SidebarHeader" Text="الأوامر المحفوظة" FontWeight="SemiBold" FontSize="14"
@@ -209,6 +253,27 @@
 
                             <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,8"
                                      TextChanged="SidebarSearch_TextChanged"/>
+
+                            <!-- مقطع «الإعدادات» أسفل اللوحة: عنوان مكتوم صغير + صفّ واحد — نفس بنية
+                                 المقاطع في التصميم المرجعيّ (بلا خطّ فاصل). -->
+                            <StackPanel DockPanel.Dock="Bottom">
+                                <TextBlock x:Name="SidebarSettingsCaption" Text="الإعدادات"
+                                           Style="{StaticResource Caption}"/>
+                                <Button x:Name="SidebarSettingsBtn" Click="SettingsButton_Click"
+                                        HorizontalContentAlignment="Stretch" Background="Transparent"
+                                        BorderThickness="0" Padding="10,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                   VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        <TextBlock x:Name="SidebarSettingsText" Text="الإعدادات"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <TextBlock x:Name="SidebarProjectsCaption" DockPanel.Dock="Top" Text="المشاريع"
+                                       Style="{StaticResource Caption}" Margin="2,4,2,2"/>
 
                             <!-- شريط فلترة التاكات: «الكل» + رقاقة لكل تاك — صفّ أفقيّ بسكرول مربوط بالعجلة -->
                             <ScrollViewer x:Name="ProjectFilterScroll" DockPanel.Dock="Top"

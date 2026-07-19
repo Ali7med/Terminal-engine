@@ -16,6 +16,9 @@ public sealed class AppSettings
     /// <summary>مزامنة الفاتح/الداكن مع وضع نظام ويندوز (يتجاوز الثيم المختار عند التفعيل).</summary>
     public bool SyncThemeWithOs { get; set; } = false;
 
+    /// <summary>الشريط الجانبيّ موسَّع (لوحة مشاريع كاملة) أم مطويّ إلى شريط أيقونيّ. يبقى بين التشغيلات.</summary>
+    public bool SidebarExpanded { get; set; } = true;
+
     /// <summary>لغة الواجهة: "ar" (عربي، RTL) أو "en" (إنجليزي، LTR).</summary>
     public string Language { get; set; } = "ar";
 

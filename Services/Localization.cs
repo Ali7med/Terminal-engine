@@ -47,6 +47,12 @@ public static class Loc
         ["sidebar.search"]     = ("بحث…", "Search…"),
         ["btn.run"]            = ("▶  تشغيل", "▶  Run"),
         ["hint.pick"]          = ("اختر أمراً واضغط «تشغيل» لفتح تيرمنال", "Pick a command and press Run to open a terminal"),
+        // لوحة البداية: عنوان + وصف كلّ اختصار بجوار رقاقاته.
+        ["hint.title"]         = ("جلسة تيرمنال جديدة", "New terminal session"),
+        ["hint.palette"]       = ("لوحة الأوامر", "command palette"),
+        ["hint.splitV"]        = ("انقسام جنباً لجنب", "split side by side"),
+        ["hint.splitH"]        = ("انقسام فوق/تحت", "split top/bottom"),
+        ["sidebar.projects"]   = ("المشاريع", "Projects"),
         // يُعرض بجوار رقاقات الكيبورد (ctrl shift T) فلا يذكر الاختصار نصّاً.
         ["hint.empty"]         = ("تيرمنال فارغ", "new empty terminal"),
         // النصّ البديل في حقل البحث المركزيّ بشريط العنوان.

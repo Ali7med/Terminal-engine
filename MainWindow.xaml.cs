@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -36,13 +36,13 @@ public partial class MainWindow : Window
     private ProfilesData _profiles = new();
     private readonly AppSettings _settings;
     private bool _settingsOpen;
-    private bool _sidebarPinned;   // لوحة الأوامر مثبَّتة مفتوحة (لا تُغلَق عند مغادرة الماوس)
+    private bool _sidebarExpanded = true;   // الشريط الجانبيّ موسَّع (لوحة مشاريع) أم مطويّ (أيقونات)
     private bool _restoring;   // true أثناء استرجاع الجلسة كي لا يُثبِّت OpenTerminal لقطات وسطيّة
     private bool _syncingUi = true;   // يبقى true أثناء الإنشاء ليُتجاهَل ValueChanged/SelectionChanged المبكّر
     private string? _tagFilter;   // فلتر التاك النشط في لوحة المشاريع (null = الكل)
     private string? _colorPickerTarget;   // اسم التاك الجاري تغيير لونه في المنتقي
     private bool _colorPickerForNew;      // المنتقي مفتوح لاختيار لون تاك جديد (لا لتعديل قائم)
-    private const int WindowCornerRadius = 6;
+    private const int WindowCornerRadius = 10;
     private readonly List<Border> _themeCards = new();
     private const int ThemeFirstGroup = 6;     // عدد بطاقات الثيمات في اللوحة السريعة قبل «عرض الكلّ»
     private readonly List<Border> _bgSwatches = new();   // بطاقات معرض قوالب الخلفيّة (المفتاح في Tag)
@@ -113,6 +113,7 @@ public partial class MainWindow : Window
         SyncSettingsUi();
         UpdateHint();
         EntriesList.ContextMenu = BuildProjectContextMenu();
+        SetSidebarExpanded(_settings.SidebarExpanded);   // يعود الشريط كما تركه المستخدم
         ApplyLanguage();
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
@@ -1002,8 +1003,14 @@ public partial class MainWindow : Window
         SidebarHeader.Text = Loc.T("sidebar.projects");
         SidebarMenuBtn.ToolTip = Loc.T("sidebar.projects");
         RunBtn.Content = Loc.T("proj.open");
-        HintLine1.Text = Loc.T("hint.pick");
+        HintLine1.Text = Loc.T("hint.title");
         HintLine2.Text = Loc.T("hint.empty");
+        HintLine3.Text = Loc.T("hint.palette");
+        HintLine4.Text = Loc.T("hint.splitV");
+        HintLine5.Text = Loc.T("hint.splitH");
+        SidebarProjectsCaption.Text  = Loc.T("sidebar.projects");
+        SidebarSettingsCaption.Text  = Loc.T("settings.title");
+        SidebarSettingsText.Text     = Loc.T("settings.title");
         SettingsTitle.Text = Loc.T("settings.title");
         // أسماء فئات التنقّل
         NavAppearance.Content = Loc.T("settings.appearanceBg");
@@ -1183,7 +1190,7 @@ public partial class MainWindow : Window
 
     private void EntriesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (Selected is { } proj) { OpenQuickDock(proj.Name); if (!_sidebarPinned) ShowSidebarFlyout(false); }
+        if (Selected is { } proj) OpenQuickDock(proj.Name);   // اللوحة دائمة — لا تُطوى عند الفتح
     }
 
     // يحدّد العنصر تحت المؤشّر قبل ظهور القائمة السياقية.
@@ -1333,8 +1340,6 @@ public partial class MainWindow : Window
             del.Click += (_, _) => DeleteTag(name);
             menu.Items.Add(recolor);
             menu.Items.Add(del);
-            menu.Opened += EntriesContextMenu_Opened;
-            menu.Closed += EntriesContextMenu_Closed;
             chip.ContextMenu = menu;
         }
         return chip;
@@ -1381,8 +1386,7 @@ public partial class MainWindow : Window
     {
         _colorPickerForNew = false;
         _colorPickerTarget = name;
-        _colorPickerOpen = true;   // يمنع طيّ اللوحة أثناء ظهور المنتقي فوقها
-        if (!_sidebarPinned && SidebarFlyout.Visibility != Visibility.Visible) ShowSidebarFlyout(true);
+        if (!_sidebarExpanded) SetSidebarExpanded(true);   // المنتقي يعمل على اللوحة — نوسّعها أوّلاً
 
         ColorPickerTitle.Text = $"لون التاك «{name}»";
         ShowColorPicker(TagService.Find(name)?.Color ?? "");
@@ -1393,7 +1397,6 @@ public partial class MainWindow : Window
     {
         _colorPickerForNew = true;
         _colorPickerTarget = null;
-        _colorPickerOpen = true;
         ColorPickerTitle.Text = "لون التاك الجديد";
         ShowColorPicker(_projNewTagColor);
     }
@@ -1470,10 +1473,8 @@ public partial class MainWindow : Window
 
     private void ColorPicker_Closed(object sender, EventArgs e)
     {
-        _colorPickerOpen = false;
         _colorPickerTarget = null;
         _colorPickerForNew = false;
-        if (!KeepFlyoutOpen() && !SidebarFlyout.IsMouseOver) ShowSidebarFlyout(false);
     }
 
     /// <summary>نقر رقاقة فلتر التاك: يبدّل الفلتر ويعيد بناء قائمة المشاريع.</summary>
@@ -1491,13 +1492,12 @@ public partial class MainWindow : Window
     private string? _quickProject;                       // المشروع المعروض في اللوحة (null = مطويّة)
     private readonly TranslateTransform _quickDockTransform = new();
 
-    /// <summary>يفتح اللوحة على مشروع (أو يطويها إن null/مجهول)، يبنيها ويُظهرها بانزلاق. يطوي لوحة المشاريع لتفادي التداخل.</summary>
+    /// <summary>يفتح اللوحة على مشروع (أو يطويها إن null/مجهول)، يبنيها ويُظهرها بانزلاق.</summary>
     private void OpenQuickDock(string? projectName)
     {
         if (ProjectService.Find(projectName) is not { } proj) { CloseQuickDock(); return; }
         _quickProject = proj.Name;
-        _sidebarPinned = false;
-        ShowSidebarFlyout(false);   // الدوك ولوحة المشاريع حصريّان (لا يظهران معاً)
+        // لم تعد الحصريّة لازمة: لوحة المشاريع مرسوّة في عمودها والدوك يطفو فوق التيرمنال — لا تداخل.
         BuildQuickDock();
         ShowQuickDock(true);
     }
@@ -1511,12 +1511,11 @@ public partial class MainWindow : Window
     private void QuickDockClose_Click(object sender, RoutedEventArgs e) => CloseQuickDock();
 
     /// <summary>
-    /// النقر داخل منطقة التيرمنال يُغلق لوحتَي المشاريع (المنبثقة) والأوامر (الدوك) — كي يتفرّغ العرض
-    /// للتيرمنال. لا نُعلّم الحدث مُعالَجاً فيصل النقر للتيرمنال (تركيز/تحديد) طبيعيّاً.
+    /// النقر داخل منطقة التيرمنال يُغلق دوك الأوامر الطافي كي يتفرّغ العرض. لوحة المشاريع الجانبيّة
+    /// دائمة فلا تتأثّر. لا نُعلّم الحدث مُعالَجاً فيصل النقر للتيرمنال (تركيز/تحديد) طبيعيّاً.
     /// </summary>
     private void TerminalTabs_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (SidebarFlyout.Visibility == Visibility.Visible) { _sidebarPinned = false; ShowSidebarFlyout(false); }
         if (QuickDock.Visibility == Visibility.Visible) CloseQuickDock();
     }
 
@@ -2284,9 +2283,7 @@ public partial class MainWindow : Window
             bool hasFolder = !string.IsNullOrWhiteSpace(Selected?.Folder);
             copyPath.IsEnabled = hasFolder;
             explorer.IsEnabled = hasFolder;
-            EntriesContextMenu_Opened(s, e);
         };
-        menu.Closed += EntriesContextMenu_Closed;
         return menu;
     }
 
@@ -2584,79 +2581,48 @@ public partial class MainWindow : Window
         return panel;
     }
 
-    // ===== لوحة الأوامر المحفوظة: شريط مطويّ يفتح لوحةً بالمرور/النقر =====
+    // ===== الشريط الجانبيّ الدائم: لوحة مشاريع مرسوّة تُطوى إلى شريط أيقونيّ =====
 
-    private readonly TranslateTransform _sidebarFlyoutTransform = new();
+    /// <summary>عرض العمود في الحالتين (بكسل).</summary>
+    private const double SidebarExpandedWidth = 280;
+    private const double SidebarCollapsedWidth = 60;
 
-    /// <summary>يبدّل تثبيت لوحة الأوامر (يُستدعى من زرّ شريط العنوان وزرّ التوسيع في التيرمنال). يعيد حالة الفتح.</summary>
+    /// <summary>يبدّل بين اللوحة الموسَّعة والشريط الأيقونيّ. يعيد حالة التوسيع الجديدة.</summary>
     private bool ToggleSidebarExpanded()
     {
-        _sidebarPinned = !_sidebarPinned;
-        ShowSidebarFlyout(_sidebarPinned);
-        return _sidebarPinned;
+        SetSidebarExpanded(!_sidebarExpanded);
+        return _sidebarExpanded;
     }
 
-    private void SidebarRail_MouseEnter(object sender, MouseEventArgs e)
-    {
-        // الدوك مفتوح؟ لا نفتح لوحة المشاريع فوقه (حصريّان) كي لا يتداخلا — والتبديل عبر رقاقات الدوك.
-        if (QuickDock.Visibility == Visibility.Visible) return;
-        ShowSidebarFlyout(true);
-    }
     private void SidebarMenu_Click(object sender, RoutedEventArgs e) => ToggleSidebarExpanded();
-    private void SidebarFlyout_MouseLeave(object sender, MouseEventArgs e)
+
+    /// <summary>
+    /// يوسّع/يطوي الشريط الجانبيّ: العمود يتغيّر عرضه واللوحة تتبادل الظهور مع الشريط الأيقونيّ، مع
+    /// تلاشٍ خفيف. الحالة تُحفَظ في الإعدادات فتعود كما تركها المستخدم في التشغيل التالي.
+    /// </summary>
+    private void SetSidebarExpanded(bool expanded, bool focusSearch = false)
     {
-        // لا نطوي اللوحة وفوقها قائمة سياق أو منتقي لون مفتوح — وإلّا «تصغر» تحتها.
-        if (!KeepFlyoutOpen()) ShowSidebarFlyout(false);
-    }
+        _sidebarExpanded = expanded;
+        SidebarCol.Width = new GridLength(expanded ? SidebarExpandedWidth : SidebarCollapsedWidth);
+        SidebarPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        SidebarRail.Visibility  = expanded ? Visibility.Collapsed : Visibility.Visible;
 
-    // قائمة سياق الأوامر / منتقي اللون مفتوح؟ (يمنع طيّ اللوحة أثناء ظهور أيّهما فوقها).
-    private bool _entriesContextMenuOpen;
-    private bool _colorPickerOpen;
+        var target = expanded ? (UIElement)SidebarPanel : SidebarRail;
+        target.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
 
-    /// <summary>هل يجب إبقاء لوحة الأوامر مفتوحة (مثبَّتة أو فوقها منيو/منتقي)؟</summary>
-    private bool KeepFlyoutOpen() => _sidebarPinned || _entriesContextMenuOpen || _colorPickerOpen;
+        if (expanded && focusSearch) SidebarSearch.Focus();
 
-    private void EntriesContextMenu_Opened(object sender, RoutedEventArgs e) => _entriesContextMenuOpen = true;
-
-    private void EntriesContextMenu_Closed(object sender, RoutedEventArgs e)
-    {
-        _entriesContextMenuOpen = false;
-        // بعد إغلاق المنيو: إن غادر الماوس اللوحة (ولا سبب آخر لإبقائها) نطويها كالمعتاد.
-        if (!KeepFlyoutOpen() && !SidebarFlyout.IsMouseOver) ShowSidebarFlyout(false);
-    }
-
-    /// <summary>يفتح/يغلق لوحة الأوامر بانزلاق + تلاشٍ خفيف (≈150مي).</summary>
-    private void ShowSidebarFlyout(bool show, bool focusSearch = true)
-    {
-        SidebarFlyout.RenderTransform = _sidebarFlyoutTransform;
-        if (show)
+        if (_settings.SidebarExpanded != expanded)
         {
-            if (SidebarFlyout.Visibility == Visibility.Visible) return;
-            CloseQuickDock();   // حصريّة: إظهار لوحة المشاريع يطوي الدوك
-            SidebarFlyout.Visibility = Visibility.Visible;
-            var dur = TimeSpan.FromMilliseconds(150);
-            SidebarFlyout.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
-            _sidebarFlyoutTransform.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(-14, 0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            if (focusSearch) SidebarSearch.Focus();
-        }
-        else
-        {
-            if (SidebarFlyout.Visibility != Visibility.Visible) return;
-            var dur = TimeSpan.FromMilliseconds(130);
-            var fade = new DoubleAnimation(1, 0, dur);
-            fade.Completed += (_, _) => { if (SidebarFlyout.Opacity == 0) SidebarFlyout.Visibility = Visibility.Collapsed; };
-            SidebarFlyout.BeginAnimation(OpacityProperty, fade);
-            _sidebarFlyoutTransform.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(0, -14, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
+            _settings.SidebarExpanded = expanded;
+            SaveSettings();
         }
     }
 
-    /// <summary>نقر مربّع مشروع في الشريط المطويّ: يفتح لوحة أوامره ويُغلق اللوحة المنبثقة (إن لم تكن مثبَّتة).</summary>
+    /// <summary>نقر مربّع مشروع في الشريط المطويّ: يفتح دوك أوامره.</summary>
     private void SidebarDot_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not Project proj) return;
-        if (!_sidebarPinned) ShowSidebarFlyout(false);
         OpenQuickDock(proj.Name);
     }
 
@@ -2675,14 +2641,13 @@ public partial class MainWindow : Window
     private void HeaderSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (SidebarSearch.Text != HeaderSearch.Text) SidebarSearch.Text = HeaderSearch.Text;
-        if (HeaderSearch.Text.Length > 0 && SidebarFlyout.Visibility != Visibility.Visible)
-            ShowSidebarFlyout(true, focusSearch: false);
+        if (HeaderSearch.Text.Length > 0 && !_sidebarExpanded) SetSidebarExpanded(true);
     }
 
-    /// <summary>التركيز على حبّة البحث يفتح لوحة المشاريع فوراً (نتائج مباشرة قبل الكتابة).</summary>
+    /// <summary>التركيز على حبّة البحث يوسّع لوحة المشاريع (النتائج تظهر فور الكتابة).</summary>
     private void HeaderSearch_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (SidebarFlyout.Visibility != Visibility.Visible) ShowSidebarFlyout(true, focusSearch: false);
+        if (!_sidebarExpanded) SetSidebarExpanded(true);
     }
 
     /// <summary>يحوّل عجلة الماوس/الباد إلى سكرول أفقيّ لصفوف الرقاقات (الدوك + شريط التاكات).</summary>
