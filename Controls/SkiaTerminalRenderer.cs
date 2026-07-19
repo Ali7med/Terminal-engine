@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows;
@@ -282,7 +282,7 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         if (_cellWidth <= 0 || _cellHeight <= 0) return null;
         if (p.X < 0 || p.Y < 0 || p.X > ActualWidth || p.Y > ActualHeight) return null;
 
-        int visRow = (int)Math.Floor((p.Y - PaddingDip) / _cellHeight);
+        int visRow = VisRowFromY(p.Y);
         int col = (int)Math.Floor((p.X - PaddingDip) / _cellWidth);
         if (visRow < 0) visRow = 0;
         if (col < 0) col = 0;
@@ -290,6 +290,65 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         int line = TopLineIndex + visRow;
         col = Math.Clamp(col, 0, VisibleCols);
         return (line, col);
+    }
+
+    /// <summary>
+    /// هل النقطة داخل «مِزراب» الكتل (الشريط الملوّن على الحافّة اليسرى)؟ النقر هناك يؤشّر الكتلة
+    /// كاملةً بدل بدء تحديد حرّ — لذلك يحتاجه المُضيف قبل معالجة الماوس المعتادة.
+    /// </summary>
+    public bool IsInBlockGutter(System.Windows.Point p) => p.X >= 0 && p.X <= PaddingDip;
+
+    // ===== تخطيط الصفوف مع فجوات الكتل =====
+
+    /// <summary>
+    /// ارتفاع الفجوة قبل كلّ كتلة كنسبة من ارتفاع الخليّة (٠ = بلا فجوات). الفجوات تُزيح التاريخ
+    /// لأعلى بلا تغيير عدد الصفوف، فلا تُحدِث إعادة قياس للـ PTY مع التمرير.
+    /// </summary>
+    public float BlockGapCells { get; set; } = 0.75f;
+
+    private float[] _rowYPx = Array.Empty<float>();    // y كلّ صفّ ظاهر بالبكسل (للرسم)
+    private float[] _rowYDip = Array.Empty<float>();   // ونفسها مستقلّة عن DPI (للاختبار بالمؤشّر)
+
+    /// <summary>y الصفّ الظاهر رقم <paramref name="vis"/> بالبكسل (بعد حساب الفجوات).</summary>
+    private float RowY(int vis)
+        => vis >= 0 && vis < _rowYPx.Length ? _rowYPx[vis] : float.NegativeInfinity;
+
+    /// <summary>
+    /// يبني مواضع الصفوف من القاع لأعلى، مضيفاً فجوةً قبل أوّل سطر من كلّ كتلة (ما عدا الكتلة
+    /// الأولى الظاهرة والشاشة البديلة). النتيجة: مسافة مرتّبة تفصل نتائج الأوامر بعضها عن بعض.
+    /// </summary>
+    private void BuildRowLayout(ScreenSnapshot snap, int top, int rows, int total, float pad, float cellH, float dpiScale)
+    {
+        if (_rowYPx.Length != rows) { _rowYPx = new float[rows]; _rowYDip = new float[rows]; }
+
+        // مجموعة أسطر بداية الكتل ضمن النافذة (فهارس داخل lines).
+        var starts = new HashSet<int>();
+        if (!snap.AltScreen && snap.Blocks is { Count: > 0 })
+            foreach (var b in snap.Blocks)
+            {
+                int startIndex = (int)(b.StartLine - snap.BaseLine);
+                if (startIndex > top && startIndex < top + rows) starts.Add(startIndex);
+            }
+
+        float gap = snap.AltScreen ? 0f : cellH * BlockGapCells;
+        float y = pad + rows * cellH;      // حافّة القاع الافتراضيّة
+        for (int vis = rows - 1; vis >= 0; vis--)
+        {
+            y -= cellH;
+            _rowYPx[vis] = y;
+            _rowYDip[vis] = y / (dpiScale <= 0 ? 1f : dpiScale);
+            // الفجوة تسبق الصفّ الذي تبدأ عنده الكتلة ⇒ ندفع ما فوقه لأعلى.
+            if (starts.Contains(top + vis)) y -= gap;
+        }
+    }
+
+    /// <summary>يعكس التخطيط: من إحداثيّ y (مستقلّ عن DPI) إلى رقم الصفّ الظاهر الأقرب.</summary>
+    private int VisRowFromY(double y)
+    {
+        if (_rowYDip.Length == 0) return (int)Math.Floor((y - PaddingDip) / _cellHeight);
+        for (int vis = 0; vis < _rowYDip.Length; vis++)
+            if (y < _rowYDip[vis] + _cellHeight) return vis;
+        return _rowYDip.Length - 1;
     }
 
     // ===== التحديد (Selection) =====
@@ -565,13 +624,23 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         TopLineIndex = top;
         TotalLines = total;
 
+        // تخطيط الصفوف: y لكلّ صفّ ظاهر — يُحسَب من القاع لأعلى كي تبقى آخر سطور الشاشة (حيث
+        // يكتب المستخدم) ملاصقةً للحافّة السفلى مهما زادت الفجوات، فالفجوة تدفع التاريخ لأعلى
+        // لا الأمر النشط لأسفل. عدد الصفوف لا يتغيّر بالفجوات ⇒ لا يتأثّر مقاس الـ PTY.
+        BuildRowLayout(snap, top, rows, total, pad, cellH, (float)dpiScale);
+
         using var paint = new SKPaint { IsAntialias = true };
+
+        // شريط الأمر النشط: خلفيّة متمايزة + خطّ فاصل فوق أوّل سطر من الكتلة المفتوحة، فتنفصل
+        // منطقة الكتابة بصريّاً عن مساحة المخرجات (الإدخال نفسه يبقى للـ PTY كما هو).
+        DrawActivePromptBand(canvas, paint, snap, top, rows, total, pad, cellH, pixelW);
 
         for (int vis = 0; vis < rows; vis++)
         {
             int lineIndex = top + vis;
             if (lineIndex >= total) break;
-            float y = pad + vis * cellH;
+            float y = RowY(vis);
+            if (y + cellH < 0) continue;   // انزاح خارج الأعلى بفعل الفجوات
             DrawLine(canvas, paint, lines[lineIndex], lineIndex, y, pad, cellW, cellH, ascent, fontN, fontB, fontI, fontBI);
         }
 
@@ -607,7 +676,7 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         color = color.WithAlpha((byte)(color.Alpha * 0.4f));   // باهت ~40%
         using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = color };
 
-        float y = pad + visRow * cellH;
+        float y = RowY(visRow);   // يحترم فجوات الكتل
         int col = startCol;
         for (int i = 0; i < ghost.Length;)
         {
@@ -661,12 +730,47 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
                 default: continue;
             }
 
-            float y0 = pad + (visStart - top) * cellH;
-            float y1 = pad + (visEnd - top) * cellH;
+            float y0 = RowY(visStart - top);
+            float y1 = RowY(visEnd - 1 - top) + cellH;
+            if (float.IsNegativeInfinity(y0) || float.IsNegativeInfinity(y1)) continue;
             paint.Style = SKPaintStyle.Fill;
             paint.Color = color;
             canvas.DrawRect(pad * 0.4f, y0, barW, y1 - y0, paint);
         }
+    }
+
+    /// <summary>
+    /// يفصل منطقة الكتابة بصريّاً: خطّ فاصل رفيع فوق أوّل سطر من الكتلة المفتوحة (سطر الأمر
+    /// الحاليّ) وخلفيّة أفتح/أغمق قليلاً تحته حتّى القاع. الإدخال نفسه لا يتغيّر — يبقى للـ PTY،
+    /// فلا تتأثّر برامج الشاشة الكاملة (vim/less) وهي أصلاً مستثناة بالشاشة البديلة.
+    /// </summary>
+    private void DrawActivePromptBand(SKCanvas canvas, SKPaint paint, ScreenSnapshot snap,
+        int top, int rows, int total, float pad, float cellH, int pixelW)
+    {
+        if (snap.AltScreen || snap.Blocks is not { Count: > 0 }) return;
+
+        // الكتلة المفتوحة = التي لم تُغلَق بعد (EndLine = MaxValue) — سطرها الأوّل هو سطر الأمر.
+        BlockSnapshot? open = null;
+        foreach (var b in snap.Blocks)
+            if (b.EndLine == long.MaxValue) open = b;
+        if (open is null) return;
+
+        int startIndex = (int)(open.StartLine - snap.BaseLine);
+        int vis = startIndex - top;
+        if (vis < 0 || vis >= rows) return;
+
+        float y = RowY(vis);
+        if (float.IsNegativeInfinity(y)) return;
+
+        // الخلفيّة: طبقة رقيقة من لون المقدّمة (٤٪) — تعمل على الثيم الفاتح والداكن معاً.
+        var fg = ToSk(AnsiPalette.DefaultForeground);
+        paint.Style = SKPaintStyle.Fill;
+        paint.Color = fg.WithAlpha(10);
+        canvas.DrawRect(0, y - cellH * 0.25f, pixelW, (pad + rows * cellH) - y + cellH * 0.25f, paint);
+
+        // الخطّ الفاصل فوق سطر الأمر.
+        paint.Color = fg.WithAlpha(38);
+        canvas.DrawRect(0, y - cellH * 0.25f, pixelW, Math.Max(1f, cellH * 0.05f), paint);
     }
 
     /// <summary>يرسم سطراً واحداً: يمشي المقاطع متتبّعاً العمود (يحترم الأحرف العريضة = خليّتان).</summary>
@@ -844,7 +948,7 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         float cellW, float cellH, float ascent, SKFont fontN)
     {
         float x = pad + cursorCol * cellW;
-        float y = pad + visRow * cellH;
+        float y = RowY(visRow);   // يحترم فجوات الكتل
         using var paint = new SKPaint { IsAntialias = true };
         SKColor cursorColor = ToSk(AnsiPalette.DefaultForeground);
 

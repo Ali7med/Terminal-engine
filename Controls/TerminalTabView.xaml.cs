@@ -1181,7 +1181,16 @@ public partial class TerminalTabView : UserControl
 
     private void Renderer_MouseLeftDown(object sender, MouseButtonEventArgs e)
     {
-        var cell = Renderer.CellFromPoint(e.GetPosition(Renderer));
+        var pos = e.GetPosition(Renderer);
+        var cell = Renderer.CellFromPoint(pos);
+
+        // نقرة على مِزراب الكتل (الشريط الملوّن) = تأشير الكتلة كلّها — أسرع من سحب سطورها يدوياً.
+        if (cell.HasValue && Renderer.IsInBlockGutter(pos) && SelectBlockAtLine(cell.Value.Line))
+        {
+            Renderer.Focus();
+            e.Handled = true;
+            return;
+        }
 
         // Ctrl+Click محجوز لفتح الروابط/المسارات (يُنفَّذ عند رفع الزر): لا إبلاغ ماوس ولا بدء تحديد.
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
@@ -1681,6 +1690,26 @@ public partial class TerminalTabView : UserControl
     private static void CopyToClipboard(string text)
     {
         try { Clipboard.SetText(text ?? ""); } catch { }
+    }
+
+    /// <summary>
+    /// يؤشّر الكتلة التي يقع فيها السطر المعطى (فهرس داخل <c>snapshot.Lines</c>) كاملةً — من سطر
+    /// الأمر إلى آخر سطر مخرجات. يعيد false إن لا كتلة هناك (شاشة بديلة أو خارج أيّ كتلة).
+    /// </summary>
+    private bool SelectBlockAtLine(int lineIndex)
+    {
+        if (_lastSnapshot is not { } snap || snap.AltScreen) return false;
+        if (BlockAtAbsLine(snap.BaseLine + lineIndex) is not { } b) return false;
+
+        int start = (int)(b.StartLine - snap.BaseLine);
+        long endAbs = b.EndLine == long.MaxValue ? snap.BaseLine + snap.Lines.Count : b.EndLine;
+        int end = (int)(endAbs - snap.BaseLine) - 1;          // آخر سطر داخل الكتلة (شامل)
+        if (end < start) return false;
+
+        start = Math.Max(0, start);
+        end = Math.Min(end, snap.Lines.Count - 1);
+        Renderer.SetSelection((start, 0), (end, PlainTextForLine(end).Length));
+        return true;
     }
 
     private void CopyCurrentBlock()
