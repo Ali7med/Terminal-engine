@@ -501,6 +501,9 @@ public sealed class ScreenBuffer : IVtParserSink
             case 2: for (int c = 0; c < _cols; c++) row[c] = blank; break;
             default: return;
         }
+        // xterm يُلغي الالتفاف المؤجَّل عند المسح: بدونه، مؤشّرٌ واقفٌ في آخر عمود مع التفافٍ معلّق
+        // يقفز للسطر التالي عند أوّل حرف بعد `CSI K` بدل أن يكتب فوق آخر عمود ⇒ شبحٌ عند الحافّة.
+        _wrapPending = false;
         MarkRowDirty(_cursorRow);
     }
 
@@ -526,6 +529,7 @@ public sealed class ScreenBuffer : IVtParserSink
                 break;
             default: return;
         }
+        _wrapPending = false;   // كما في EraseInLine
         MarkAllDirty();
     }
 
@@ -535,6 +539,7 @@ public sealed class ScreenBuffer : IVtParserSink
         var blank = new Cell(Space, _styleId);
         int end = Math.Min(_cursorCol + n, _cols);
         for (int c = _cursorCol; c < end; c++) row[c] = blank;
+        _wrapPending = false;   // كما في EraseInLine
         MarkRowDirty(_cursorRow);
     }
 

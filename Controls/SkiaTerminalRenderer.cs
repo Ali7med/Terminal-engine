@@ -236,12 +236,37 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
     }
 
     /// <summary>عدد الخلايا التي تتّسع في مساحة بالبكسل حسب مقاييس الخطّ الحاليّة.</summary>
+    /// <summary>
+    /// عدد الخلايا التي تتّسع في مساحة (بوحدات DIP) حسب مقاييس الخطّ الحاليّة.
+    ///
+    /// يُقاس بنفس مسار <see cref="DrawGrid"/> تماماً — الخطّ المُقاس إلى دقّة الشاشة — لا بالمقاييس
+    /// غير المقيسة. فـ<c>MeasureText(size·s) ≠ s·MeasureText(size)</c> (تلميح/تقريب دون-بكسليّ)،
+    /// وكان الاختلاف يجعل عدد الأعمدة المُبلَّغ للتطبيق يزيد عمّا يُرسَم فعليّاً بعمود عند تكبير
+    /// شاشة ويندوز (١٢٥٪/١٥٠٪) — فيظنّ التطبيق أنّه يملك عموداً لا يُرسم أبداً ⇒ بقايا عند الحافّة.
+    /// </summary>
     public (int Cols, int Rows) Measure(double pixelWidth, double pixelHeight)
     {
-        double innerW = Math.Max(0, pixelWidth - 2 * PaddingDip);
-        double innerH = Math.Max(0, pixelHeight - 2 * PaddingDip);
-        int cols = _cellWidth > 0 ? (int)Math.Floor(innerW / _cellWidth) : 0;
-        int rows = _cellHeight > 0 ? (int)Math.Floor(innerH / _cellHeight) : 0;
+        double scale = 1.0;
+        try { scale = VisualTreeHelper.GetDpi(this).DpiScaleX; } catch { /* غير مُركَّب بعد */ }
+        if (scale <= 0) scale = 1.0;
+
+        // نفس حساب DrawGrid: (العرض − حاشيتان) ثمّ التحويل للبكسل، مقسوماً على خليّة الخطّ المُقاس.
+        double innerW = Math.Max(0, pixelWidth - 2 * PaddingDip) * scale;
+        double innerH = Math.Max(0, pixelHeight - 2 * PaddingDip) * scale;
+
+        double cellW = _cellWidth * scale, cellH = _cellHeight * scale;
+        try
+        {
+            var (fontN, _, _, _) = ScaledFonts((float)scale);
+            float mw = fontN.MeasureText("M");
+            float mh = fontN.Spacing;
+            if (mw > 0) cellW = mw;
+            if (mh > 0) cellH = mh;
+        }
+        catch { /* نُبقي التقدير المُقاس أعلاه */ }
+
+        int cols = cellW > 0 ? (int)Math.Floor(innerW / cellW) : 0;
+        int rows = cellH > 0 ? (int)Math.Floor(innerH / cellH) : 0;
         return (Math.Max(1, cols), Math.Max(1, rows));
     }
 

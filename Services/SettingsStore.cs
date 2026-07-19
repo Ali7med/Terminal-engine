@@ -19,7 +19,12 @@ public sealed class SettingsStore
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "HeliumRedTools", "TerminalLauncher", "settings.json");
 
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
 
     private readonly SettingsSqliteStore _store = new(new AppDatabase());
 
@@ -47,6 +52,30 @@ public sealed class SettingsStore
         {
             // تجاهل أخطاء الحفظ الطارئة.
         }
+    }
+
+    /// <summary>
+    /// النصّ الخام (JSON) لإعدادات النظام كما هو مخزَّن — لعرضه/تحريره في محرّر الإعدادات المدمج.
+    /// إن لم يوجد بعد (أوّل تشغيل) يُعاد تسلسل الافتراضيّات كي يرى المستخدم بنية كاملة يعدّلها.
+    /// </summary>
+    public string GetAppSettingsJson()
+    {
+        try
+        {
+            string? json = _store.Get(SettingsKey);
+            if (!string.IsNullOrEmpty(json)) return json;
+        }
+        catch { /* أعد الافتراضيّ أدناه */ }
+        return JsonSerializer.Serialize(new AppSettings(), Options);
+    }
+
+    /// <summary>
+    /// يكتب نصّ JSON خاماً لإعدادات النظام (من المحرّر المدمج). لا يُطبَّق حيّاً — يُقرأ عند الإقلاع
+    /// التالي. المتصل مسؤول عن التحقّق من صحّة الـ JSON قبل النداء.
+    /// </summary>
+    public void SetAppSettingsJson(string json)
+    {
+        try { _store.Set(SettingsKey, json); } catch { /* تجاهل */ }
     }
 
     /// <summary>قراءة قيمة مفتاح مستقلّ (لتفضيلات لا تخصّ المظهر، مثل حجم خطّ تفاصيل مراقب الخوادم).</summary>

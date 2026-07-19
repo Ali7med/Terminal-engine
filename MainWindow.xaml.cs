@@ -205,7 +205,9 @@ public partial class MainWindow : Window
         MenuSizeValue.Text = FontManager.Current.MenuSize.ToString("0.#");
         TableSizeSlider.Value = FontManager.Current.TableSize;
         TableSizeValue.Text = FontManager.Current.TableSize.ToString("0.#");
-        FontJsonPathText.Text = FontManager.JsonPath;
+        RadiusSlider.Value = FontManager.Current.CornerRadius;
+        RadiusValue.Text = FontManager.Current.CornerRadius.ToString("0.#");
+        FontJsonPathText.Text = FontManager.ConfigPath;
 
         BgOpacitySlider.Value = _settings.BackgroundOpacity;
         BgOpacityValue.Text = _settings.BackgroundOpacity.ToString("0.00");
@@ -664,6 +666,12 @@ public partial class MainWindow : Window
         CommitFont(s => s.TableSize = e.NewValue);
     }
 
+    private void RadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (RadiusValue != null) RadiusValue.Text = e.NewValue.ToString("0.#");
+        CommitFont(s => s.CornerRadius = e.NewValue);
+    }
+
     private void FontUiFamily_LostFocus(object sender, RoutedEventArgs e)
         => CommitFont(s => s.UiFont = FontUiFamilyBox.Text?.Trim() ?? "");
     private void FontUiFamily_KeyDown(object sender, KeyEventArgs e)
@@ -674,15 +682,17 @@ public partial class MainWindow : Window
     private void FontMonoFamily_KeyDown(object sender, KeyEventArgs e)
     { if (e.Key == Key.Enter) { CommitFont(s => s.MonoFont = FontMonoFamilyBox.Text?.Trim() ?? ""); e.Handled = true; } }
 
-    /// <summary>يفتح fonts.json في المحرّر الافتراضيّ (بعد ضمان وجوده) — ليعدّله المستخدم يدويّاً.</summary>
-    private void OpenFontJson_Click(object sender, RoutedEventArgs e)
+    /// <summary>يفتح محرّر الإعدادات الذكيّ المدمج (تلوين + تنسيق + تحقّق حيّ) على config.json.</summary>
+    private void OpenConfigEditor_Click(object sender, RoutedEventArgs e)
     {
-        FontManager.Save();
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(FontManager.JsonPath) { UseShellExecute = true }); }
-        catch { /* لا محرّر مقترن */ }
+        FontManager.Save();   // اكتب الحالة الراهنة قبل الفتح كي يرى المحرّر أحدث القيم
+        var win = new Views.ConfigEditorWindow { Owner = this };
+        win.ShowDialog();
+        // المحرّر يطبّق ويعيد التحميل عند الحفظ؛ نزامن اللوحة لتعكس أيّ تغيير.
+        SyncSettingsUi();
     }
 
-    /// <summary>يعيد قراءة fonts.json من القرص ويطبّقه (بعد تعديل يدويّ) ثمّ يزامن اللوحة.</summary>
+    /// <summary>يعيد قراءة config.json من القرص ويطبّقه (بعد تعديل يدويّ) ثمّ يزامن اللوحة.</summary>
     private void ApplyFontJson_Click(object sender, RoutedEventArgs e)
     {
         FontManager.ReloadAndApply();
@@ -1574,7 +1584,9 @@ public partial class MainWindow : Window
             Background = new SolidColorBrush(color), Margin = new Thickness(0, 0, 5, 0),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        content.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, FontSize = 10.5 });
+        var chipLabel = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
+        chipLabel.SetResourceReference(TextBlock.FontSizeProperty, "Size.Small");
+        content.Children.Add(chipLabel);
         var chip = new Border
         {
             Child = content,
@@ -1602,15 +1614,17 @@ public partial class MainWindow : Window
 
         var play = new TextBlock
         {
-            Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = new SolidColorBrush(color),
+            Text = "", FontFamily = Mdl2, Foreground = new SolidColorBrush(color),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0),
         };
         var label = new TextBlock
         {
-            Text = cmd.Display, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center,
+            Text = cmd.Display, VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis, Foreground = (Brush)FindResource("Brush.Text"),
         };
         Grid.SetColumn(label, 1);
+        play.SetResourceReference(TextBlock.FontSizeProperty, "Size.Ui");
+        label.SetResourceReference(TextBlock.FontSizeProperty, "Size.Ui");
         top.Children.Add(play);
         top.Children.Add(label);
 

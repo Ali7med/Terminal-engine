@@ -189,7 +189,7 @@
                                                             BorderBrush="Transparent" BorderThickness="2">
                                                         <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center" FontWeight="Bold"
-                                                                   Foreground="White" FontSize="13"/>
+                                                                   Foreground="White" FontSize="{DynamicResource Size.Ui}"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
@@ -333,7 +333,7 @@
 
                                     <!-- بطاقات إحصائيّة سريعة -->
                                     <UniformGrid Rows="1" Columns="4">
-                                        <Border Margin="0,0,6,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="0,0,6,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -342,7 +342,7 @@
                                                            TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                         </Border>
-                                        <Border Margin="3,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="3,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -351,7 +351,7 @@
                                                            FlowDirection="LeftToRight"/>
                                             </StackPanel>
                                         </Border>
-                                        <Border Margin="3,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="3,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -363,7 +363,7 @@
                                                              Background="{DynamicResource Brush.Bg}" BorderThickness="0"/>
                                             </StackPanel>
                                         </Border>
-                                        <Border Margin="6,0,0,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="6,0,0,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -385,7 +385,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0" Padding="16,14" CornerRadius="12"
+                                        <Border Grid.Column="0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -417,7 +417,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <Border Grid.Column="2" Padding="16,14" CornerRadius="12"
+                                        <Border Grid.Column="2" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <DockPanel>
@@ -448,7 +448,7 @@
                                     </Grid>
 
                                     <!-- التخزين: Treemap + أكبر الملفّات -->
-                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="12"
+                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                             Background="{DynamicResource Brush.Surface}"
                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                         <Grid>
@@ -531,7 +531,7 @@
                                     </Border>
 
                                     <!-- الشجرة -->
-                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="12"
+                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                             Background="{DynamicResource Brush.Surface}"
                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                         <DockPanel>
@@ -576,17 +576,17 @@
                                                         <ContextMenu>
                                                             <MenuItem Header="عرض المجلّدات" Click="DiskOpenFolders_Click">
                                                                 <MenuItem.Icon>
-                                                                    <TextBlock Text="&#xE838;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    <TextBlock Text="&#xE838;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                                 </MenuItem.Icon>
                                                             </MenuItem>
                                                             <MenuItem Header="عرض أكبر الملفّات" Click="DiskOpenFiles_Click">
                                                                 <MenuItem.Icon>
-                                                                    <TextBlock Text="&#xE7C3;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    <TextBlock Text="&#xE7C3;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                                 </MenuItem.Icon>
                                                             </MenuItem>
                                                             <MenuItem Header="نسخ المسار" Click="DiskCopyPath_Click">
                                                                 <MenuItem.Icon>
-                                                                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                                 </MenuItem.Icon>
                                                             </MenuItem>
                                                         </ContextMenu>
@@ -735,33 +735,33 @@
                                                     <ContextMenu x:Name="DetailMenu">
                                                         <MenuItem x:Name="DetailDownload" Header="تنزيل" Click="DetailDownload_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="DetailView" Header="عرض (آخر 1000 سطر)" Click="DetailView_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="DetailRename" Header="إعادة تسمية" Click="DetailRename_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="DetailCopy" Header="نسخ المسار" Click="DetailCopy_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="DetailWhichContainer" Header="اعرف الحاوية" Click="DetailWhichContainer_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
                                                         <Separator/>
                                                         <MenuItem x:Name="DetailDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="DetailDelete_Click">
                                                             <MenuItem.Icon>
-                                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
                                                                            Foreground="{DynamicResource Brush.Danger}"/>
                                                             </MenuItem.Icon>
                                                         </MenuItem>
@@ -874,33 +874,33 @@
                                         <ContextMenu x:Name="FilesMenu">
                                             <MenuItem x:Name="FileDownload" Header="تنزيل" Click="FileDownload_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                    <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <MenuItem x:Name="FileViewLog" Header="عرض (آخر 1000 سطر)" Click="FileViewLog_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                    <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <MenuItem x:Name="FileRename" Header="إعادة تسمية" Click="FileRename_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                    <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <MenuItem x:Name="FileCopyPath" Header="نسخ المسار" Click="FileCopyPath_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <MenuItem x:Name="FileWhichContainer" Header="اعرف الحاوية" Click="FileWhichContainer_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                    <TextBlock Text="&#xE81E;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator/>
                                             <MenuItem x:Name="FileDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="FileDelete_Click">
                                                 <MenuItem.Icon>
-                                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
                                                                Foreground="{DynamicResource Brush.Danger}"/>
                                                 </MenuItem.Icon>
                                             </MenuItem>
@@ -960,7 +960,7 @@
                                 <StackPanel>
                                     <!-- بطاقات موارد: الذاكرة + المعالج (مثل لوحة القيادة، بنسبة مئويّة) -->
                                     <UniformGrid Rows="1" Columns="2" Margin="0,0,0,10">
-                                        <Border Margin="0,0,6,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="0,0,6,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -978,7 +978,7 @@
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </StackPanel>
                                         </Border>
-                                        <Border Margin="6,0,0,0" Padding="14,12" CornerRadius="12"
+                                        <Border Margin="6,0,0,0" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <StackPanel>
@@ -998,7 +998,7 @@
                                             <ColumnDefinition Width="10"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Padding="16,14" CornerRadius="12"
+                                        <Border Grid.Column="0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <DockPanel>
@@ -1027,7 +1027,7 @@
                                                 </ItemsControl>
                                             </DockPanel>
                                         </Border>
-                                        <Border Grid.Column="2" Padding="16,14" CornerRadius="12"
+                                        <Border Grid.Column="2" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}"
                                                 Background="{DynamicResource Brush.Surface}"
                                                 BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                             <DockPanel>
@@ -1059,7 +1059,7 @@
                                     </Grid>
 
                                     <!-- العمليّات -->
-                                    <Border Padding="16,14" CornerRadius="12" Background="{DynamicResource Brush.Surface}"
+                                    <Border Padding="16,14" CornerRadius="{DynamicResource Radius.Card}" Background="{DynamicResource Brush.Surface}"
                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                         <DockPanel>
                                             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -1082,10 +1082,10 @@
                                                 <DataGrid.ContextMenu>
                                                     <ContextMenu x:Name="MgmtProcMenu">
                                                         <MenuItem x:Name="ProcKill" Header="إنهاء" Click="ProcKill_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="ProcKill9" Header="إنهاء إجباريّ (-9)" Click="ProcKill9_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                     </ContextMenu>
                                                 </DataGrid.ContextMenu>
@@ -1109,7 +1109,7 @@
                                     </Border>
 
                                     <!-- الخدمات -->
-                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="12" Background="{DynamicResource Brush.Surface}"
+                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}" Background="{DynamicResource Brush.Surface}"
                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                         <DockPanel>
                                             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -1140,13 +1140,13 @@
                                                 <DataGrid.ContextMenu>
                                                     <ContextMenu x:Name="MgmtSvcMenu">
                                                         <MenuItem x:Name="SvcStart" Header="تشغيل" Click="SvcStart_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Success}"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Success}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="SvcStop" Header="إيقاف" Click="SvcStop_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem x:Name="SvcRestart" Header="إعادة تشغيل" Click="SvcRestart_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                     </ContextMenu>
                                                 </DataGrid.ContextMenu>
@@ -1160,7 +1160,7 @@
                                     </Border>
 
                                     <!-- المنافذ -->
-                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="12" Background="{DynamicResource Brush.Surface}"
+                                    <Border Margin="0,10,0,0" Padding="16,14" CornerRadius="{DynamicResource Radius.Card}" Background="{DynamicResource Brush.Surface}"
                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                         <DockPanel>
                                             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -1224,20 +1224,20 @@
                                         <ItemsControl x:Name="ContainersList">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Margin="0,0,0,8" Padding="14,12" CornerRadius="10"
+                                                    <Border Margin="0,0,0,8" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                             Background="{DynamicResource Brush.Surface}"
                                                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                                         <Border.ContextMenu>
                                                             <ContextMenu>
                                                                 <MenuItem Header="{loc:T srv.containers.rename}" Click="ContainerRename_Click">
                                                                     <MenuItem.Icon>
-                                                                        <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                        <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                                     </MenuItem.Icon>
                                                                 </MenuItem>
                                                                 <MenuItem Header="{loc:T srv.containers.clearName}" Click="ContainerClearName_Click"
                                                                           Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}">
                                                                     <MenuItem.Icon>
-                                                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                                                     </MenuItem.Icon>
                                                                 </MenuItem>
                                                             </ContextMenu>
@@ -1267,12 +1267,12 @@
                                                             <!-- الاسم المعروض (مخصّص أو حقيقيّ) + الاسم الحقيقيّ عند التخصيص + الصورة + الحالة -->
                                                             <StackPanel Grid.Column="1">
                                                                 <TextBlock Text="{Binding DisplayName}" FlowDirection="LeftToRight"
-                                                                           FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                                                                           FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}" TextTrimming="CharacterEllipsis"/>
                                                                 <TextBlock Text="{Binding Name}" FlowDirection="LeftToRight" Margin="0,2,0,0"
-                                                                           FontSize="11" FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"
+                                                                           FontSize="{DynamicResource Size.Small}" FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"
                                                                            Foreground="{DynamicResource Brush.Accent}"
                                                                            Visibility="{Binding HasCustom, Converter={StaticResource Conv.BoolToVis}}"/>
-                                                                <TextBlock FlowDirection="LeftToRight" Margin="0,3,0,0" FontSize="11.5"
+                                                                <TextBlock FlowDirection="LeftToRight" Margin="0,3,0,0" FontSize="{DynamicResource Size.Small}"
                                                                            FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"
                                                                            Foreground="{DynamicResource Brush.TextMuted}">
                                                                     <Run Text="{Binding ShortId, Mode=OneWay}"/>
@@ -1280,7 +1280,7 @@
                                                                     <Run Text="{Binding Image, Mode=OneWay}"/>
                                                                 </TextBlock>
                                                                 <TextBlock Text="{Binding Status}" FlowDirection="LeftToRight"
-                                                                           Margin="0,3,0,0" FontSize="11.5"
+                                                                           Margin="0,3,0,0" FontSize="{DynamicResource Size.Small}"
                                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                                             </StackPanel>
 
@@ -1456,7 +1456,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" VerticalAlignment="Top"
+                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="{DynamicResource Radius.Card}" VerticalAlignment="Top"
                                         Background="{DynamicResource Brush.Surface2}">
                                     <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="20"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -1507,7 +1507,7 @@
                                     <ItemsControl x:Name="ContainerList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Margin="0,0,0,10" Padding="14,12" CornerRadius="10"
+                                                <Border Margin="0,0,0,10" Padding="14,12" CornerRadius="{DynamicResource Radius.Card}"
                                                         Background="{DynamicResource Brush.Bg}"
                                                         BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                                                     <StackPanel>
@@ -1709,18 +1709,18 @@
                                     <ContextMenu x:Name="ServerListMenu">
                                         <MenuItem x:Name="CtxEdit" Header="تعديل" Click="EditBtn_Click">
                                             <MenuItem.Icon>
-                                                <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem x:Name="CtxDuplicate" Header="نسخ" Click="DuplicateBtn_Click">
                                             <MenuItem.Icon>
-                                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/>
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <Separator/>
                                         <MenuItem x:Name="CtxDelete" Header="حذف" Style="{StaticResource MenuItem.Danger}" Click="DeleteBtn_Click">
                                             <MenuItem.Icon>
-                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
                                                            Foreground="{DynamicResource Brush.Danger}"/>
                                             </MenuItem.Icon>
                                         </MenuItem>

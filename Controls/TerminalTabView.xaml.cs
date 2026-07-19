@@ -81,7 +81,13 @@ public partial class TerminalTabView : UserControl
 
     private string _newline = "\r";
     private int _commandSent;
-    private bool _dirty;
+    // يُكتَب من خيط قراءة الـPTY ويُستهلَك على خيط الواجهة ⇒ int عبر Interlocked لا bool:
+    // النمط القديم (‏if (!_dirty) return; _dirty = false;‎) غير ذرّيّ، فكان تعيينٌ متزامنٌ من خيط
+    // الـPTY يُطمَس بين القراءة والمسح ⇒ يسقط آخر إطار ويبقى حرف شبح على الشاشة.
+    private int _dirty;
+    private int _flushQueued;
+    private long _lastFlushTs;                      // ختم آخر رسمة (ساعة رتيبة) لسقف الإطارات
+    private const double MinFrameMs = 1000.0 / 60;  // سقف ~60 إطار/ث للإخراج الغزير
     private bool _started;
     private bool _initializing = true;
 
@@ -152,6 +158,8 @@ public partial class TerminalTabView : UserControl
         Renderer.TerminalFontSize = _fontSize;
         Renderer.TerminalFontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas");
 
+        // شبكة أمان فقط: الرسم الفعليّ صار فوريّاً عبر MarkDirty/RequestFlush عند وصول البيانات.
+        // يبقى المؤقّت ليلتقط أيّ تعليمٍ للاتّساخ لم يُرافقه طلبُ رسم (فلا تتجمّد الشاشة أبداً).
         _refresh = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(40) };
         _refresh.Tick += (_, _) => FlushOutput();
 
@@ -271,7 +279,7 @@ public partial class TerminalTabView : UserControl
         {
             string msg = $"تعذّر بدء الجلسة: {ex.Message}\r\n";
             lock (_screenLock) _coreScreen?.FeedString(msg);
-            _dirty = true;
+            MarkDirty();
             _statusTimer.Stop();
             SetStatus("خطأ", (Brush)FindResource("Brush.Danger"));
         }
@@ -330,7 +338,7 @@ public partial class TerminalTabView : UserControl
     private void OnCoreData(byte[] data)
     {
         lock (_screenLock) _coreScreen?.Feed(data);
-        _dirty = true;
+        MarkDirty();
 
         if (Interlocked.Exchange(ref _commandSent, 1) == 0)
         {
@@ -346,10 +354,48 @@ public partial class TerminalTabView : UserControl
         }
     }
 
+    /// <summary>يعلّم الشاشة متّسخة ويطلب رسمةً فوريّة (يُستدعى من خيط الـPTY ومن خيط الواجهة معاً).</summary>
+    private void MarkDirty()
+    {
+        Interlocked.Exchange(ref _dirty, 1);
+        RequestFlush();
+    }
+
+    /// <summary>
+    /// يطلب رسمةً على خيط الواجهة <b>فور</b> وصول البيانات بدل انتظار مؤقّت ثابت.
+    ///
+    /// كان الرسم يعتمد على <c>_refresh</c> كلّ 40ms فقط ⇒ صدى كلّ حرف ينتظر حتى 40ms (وأكثر تحت الحِمل)،
+    /// وتكرار Backspace (كلّ ~33ms) يتجمّع في إطار واحد فيبدو المسح «كلمة كلمة» لا حرفاً حرفاً.
+    ///
+    /// حارس <see cref="_flushQueued"/> يُبقي طلباً معلّقاً واحداً فقط، فيدمج الدفقات الغزيرة تلقائيّاً
+    /// (SSH وتطبيقات ملء الشاشة) بلا سقف إطارات مصطنع: الحرف المفرد يظهر فوراً، والدفق الغزير
+    /// يُرسَم بأسرع ما يستطيع خيط الواجهة. أولويّة <c>Input</c> (لا <c>Render</c>) كي لا تُزاحم
+    /// الرسمُ معالجةَ ضغطات المفاتيح فتبقى الكتابة مستجيبة تحت الإخراج الكثيف.
+    /// </summary>
+    private void RequestFlush()
+    {
+        if (Interlocked.Exchange(ref _flushQueued, 1) == 1) return;   // طلب معلّق أصلاً
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            // يُصفَّر قبل الرسم عمداً: بياناتٌ تصل أثناء الرسم تُجدوِل تمريرةً تالية بدل أن تُهمَل.
+            Interlocked.Exchange(ref _flushQueued, 0);
+
+            // سقف 60 إطار/ث: إخراجٌ غزير (cat لملفّ كبير) كان سيرسم مئات الإطارات في الثانية بلا فائدة
+            // مرئيّة. الخروج هنا لا يستهلك _dirty، فالبيانات التالية تُعيد الجدولة و«شبكة الأمان»
+            // (_refresh) تلتقط الإطار الأخير إن توقّف الدفق فجأة. الحرف المفرد بعد سكون يمرّ فوراً.
+            if (_lastFlushTs != 0 &&
+                System.Diagnostics.Stopwatch.GetElapsedTime(_lastFlushTs).TotalMilliseconds < MinFrameMs)
+                return;
+
+            FlushOutput();
+        }));
+    }
+
     private void FlushOutput()
     {
-        if (!_dirty) return;
-        _dirty = false;
+        // استهلاك ذرّيّ: تعيينٌ متزامن من خيط الـPTY لا يمكن أن يضيع (وإلّا سقط آخر إطار).
+        if (Interlocked.Exchange(ref _dirty, 0) == 0) return;
+        _lastFlushTs = System.Diagnostics.Stopwatch.GetTimestamp();
         global::Terminal.Core.Screen.ScreenSnapshot? core;
         lock (_screenLock) core = _coreScreen?.Snapshot();
         if (core == null) return;
@@ -359,8 +405,9 @@ public partial class TerminalTabView : UserControl
         CaptureCompletedBlockCommand(snap);    // التقاط أوامر كتل OSC 133 المكتملة (T-106)
         TrackLongCommandBlocks(snap);          // إشعار انتهاء الأوامر الطويلة (T-211)
 
-        // شاشة بديلة نشطة ⇒ تتبّع الإدخال غير موثوق (تطبيق كامل الشاشة) ⇒ نظّف السطر والشبح (T-205).
-        if (snap.AltScreen && (_inputLine.Length > 0 || Renderer.GhostText != null))
+        // التطبيق يملك سطره (شاشة بديلة أو لصق مُقوَّس) ⇒ تتبّعنا غير موثوق ⇒ نظّف السطر والشبح
+        // فوراً (T-205). بلا هذا يبقى الشبح مرسوماً فوق واجهة التطبيق ولا يستطيع محوَه.
+        if ((_inputLine.Length > 0 || Renderer.GhostText != null) && AppOwnsInputLine())
             ClearInputTracking();
 
         // تدفّق جديد يزيح فهارس الأسطر ⇒ نُنظّف تمييز البحث (يُعاد بناؤه عند الطلب).
@@ -413,7 +460,7 @@ public partial class TerminalTabView : UserControl
         Renderer.ClearSelection();
         Renderer.ScrollOffset = 0;
         ClearInputTracking();   // مسح الشاشة يبطل السطر المتتبَّع والشبح (T-205)
-        _dirty = true;   // يعيد الرسم من اللقطة النظيفة في التحديث التالي
+        MarkDirty();   // يعيد الرسم من اللقطة النظيفة
         UpdateScrollBar();
     }
 
@@ -430,7 +477,7 @@ public partial class TerminalTabView : UserControl
         if (_coreSession == null) return;
         var (cols, rows) = Measure();
         lock (_screenLock) _coreScreen?.Resize(cols, rows);
-        _dirty = true;   // إعادة التدفّق تتطلّب إعادة رسم الشبكة
+        MarkDirty();   // إعادة التدفّق تتطلّب إعادة رسم الشبكة
         _coreSession.Resize(cols, rows);
     }
 
@@ -820,7 +867,7 @@ public partial class TerminalTabView : UserControl
     /// <summary>يستبدل سطر الإدخال المرئيّ بنصّ جديد: يمسح المتتبَّع (backspaces) ثم يرسل النصّ، ويزامن التتبّع.</summary>
     private void ReplaceInputLine(string text)
     {
-        if (_inputLine.Length > 0) Send(new string('\b', _inputLine.Length));   // مسح السطر الحاليّ
+        if (_inputLine.Length > 0) Send(new string('\x7f', _inputLine.Length));   // مسح السطر الحاليّ (DEL لكلّ حرف)
         if (text.Length > 0) Send(text);
         _inputLine.Clear();
         _inputLine.Append(text);
@@ -831,10 +878,27 @@ public partial class TerminalTabView : UserControl
     /// يحدّث نصّ الشبح من سجلّ الأوامر: يُخفى على الشاشة البديلة أو حين خلوّ السطر؛ وإلّا يعرض
     /// بقيّة أحدث أمرٍ يبدأ بالسطر المتتبَّع. يُغلَّف وصول السجلّ كي لا يكسر خزنٌ عابرٌ التيرمنال.
     /// </summary>
+    /// <summary>
+    /// هل يملك التطبيقُ المُشغَّل تحريرَ سطر الإدخال بنفسه؟
+    ///
+    /// ميزاتنا المساعِدة (الشبح + تتبّع السطر + خطف Tab/الأسهم) تفترض أنّ <b>الصدفة</b> تملك السطر.
+    /// مع تطبيق يحرّر سطره بنفسه <b>على الشاشة الأساس</b> (كلود كود وInk وREPL وpsql) تنقلب ضارّة:
+    /// الشبح طبقةٌ نرسمها نحن لا وجود لها في ذاكرة الشاشة، فلا يستطيع التطبيق محوَها مهما مسح —
+    /// وهذا سببُ «حرف يبقى عالقاً بعد مسح كلّ شيء».
+    ///
+    /// الإشارة القياسيّة أنّ التطبيق يملك سطره هي <b>اللصق المُقوَّس (DECSET 2004)</b>: يفعّله كلّ
+    /// من يقرأ الإدخال بنفسه. نضمّ إليها الشاشة البديلة. (PSReadLine يفعّله أيضاً — وهذا مطلوب:
+    /// له اقتراحه المدمج، فلا نرسم اقتراحاً ثانياً فوقه.)
+    /// </summary>
+    private bool AppOwnsInputLine()
+    {
+        if (_lastSnapshot?.AltScreen ?? false) return true;
+        lock (_screenLock) return _coreScreen?.BracketedPaste ?? false;
+    }
+
     private void UpdateGhost()
     {
-        bool alt = _lastSnapshot?.AltScreen ?? false;
-        if (alt || _inputLine.Length == 0)
+        if (AppOwnsInputLine() || _inputLine.Length == 0)
         {
             Renderer.GhostText = null;
             return;
@@ -880,18 +944,24 @@ public partial class TerminalTabView : UserControl
             return;
         }
 
+        // التطبيق يحرّر سطره بنفسه ⇒ لا نخطف مفاتيحه ولا نتتبّع سطره ولا نرسم شبحاً فوقه.
+        // (كان Tab/الأيمن يُسرقان من كلود كود، والأسهم تُسرق منه، وReplaceInputLine يحقن
+        //  DEL×N + نصَّ التاريخ في محرّره فيفكّ تزامن نموذجه الداخليّ عن الشاشة.)
+        bool appOwnsLine = AppOwnsInputLine();
+        if (appOwnsLine && (_inputLine.Length > 0 || Renderer.GhostText != null))
+            ClearInputTracking();
+
         // 1.5) الإكمال الشبحيّ (T-205): قبول/تتبّع/تنظيف قبل الترجمة إلى VT.
         // قبول الشبح بـ Tab أو السهم الأيمن (بلا معدِّلات) — يُعلَّم مُعالَجاً فلا يُرسَل للصدفة كذلك.
-        if (!ctrl && !alt && !shift && (key == Key.Tab || key == Key.Right) && TryAcceptGhost())
+        if (!appOwnsLine && !ctrl && !alt && !shift && (key == Key.Tab || key == Key.Right) && TryAcceptGhost())
         {
             e.Handled = true;
             return;
         }
 
-        // 1.6) تنقّل تاريخ الجلسة بالأسهم أعلى/أسفل — على الشاشة العاديّة فقط (تطبيقات الشاشة البديلة
-        // كـ vim تتلقّى الأسهم كالمعتاد). إن لم يكن هناك تاريخ نمرّر السهم للصدفة (سلوكها الأصليّ).
-        bool altScreen = _lastSnapshot?.AltScreen ?? false;
-        if (!ctrl && !alt && !shift && !altScreen && (key == Key.Up || key == Key.Down)
+        // 1.6) تنقّل تاريخ الجلسة بالأسهم أعلى/أسفل — حين تملك الصدفةُ السطر فقط (تطبيقات مثل vim
+        // وكلود كود تتلقّى الأسهم كالمعتاد). إن لم يكن هناك تاريخ نمرّر السهم للصدفة (سلوكها الأصليّ).
+        if (!appOwnsLine && !ctrl && !alt && !shift && (key == Key.Up || key == Key.Down)
             && NavigateSessionHistory(older: key == Key.Up))
         {
             e.Handled = true;
@@ -934,6 +1004,14 @@ public partial class TerminalTabView : UserControl
         if (ctrl && !alt && key >= Key.A && key <= Key.Z)
         {
             Send(((char)(key - Key.A + 1)).ToString()); // Ctrl+A..Z → 0x01..0x1A
+            e.Handled = true; return;
+        }
+
+        // Ctrl+Backspace → BS (0x08) = «احذف كلمة» بالاصطلاح الشائع. يُفحَص قبل كتلة Ctrl+A..Z
+        // أدناه لأنّ Key.Back ليس ضمن مداها، وقبل MapSpecialKey كي لا يُترجَم إلى DEL.
+        if (ctrl && !alt && key == Key.Back)
+        {
+            Send("\b");
             e.Handled = true; return;
         }
 
@@ -988,7 +1066,11 @@ public partial class TerminalTabView : UserControl
         return key switch
         {
             Key.Enter => _newline,
-            Key.Back => "\b",
+            // Backspace المجرّد يرسل DEL (0x7F) لا BS (0x08) — هذا ما ترسله كلّ الطرفيّات الحديثة
+            // (xterm/Windows Terminal/iTerm) وما تتوقّعه محرّرات الأسطر وتطبيقات TUI.
+            // ‏0x08 محجوز اصطلاحاً لـ Ctrl+Backspace = «احذف كلمة» (يُعالَج في Renderer_PreviewKeyDown)،
+            // فإرساله للضغطة المجرّدة كان يجعل التطبيق يحذف كلمةً كاملة في كلّ ضغطة.
+            Key.Back => "\x7f",
             Key.Tab => "\t",
             Key.Escape => "\x1b",
             Key.Up => Cursor('A'),
@@ -1276,6 +1358,19 @@ public partial class TerminalTabView : UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// سياسة عجلة التمرير القياسيّة (كانت مفقودة: كنّا نمرّر سكرول‌باكنا دائماً).
+    ///
+    /// داخل تطبيق كامل الشاشة لا سكرول‌باك لدينا أصلاً (اللقطة تعرض الصفوف الظاهرة فقط)، فكان
+    /// <c>MaxScrollOffset = 0</c> ⇒ التمرير ميت رياضيّاً. والحلّ الصحيح ليس تمريرَ سكرول‌باكنا بل
+    /// **تسليم العجلة للتطبيق** فيمرّر محتواه هو (كلود كود/less/vim يملكون تمريرهم الخاصّ):
+    ///
+    ///   1. Ctrl+عجلة        → تكبير/تصغير الخطّ.
+    ///   2. Shift+عجلة       → تجاوز صريح: مرّر سكرول‌باكنا دائماً (منفذ الهروب القياسيّ).
+    ///   3. التطبيق فعّل تعقّب الماوس → أرسل زرّ العجلة (64/65) فيمرّر محتواه.
+    ///   4. شاشة بديلة بلا تعقّب ماوس → «التمرير البديل» (سلوك xterm): أرسل أسهماً فيمرّر less/man.
+    ///   5. الشاشة الرئيسة   → مرّر سكرول‌باكنا محلّيّاً (السلوك السابق).
+    /// </summary>
     private void Renderer_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
@@ -1285,8 +1380,36 @@ public partial class TerminalTabView : UserControl
             return;
         }
 
+        bool up = e.Delta > 0;
+        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+        if (!shift)
+        {
+            // (3) التطبيق يتعقّب الماوس ⇒ سلّمه العجلة. ReportMouse يعيد false إن كان التعقّب مطفأً.
+            var cell = Renderer.CellFromPoint(e.GetPosition(Renderer));
+            if (cell.HasValue &&
+                ReportMouse(up ? CoreMouseButton.WheelUp : CoreMouseButton.WheelDown,
+                            CoreMouseEventType.Press, cell.Value))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            // (4) شاشة بديلة بلا تعقّب ⇒ أسهم بدل العجلة (ثلاثة أسطر لكلّ نقرة، مثل xterm).
+            if (_lastSnapshot?.AltScreen == true)
+            {
+                bool appCursor;
+                lock (_screenLock) appCursor = _coreScreen?.ApplicationCursorKeys ?? false;
+                string arrow = appCursor ? (up ? "\x1bOA" : "\x1bOB") : (up ? "\x1b[A" : "\x1b[B");
+                Send(string.Concat(arrow, arrow, arrow));
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // (5) الشاشة الرئيسة أو Shift ⇒ سكرول‌باكنا.
         Renderer.ScrollOffset = Math.Clamp(
-            Renderer.ScrollOffset + (e.Delta > 0 ? +3 : -3), 0, Renderer.MaxScrollOffset);
+            Renderer.ScrollOffset + (up ? +3 : -3), 0, Renderer.MaxScrollOffset);
         if (_lastSnapshot != null) Renderer.SetSnapshot(_lastSnapshot);
         UpdateScrollBar();
         e.Handled = true;
@@ -1630,7 +1753,7 @@ public partial class TerminalTabView : UserControl
     {
         _fontSize = size;
         Renderer.TerminalFontSize = size;
-        _dirty = true;          // الـ tick التالي يعيد الرسم من نموذج الشاشة
+        MarkDirty();          // يعيد الرسم من نموذج الشاشة
         ResizeSession();         // الأعمدة/الأسطر تتبع حجم الخط
     }
 

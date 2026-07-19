@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Windows.Media;
+using System.Xml;
 using ICSharpCode.AvalonEdit.Highlighting;
+using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 
 namespace TerminalLauncher.Services;
 
@@ -16,6 +18,41 @@ namespace TerminalLauncher.Services;
 public static class SyntaxHighlighting
 {
     private static readonly Dictionary<HighlightingColor, Color?> OriginalForegrounds = new();
+
+    private static IHighlightingDefinition? _jsonKeyValue;
+
+    /// <summary>
+    /// تعريف تلوين JSON يميّز <b>المفتاح عن القيمة</b> (تعريف JavaScript المدمج يلوّن الاثنين نصّاً واحداً).
+    /// المفتاح = سلسلة يتبعها نقطتان. ألوانه مضبوطة لتُقرأ على الخلفيّة الداكنة (الوضع الافتراضيّ).
+    /// يُحمَّل مرّة ويُخزَّن. يُستعمَل في محرّر الإعدادات المدمج.
+    /// </summary>
+    public static IHighlightingDefinition JsonKeyValue()
+    {
+        if (_jsonKeyValue != null) return _jsonKeyValue;
+        using var reader = XmlReader.Create(new StringReader(JsonKeyValueXshd));
+        _jsonKeyValue = HighlightingLoader.Load(reader, HighlightingManager.Instance);
+        return _jsonKeyValue;
+    }
+
+    // المفتاح أوّلاً (بحث أماميّ عن ':') كي يفوز على قاعدة السلسلة العامّة عند نفس الموضع.
+    private const string JsonKeyValueXshd = """
+        <SyntaxDefinition name="JsonKV" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+          <Color name="Key"         foreground="#E6B450" />
+          <Color name="String"      foreground="#8DB36B" />
+          <Color name="Number"      foreground="#5EC8C0" />
+          <Color name="Bool"        foreground="#6AA0D8" fontWeight="bold" />
+          <Color name="Null"        foreground="#C77B9B" fontWeight="bold" />
+          <Color name="Punctuation" foreground="#9D998F" />
+          <RuleSet ignoreCase="false">
+            <Rule color="Key">"(?:\\.|[^"\\])*"(?=\s*:)</Rule>
+            <Rule color="String">"(?:\\.|[^"\\])*"</Rule>
+            <Keywords color="Bool"><Word>true</Word><Word>false</Word></Keywords>
+            <Keywords color="Null"><Word>null</Word></Keywords>
+            <Rule color="Number">\b[+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?\b</Rule>
+            <Rule color="Punctuation">[{}\[\],:]</Rule>
+          </RuleSet>
+        </SyntaxDefinition>
+        """;
 
     /// <summary>تعريف التلوين المناسب لامتداد المسار، أو null إن لم يُعرَف.</summary>
     public static IHighlightingDefinition? ForPath(string path)

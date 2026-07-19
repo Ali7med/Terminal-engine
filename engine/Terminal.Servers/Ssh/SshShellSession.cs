@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -112,12 +113,43 @@ public sealed class SshShellSession : IPtySession
     public void Write(string text) =>
         WriteAsync(Encoding.UTF8.GetBytes(text)).AsTask().GetAwaiter().GetResult();
 
-    /// <summary>تغيير حجم PTY البعيد إن دعمته المكتبة (SSH.NET الحاليّ لا يكشف تغيير الحجم — لا عمليّة).</summary>
+    /// <summary>
+    /// يغيّر حجم الـPTY البعيد فعليّاً (كان لا-عمليّة: يخزّن المقاس ولا يبلّغ الطرف الآخر أبداً،
+    /// فيبقى نموذج التطبيق البعيد على المقاس الأوّل بعد أيّ تحجيم ⇒ التفافٌ خاطئ وبقايا أحرف
+    /// لا تزول إلّا بإعادة الاتّصال).
+    ///
+    /// SSH.NET لا يكشف <c>SendWindowChangeRequest</c> على <see cref="ShellStream"/> علنيّاً، فنصل
+    /// إلى قناته عبر الانعكاس. أيّ فشل (تغيّر بنية المكتبة) يعود بصمت للسلوك القديم — تخزين المقاس
+    /// فقط — فلا نُفشل الجلسة من أجل تحسين.
+    /// </summary>
     public void Resize(short columns, short rows)
     {
-        _cols = columns > 0 ? columns : _cols;
-        _rows = rows > 0 ? rows : _rows;
+        if (columns > 0) _cols = columns;
+        if (rows > 0) _rows = rows;
+
+        var stream = _stream;
+        if (stream is null) return;
+
+        try
+        {
+            var channel = ChannelField?.GetValue(stream);
+            if (channel is not null)
+                WindowChangeMethod?.Invoke(channel, new object[] { (uint)_cols, (uint)_rows, 0u, 0u });
+        }
+        catch { /* أفضل جهد — المقاس مخزَّن على الأقلّ */ }
     }
+
+    /// <summary>حقل القناة الخاصّ داخل <see cref="ShellStream"/> (يُحلَّل مرّة ويُخزَّن).</summary>
+    private static readonly FieldInfo? ChannelField =
+        typeof(ShellStream).GetField("_channel", BindingFlags.NonPublic | BindingFlags.Instance);
+
+    /// <summary>
+    /// تُحلَّل من <b>نوع الحقل</b> (واجهة <c>IChannelSession</c>) لا من النوع الملموس: لو نُفِّذت
+    /// الواجهة تنفيذاً صريحاً لَما ظهرت الدالّة على النوع الملموس، بينما الإرسال عبر الواجهة مضمون.
+    /// </summary>
+    private static readonly MethodInfo? WindowChangeMethod =
+        ChannelField?.FieldType.GetMethod("SendWindowChangeRequest",
+            BindingFlags.Public | BindingFlags.Instance);
 
     public void Dispose()
     {

@@ -74,7 +74,7 @@
                                 <MenuItem x:Name="ToolServerMonitor" Header="مراقب الخوادم"
                                           Click="ServerMonitorButton_Click">
                                     <MenuItem.Icon>
-                                        <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                        <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
                                                    Foreground="{DynamicResource Brush.Accent}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
@@ -124,7 +124,7 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <!-- مربّع المشروع: ممتلئ بلون المشروع مع الحرف الأوّل -->
-                                                    <Border x:Name="d" Width="32" Height="32" CornerRadius="10"
+                                                    <Border x:Name="d" Width="32" Height="32" CornerRadius="{DynamicResource Radius.Card}"
                                                             Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}"
                                                             BorderBrush="Transparent" BorderThickness="0"
                                                             ClipToBounds="True">
@@ -210,15 +210,15 @@
                                 <ListBox.ContextMenu>
                                     <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
                                         <MenuItem Header="{loc:T ctx.open}" InputGestureText="↵" Click="RunButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:T ctx.edit}" InputGestureText="E" Click="EditButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:T dlg.delete}" InputGestureText="Del"
                                                   Style="{StaticResource MenuItem.Danger}" Click="DeleteButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
                                         </MenuItem>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
@@ -235,18 +235,18 @@
                                                     Margin="0,0,9,0" VerticalAlignment="Center"
                                                     Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}"
                                                            HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
                                                 <!-- LTR content (filesystem path); HorizontalAlignment mirrors with the
                                                      parent's flow so both lines share the same start edge. -->
-                                                <TextBlock Text="{Binding Folder}" FontSize="10.5"
+                                                <TextBlock Text="{Binding Folder}" FontSize="{DynamicResource Size.Small}"
                                                            Foreground="{DynamicResource Brush.TextMuted}"
                                                            HorizontalAlignment="Left" Margin="0,1,0,0"
                                                            FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
-                                            <Border Grid.Column="2" CornerRadius="8" Padding="7,1" VerticalAlignment="Center"
+                                            <Border Grid.Column="2" CornerRadius="{DynamicResource Radius.Control}" Padding="7,1" VerticalAlignment="Center"
                                                     Background="{DynamicResource Brush.Surface2}">
-                                                <TextBlock Text="{Binding Commands.Count}" FontSize="10.5"
+                                                <TextBlock Text="{Binding Commands.Count}" FontSize="{DynamicResource Size.Small}"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Border>
                                             <!-- زرّ الثلاث نقاط: يظهر عند المرور ويفتح قائمة الصفّ (فتح/تعديل/حذف) -->
@@ -274,7 +274,7 @@
                 <!-- ===== لوحة أوامر المشروع السريعة: تطفو شفّافة على حافة التيرمنال (فوق طبقة اللوحة المنبثقة) ===== -->
                 <Border x:Name="QuickDock" Grid.Column="2" Visibility="Collapsed" Width="234"
                         HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                        Margin="6" CornerRadius="12"
+                        Margin="6" CornerRadius="{DynamicResource Radius.Card}"
                         Background="{DynamicResource Brush.SurfaceGlass}"
                         BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
                     <Border.Effect>
@@ -294,7 +294,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Border x:Name="QuickDockDot" Width="9" Height="9" CornerRadius="5"
                                         Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="QuickDockTitle" FontSize="12.5" FontWeight="SemiBold"
+                                <TextBlock x:Name="QuickDockTitle" FontSize="{DynamicResource Size.Ui}" FontWeight="SemiBold"
                                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -311,10 +311,10 @@
                                     Background="{DynamicResource Brush.Bg}" Cursor="Hand"
                                     ToolTip="فولدر المشروع" MouseLeftButtonUp="QuickEditProject_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.Small}"
                                                Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center"
                                                Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="QuickDockPath" FontSize="10.5" FlowDirection="LeftToRight"
+                                    <TextBlock x:Name="QuickDockPath" FontSize="{DynamicResource Size.Small}" FlowDirection="LeftToRight"
                                                Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" MaxWidth="180"/>
                                 </StackPanel>
@@ -350,7 +350,7 @@
                             </ScrollViewer.Resources>
                             <StackPanel Margin="9,0,9,4">
                                 <StackPanel x:Name="QuickCmdPanel"/>
-                                <TextBlock x:Name="QuickCmdEmpty" FontSize="11" TextWrapping="Wrap"
+                                <TextBlock x:Name="QuickCmdEmpty" FontSize="{DynamicResource Size.Small}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource Brush.TextMuted}" Margin="2,2,2,4"
                                            Visibility="Collapsed"/>
                             </StackPanel>
@@ -417,7 +417,7 @@
                         MouseLeftButtonDown="SettingsOverlay_MouseDown">
                     <Border x:Name="SettingsPanel" MaxWidth="1000" Width="Auto"
                             Margin="28" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                            CornerRadius="10" Background="{DynamicResource Brush.SurfaceGlass}"
+                            CornerRadius="{DynamicResource Radius.Card}" Background="{DynamicResource Brush.SurfaceGlass}"
                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
                             RenderTransformOrigin="0.5,0.5" MouseLeftButtonDown="SettingsPanel_MouseDown">
                         <Border.RenderTransform>
@@ -622,10 +622,22 @@
                                                            VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>
 
+                                            <!-- ===== استدارة الحواف (الكروت ونوافذ المشروع) ===== -->
+                                            <TextBlock Text="{loc:T settings.cornerRadius}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="RadiusSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="0" Maximum="24" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                        ValueChanged="RadiusSlider_ValueChanged"/>
+                                                <TextBlock x:Name="RadiusValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
                                             <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                                                <Button x:Name="OpenFontJsonBtn" Content="{loc:T settings.openJson}" Padding="14,7" Click="OpenFontJson_Click"/>
+                                                <Button x:Name="OpenFontJsonBtn" Content="{loc:T settings.editConfig}" Padding="14,7"
+                                                        Style="{StaticResource AccentButton}" Click="OpenConfigEditor_Click"/>
                                                 <Button x:Name="ApplyFontJsonBtn" Content="{loc:T settings.applyJson}" Margin="8,0,0,0" Padding="14,7"
-                                                        Style="{StaticResource AccentButton}" Click="ApplyFontJson_Click"/>
+                                                        Click="ApplyFontJson_Click"/>
                                                 <Button x:Name="ResetFontBtn" Content="{loc:T settings.resetFont}" Margin="8,0,0,0" Padding="14,7" Click="ResetFont_Click"/>
                                             </StackPanel>
                                             <TextBlock x:Name="FontJsonPathText" FontSize="10.5" Margin="2,8,2,0" FlowDirection="LeftToRight"
@@ -668,7 +680,7 @@
                 <Popup x:Name="ColorPickerPopup" Placement="Mouse" StaysOpen="False" AllowsTransparency="True"
                        FlowDirection="RightToLeft" Closed="ColorPicker_Closed">
                     <Border Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
-                            BorderThickness="1" CornerRadius="10" Padding="12" Margin="6">
+                            BorderThickness="1" CornerRadius="{DynamicResource Radius.Card}" Padding="12" Margin="6">
                         <Border.Effect>
                             <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="2" Opacity="0.4"/>
                         </Border.Effect>

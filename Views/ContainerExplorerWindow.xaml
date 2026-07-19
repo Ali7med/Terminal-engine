@@ -134,27 +134,27 @@
                                 <Grid.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="{loc:T ctx.open}" Click="MenuOpen_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:T ctx.edit}" Click="MenuEdit_Click"
                                                   Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}">
-                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:T ctx.download}" Click="MenuDownload_Click"
                                                   Visibility="{Binding IsFile, Converter={StaticResource Conv.BoolToVis}}">
-                                            <MenuItem.Icon><TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:T ctx.consoleHere}" Click="MenuConsoleHere_Click"
                                                   Visibility="{Binding IsDir, Converter={StaticResource Conv.BoolToVis}}">
-                                            <MenuItem.Icon><TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <Separator/>
                                         <MenuItem Header="{loc:T ctx.rename}" InputGestureText="R" Click="MenuRename_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Header="{loc:T dlg.delete}" InputGestureText="Del"
                                                   Style="{StaticResource MenuItem.Danger}" Click="MenuDelete_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
+                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
                                         </MenuItem>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
@@ -247,10 +247,10 @@
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem Header="{loc:T ctx.rename}" Click="ConsoleTabRename_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                         <MenuItem Header="{loc:T ctx.close}" Click="ConsoleTabCloseMenu_Click">
-                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14"/></MenuItem.Icon>
+                                                            <MenuItem.Icon><TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
                                                         </MenuItem>
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
@@ -279,7 +279,7 @@
                 Visibility="Collapsed" MouseLeftButtonDown="ViewerOverlay_MouseDown">
             <Border Width="820" MaxWidth="1000" Height="540" MaxHeight="720" VerticalAlignment="Center"
                     HorizontalAlignment="Center" Background="{DynamicResource Brush.Surface}"
-                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10"
+                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="{DynamicResource Radius.Card}"
                     MouseLeftButtonDown="ViewerCard_MouseDown">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Margin="16,12,10,10">
@@ -331,7 +331,7 @@
                 Visibility="Collapsed" MouseLeftButtonDown="InputOverlay_MouseDown">
             <Border Width="450" VerticalAlignment="Center" HorizontalAlignment="Center"
                     Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
-                    BorderThickness="1" CornerRadius="12" Padding="24" MouseLeftButtonDown="InputCard_MouseDown">
+                    BorderThickness="1" CornerRadius="{DynamicResource Radius.Card}" Padding="24" MouseLeftButtonDown="InputCard_MouseDown">
                 <Border.Effect>
                     <DropShadowEffect Color="#000000" BlurRadius="28" ShadowDepth="3" Opacity="0.5"/>
                 </Border.Effect>

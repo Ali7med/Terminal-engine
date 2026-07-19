@@ -7,7 +7,7 @@
         FontFamily="{DynamicResource Font.Ui}" FontSize="{DynamicResource Size.Ui}"
         TextOptions.TextFormattingMode="Ideal">
     <Border Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}"
-            BorderThickness="1" CornerRadius="12" Padding="24" Margin="14">
+            BorderThickness="1" CornerRadius="{DynamicResource Radius.Card}" Padding="24" Margin="14">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="28" ShadowDepth="3" Opacity="0.5"/>
         </Border.Effect>

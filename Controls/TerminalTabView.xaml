@@ -166,7 +166,10 @@
                  للقراءة فقط بمنطق كونسول: PreviewTextInput/التحديد/النسخ/التمرير كلّها على العارض.
                  العارض يستقبل تركيز لوحة المفاتيح (Focusable) ويرسم LTR مهما كان اتّجاه الواجهة. -->
             <Grid Grid.Column="0">
+                <!-- هامش أيسر بعرض شريط التمرير: الشريط طبقةٌ فوق نفس الخليّة، فبدونه كان يغطّي
+                     العمود صفر من الشبكة (العارض LTR) فتُحجَب تحديثات الحافّة اليسرى. -->
                 <ctrl:SkiaTerminalRenderer x:Name="Renderer"
+                                           Margin="11,0,0,0"
                                            Focusable="True" ClipToBounds="True"
                                            FlowDirection="LeftToRight"
                                            PreviewKeyDown="Renderer_PreviewKeyDown"

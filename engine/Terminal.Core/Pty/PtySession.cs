@@ -173,10 +173,21 @@ public sealed class PtySession : IPtySession
     public void Write(string text) =>
         WriteAsync(Encoding.UTF8.GetBytes(text)).AsTask().GetAwaiter().GetResult();
 
+    private short _cols, _rows;
+
+    /// <summary>
+    /// Resizes the pseudo console. No-ops when the size is unchanged: every WPF layout pass calls
+    /// this, and <c>ResizePseudoConsole</c> is a SIGWINCH-equivalent — full-screen TUI apps (Ink,
+    /// vim) respond to each one with a complete re-render, which showed up as stuttering output
+    /// and repeatedly invalidated their diff baseline.
+    /// </summary>
     public void Resize(short columns, short rows)
     {
-        if (_hpc != IntPtr.Zero && columns > 0 && rows > 0)
-            ResizePseudoConsole(_hpc, new COORD { X = columns, Y = rows });
+        if (_hpc == IntPtr.Zero || columns <= 0 || rows <= 0) return;
+        if (columns == _cols && rows == _rows) return;
+        _cols = columns;
+        _rows = rows;
+        ResizePseudoConsole(_hpc, new COORD { X = columns, Y = rows });
     }
 
     public void Dispose()

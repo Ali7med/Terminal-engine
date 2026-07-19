@@ -24,6 +24,13 @@
             <sys:Double x:Key="Size.Menu">14</sys:Double>
             <sys:Double x:Key="Size.Table">12.5</sys:Double>
             <sys:Double x:Key="Size.Title">16</sys:Double>
+            <!-- أحجام أيقونة القائمة ونصّ الاختصار: يشتقّها FontManager من Size.Menu فتتبع منزلق «حجم المنيو» -->
+            <sys:Double x:Key="Size.MenuIcon">14</sys:Double>
+            <sys:Double x:Key="Size.MenuGesture">12</sys:Double>
+
+            <!-- استدارة الحواف (يضبطها FontManager من config.json — DynamicResource) -->
+            <CornerRadius x:Key="Radius.Card">12</CornerRadius>
+            <CornerRadius x:Key="Radius.Control">8</CornerRadius>
 
             <!-- فراشٍ ابتدائية (دارك محايد دافئ) — يستبدلها ThemeManager عند الإقلاع -->
             <SolidColorBrush x:Key="Brush.Bg"          Color="#1A1A1A"/>
