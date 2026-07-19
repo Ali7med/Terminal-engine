@@ -7,12 +7,13 @@ namespace Terminal.Storage;
 
 /// <summary>
 /// A single terminal tab captured for later restore. <paramref name="SessionId"/> links the tab to
-/// its per-session command history; <paramref name="LastCommand"/> is re-run on restore. Both are
+/// its per-session command history; <paramref name="LastCommand"/> is re-run on restore;
+/// <paramref name="Color"/> is the tab's marker colour (#RRGGBB, empty when uncoloured). All are
 /// optional with defaults so snapshots saved before these fields deserialize cleanly (as null).
 /// </summary>
 public sealed record TabSnapshot(
     string Title, string? ShellKey, string? WorkingDirectory,
-    string? SessionId = null, string? LastCommand = null);
+    string? SessionId = null, string? LastCommand = null, string? Color = null);
 
 /// <summary>One saved window/session: an ordered list of its tabs.</summary>
 public sealed record SessionSnapshot(IReadOnlyList<TabSnapshot> Tabs);

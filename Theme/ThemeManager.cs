@@ -21,7 +21,14 @@ public static class ThemeManager
 
     public static readonly ThemePreset[] Presets =
     {
-        // دارك محايد دافئ (الافتراضي — قريب من واجهة كلود).
+        // «مريح» — الثيم الافتراضي لواجهة الجيل الثاني: أسود دافئ عميق، أسطح شبه معدومة الحدّة،
+        // ولكنة طينيّة خافتة. مصمَّم ليعمل فوق خلفيّة ذات عمق (راجع قوالب depth-*).
+        new("cozy-dark", "مريح", "Cozy", ThemeMode.Dark,
+            C(0x15,0x14,0x13), C(0x15,0x14,0x13), C(0x20,0x1F,0x1D), C(0x2A,0x28,0x25), C(0x33,0x30,0x2C),
+            C(0x2E,0x2C,0x29), C(0xED,0xEA,0xE4), C(0x9A,0x94,0x8A), C(0xB5,0x56,0x3F),
+            new[]{ C(0xB5,0x56,0x3F), C(0xC8,0x9A,0x6A), C(0x8F,0xA8,0x92), C(0x8A,0x93,0xA8) }),
+
+        // دارك محايد دافئ (قريب من واجهة كلود).
         new("helium-dark", "هيليوم داكن", "Helium Dark", ThemeMode.Dark,
             C(0x1A,0x1A,0x1A), C(0x1A,0x1A,0x1A), C(0x29,0x28,0x26), C(0x33,0x32,0x30), C(0x3D,0x3B,0x38),
             C(0x3A,0x39,0x36), C(0xEC,0xEA,0xE6), C(0x9D,0x99,0x8F), C(0xC9,0x64,0x42),
@@ -189,7 +196,7 @@ public static class ThemeManager
 
     /// <summary>معرّف الثيم الافتراضي الموافق للوضع (يُستعمل في تبديل المظهر السريع/مزامنة النظام).</summary>
     public static string DefaultFor(ThemeMode mode)
-        => mode == ThemeMode.Light ? "helium-light" : "helium-dark";
+        => mode == ThemeMode.Light ? "helium-light" : "cozy-dark";
 
     public static void Apply(AppSettings s)
     {
@@ -216,7 +223,7 @@ public static class ThemeManager
 
         // طبقة تعتيم لشريط رأس التيرمنال: شبه شفّافة بلون سطح الثيم كي يبقى نصّ الشريط مقروءاً فوق
         // صورة الخلفيّة (داكنة والكتابة فاتحة في الوضع الداكن، فاتحة والكتابة داكنة في الفاتح).
-        byte scrimA = p.Mode == ThemeMode.Light ? (byte)0xDE : (byte)0xC8;
+        byte scrimA = p.Mode == ThemeMode.Light ? (byte)0xC0 : (byte)0x9E;
         Set(r, "Brush.HeaderScrim", Freeze(new SolidColorBrush(
             Color.FromArgb(scrimA, p.Surface.R, p.Surface.G, p.Surface.B))));
 
@@ -229,6 +236,19 @@ public static class ThemeManager
         Set(r, "Brush.AccentSoft",  new SolidColorBrush(p.Accent) { Opacity = p.Mode == ThemeMode.Dark ? 0.22 : 0.16 });
         Set(r, "Brush.Danger",      C(0xE0, 0x60, 0x3F));
         Set(r, "Brush.Success",     C(0x9E, 0xCE, 0x6A));
+
+        // ===== رموز واجهة الجيل الثاني (شفافيّة + فصل بالمسافة لا بالخطوط) =====
+        // سطح زجاجيّ: أسطح اللوحات فوق الخلفيّة — تُرى الخلفيّة خلفها بخفوت.
+        Set(r, "Brush.Glass",       Argb(p.Mode == ThemeMode.Light ? (byte)0xD8 : (byte)0x8C, p.Surface));
+        // سطح زجاجيّ أكثف: للوحات المنبثقة التي يجب أن يبقى نصّها مقروءاً تماماً.
+        Set(r, "Brush.GlassStrong", Argb(p.Mode == ThemeMode.Light ? (byte)0xF2 : (byte)0xE0, p.Surface));
+        // خطّ شعرة: حدّ شبه معدوم يُستعمل بدل الحدود الصريحة حين لا بدّ من فاصل.
+        Set(r, "Brush.Hairline",    Argb(p.Mode == ThemeMode.Light ? (byte)0x24 : (byte)0x1E, p.Text));
+        // صفوف القوائم: تمرير خافت، ونشِط بلكنة طينيّة مخفّفة بلا حدّ ولا شريط جانبيّ.
+        Set(r, "Brush.RowHover",    Argb(p.Mode == ThemeMode.Light ? (byte)0x14 : (byte)0x12, p.Text));
+        Set(r, "Brush.RowActive",   Argb(p.Mode == ThemeMode.Light ? (byte)0x2E : (byte)0x40, p.Accent));
+        // أزرار الكيبورد في لوحات التلميح (ctrl/shift/↵).
+        Set(r, "Brush.KeyCap",      Argb(p.Mode == ThemeMode.Light ? (byte)0x1C : (byte)0x1A, p.Text));
 
         // لوحة ANSI تتبع الثيم: خلفيّة SGR المعكوس = خلفيّة التيرمنال، والأساس 0..15 يُحسَّن للوضع
         // (ألوان أغمق على الفاتح كي تُقرأ)، ولون الكتابة الافتراضيّ يتباين مع خلفيّة التيرمنال.
@@ -276,6 +296,9 @@ public static class ThemeManager
     }
 
     private static void Set(ResourceDictionary r, string key, Color c) => r[key] = new SolidColorBrush(c);
+    /// <summary>فرشاة مجمَّدة بلون معطى وقناة ألفا صريحة (أساس الأسطح الزجاجيّة والخطوط الشعريّة).</summary>
+    private static SolidColorBrush Argb(byte a, Color c)
+        => Freeze(new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)));
     private static void Set(ResourceDictionary r, string key, Brush b) => r[key] = b;
     private static Color C(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
 
@@ -344,6 +367,28 @@ public static class ThemeManager
             BackgroundTemplateKind.Gradient,
             () => LinearGrad(new(30, 90), (0.0, "#14101F"), (0.55, "#1E1633"), (1.0, "#2A1030"))));
 
+        // --- حقول عمق (الخلفيّة الافتراضيّة للواجهة المريحة) ---
+        // ليست صورة فوتوغرافيّة بل «ضوء مرسوم»: قاعدة داكنة + هالات نصف قطريّة ناعمة + تعتيم حوافّ.
+        // تُعطي عمق الصورة نفسه بلا ملفّ ثقيل، وتتكيّف مع أيّ مقاس نافذة بلا تشويه.
+        list.Add(new BackgroundTemplate("depth-cozy", "عمق دافئ", "Warm Depth",
+            BackgroundTemplateKind.Gradient,
+            () => DepthField("#131211",
+                ("#4A2318", 0.22, 0.78, 0.85),    // هالة طينيّة أسفل البداية
+                ("#1F2A2E", 0.86, 0.16, 0.70),    // هالة باردة خافتة أعلى النهاية
+                ("#2A211C", 0.55, 0.45, 1.00)))); // إضاءة مركزيّة واسعة
+        list.Add(new BackgroundTemplate("depth-dusk", "عمق ليليّ", "Dusk Depth",
+            BackgroundTemplateKind.Gradient,
+            () => DepthField("#0F1114",
+                ("#1E2740", 0.20, 0.80, 0.85),
+                ("#2A2036", 0.85, 0.18, 0.70),
+                ("#171C26", 0.55, 0.45, 1.00))));
+        list.Add(new BackgroundTemplate("depth-moss", "عمق حرجيّ", "Moss Depth",
+            BackgroundTemplateKind.Gradient,
+            () => DepthField("#0E1210",
+                ("#162A22", 0.22, 0.78, 0.85),
+                ("#26261A", 0.85, 0.18, 0.70),
+                ("#141B18", 0.55, 0.45, 1.00))));
+
         // --- نقوش (DrawingBrush مبلَّط) ---
         list.Add(new BackgroundTemplate("pat-dots", "نقاط", "Dots",
             BackgroundTemplateKind.Pattern,
@@ -379,6 +424,47 @@ public static class ThemeManager
             b.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(hex), offset));
         b.Freeze();
         return b;
+    }
+
+    /// <summary>
+    /// حقل عمق: قاعدة مصمتة تعلوها هالات نصف قطريّة ناعمة (لون، مركز س/ص نسبيّ، نصف قطر نسبيّ) ثمّ
+    /// تعتيم حوافّ خفيف. الفرشاة غير مبلَّطة وتتمدّد مع النافذة (إحداثيّات نسبيّة 0..1).
+    /// </summary>
+    private static DrawingBrush DepthField(string baseHex, params (string Hex, double Cx, double Cy, double R)[] blobs)
+    {
+        var group = new DrawingGroup();
+        var rect = new Rect(0, 0, 1, 1);
+        group.Children.Add(new GeometryDrawing(
+            Freeze(new SolidColorBrush((Color)ColorConverter.ConvertFromString(baseHex))),
+            null, new RectangleGeometry(rect)));
+
+        foreach (var (hex, cx, cy, r) in blobs)
+        {
+            var c = (Color)ColorConverter.ConvertFromString(hex);
+            var g = new RadialGradientBrush
+            {
+                Center = new Point(cx, cy),
+                GradientOrigin = new Point(cx, cy),
+                RadiusX = r,
+                RadiusY = r,
+            };
+            g.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, c.R, c.G, c.B), 0.0));
+            g.GradientStops.Add(new GradientStop(Color.FromArgb(0x66, c.R, c.G, c.B), 0.55));
+            g.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, c.R, c.G, c.B), 1.0));
+            g.Freeze();
+            group.Children.Add(new GeometryDrawing(g, null, new RectangleGeometry(rect)));
+        }
+
+        // تعتيم الحوافّ: يشدّ الانتباه للوسط ويُبقي حوافّ النافذة هادئة خلف الشريط الجانبيّ والرأس.
+        var vig = new RadialGradientBrush { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.75, RadiusY = 0.75 };
+        vig.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0, 0, 0), 0.55));
+        vig.GradientStops.Add(new GradientStop(Color.FromArgb(0x70, 0, 0, 0), 1.0));
+        vig.Freeze();
+        group.Children.Add(new GeometryDrawing(vig, null, new RectangleGeometry(rect)));
+
+        var brush = new DrawingBrush(group) { TileMode = TileMode.None, Stretch = Stretch.Fill };
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>نقش نقاط: خلفيّة مصمتة + نقطة صغيرة مكرّرة على بلاطة.</summary>

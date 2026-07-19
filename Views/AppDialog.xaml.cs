@@ -78,6 +78,49 @@ public partial class AppDialog : Window
         return dlg._result;
     }
 
+    /// <summary>
+    /// حوار سؤال بنصّ: يعرض حقل إدخال بقيمة ابتدائيّة مُظلَّلة ويعيد النصّ بعد التشذيب، أو <c>null</c>
+    /// عند الإلغاء/Escape أو إن تُرك فارغاً. Enter يؤكّد مباشرةً (لا يحتاج الوصول للزرّ).
+    /// </summary>
+    public static string? Prompt(Window? owner, string title, string message, string initial, string okLabel)
+    {
+        var dlg = new AppDialog
+        {
+            Owner = owner,
+            WindowStartupLocation = owner != null
+                ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+            FlowDirection = owner?.FlowDirection ?? FlowDirection.RightToLeft,
+        };
+        dlg.TitleText.Text = title;
+        dlg.MessageText.Text = message;
+        dlg.InputBox.Visibility = Visibility.Visible;
+        dlg.InputBox.Text = initial ?? "";
+
+        var cancel = new Button
+        {
+            Content = Services.Loc.T("dlg.cancel"),
+            Padding = new Thickness(22, 10, 22, 10), Margin = new Thickness(10, 0, 0, 0),
+            MinWidth = 96, FontSize = 13.5, Cursor = Cursors.Hand,
+        };
+        cancel.Click += (_, _) => { dlg._result = null; dlg.DialogResult = false; };
+
+        var ok = new Button
+        {
+            Content = okLabel,
+            Style = (Style)Application.Current.FindResource("AccentButton"),
+            Padding = new Thickness(22, 10, 22, 10), Margin = new Thickness(10, 0, 0, 0),
+            MinWidth = 96, FontSize = 13.5, Cursor = Cursors.Hand, IsDefault = true,
+        };
+        ok.Click += (_, _) => { dlg._result = dlg.InputBox.Text.Trim(); dlg.DialogResult = true; };
+
+        dlg.ButtonPanel.Children.Add(cancel);
+        dlg.ButtonPanel.Children.Add(ok);
+        dlg.Loaded += (_, _) => { dlg.InputBox.Focus(); dlg.InputBox.SelectAll(); };
+
+        dlg.ShowDialog();
+        return string.IsNullOrWhiteSpace(dlg._result) ? null : dlg._result;
+    }
+
     /// <summary>حوار تنبيه بزرّ «حسناً» واحد (بديل <c>MessageBox</c> ذي الزرّ الواحد).</summary>
     public static void Alert(Window? owner, string title, string message)
         => Confirm(owner, title, message, (Services.Loc.T("srv.ed.ok"), "ok", true));

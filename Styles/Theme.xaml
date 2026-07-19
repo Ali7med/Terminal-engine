@@ -153,12 +153,95 @@
         <Setter Property="Margin" Value="2,0,2,6"/>
     </Style>
 
-    <!-- ========== بطاقة ========== -->
+    <!-- ========== بطاقة ==========
+         الواجهة المريحة: السطح زجاجيّ (تُرى الخلفيّة خلفه) والحدّ خطّ شعرة لا خطّ صريح — الفصل
+         يقع بالمسافة والعتامة، لا بالخطوط. للأسطح التي يجب أن تُقرأ تماماً استعمل CardStrong. -->
     <Style x:Key="Card" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Brush.Surface}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.Glass}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource Radius.Card}"/>
+    </Style>
+
+    <!-- بطاقة كثيفة: للوحات المنبثقة/الحواريّة التي تعلو المحتوى ويجب أن يبقى نصّها مقروءاً. -->
+    <Style x:Key="CardStrong" TargetType="Border" BasedOn="{StaticResource Card}">
+        <Setter Property="Background" Value="{DynamicResource Brush.GlassStrong}"/>
+    </Style>
+
+    <!-- ========== عنوان مقطع صغير (Caption) ==========
+         السطر المكتوم الصغير فوق مجموعة عناصر (مثل «الإعدادات») — بلا خطّ فاصل. -->
+    <Style x:Key="Caption" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="Opacity" Value="0.75"/>
+        <Setter Property="Margin" Value="10,10,10,4"/>
+    </Style>
+
+    <!-- ========== زرّ كيبورد (KeyCap) ==========
+         رقاقة اختصار صغيرة تُستعمل في لوحات التلميح: ctrl · shift · ↵ -->
+    <Style x:Key="KeyCap" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Brush.KeyCap}"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Padding" Value="6,1"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="KeyCapText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}"/>
+        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+        <Setter Property="FlowDirection" Value="LeftToRight"/>
+    </Style>
+
+    <!-- ========== حقل بحث حبّة (Pill) ==========
+         حقل البحث المركزيّ في شريط العنوان: بلا حدّ ظاهر، خلفيّة زجاجيّة، استدارة كاملة. -->
+    <Style x:Key="SearchPill" TargetType="TextBox">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource Brush.Accent}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Accent}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.KeyCap}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="30,0,12,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Pill}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <!-- أيقونة العدسة تلزم حافّة البداية مهما كان اتّجاه الواجهة -->
+                            <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.8"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="11,0,0,0"/>
+                            <!-- النصّ البديل: يظهر ما دام الحقل فارغاً -->
+                            <TextBlock x:Name="ph" Text="{TemplateBinding Tag}" FontSize="12"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.7"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                                       Margin="{TemplateBinding Padding}" IsHitTestVisible="False"/>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="ph" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Hairline}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ========== زر افتراضي (Ghost) ========== -->
@@ -366,25 +449,25 @@
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
         <Setter Property="ItemContainerStyle">
             <Setter.Value>
+                <!-- صفّ القائمة: بلا حدّ ولا شريط جانبيّ — التمرير ظلّ خافت، والنشِط تعبئة طينيّة
+                     مخفّفة. حشوة سخيّة (12,10) كي يتنفّس السطران (اسم + مسار). -->
                 <Style TargetType="ListBoxItem">
-                    <Setter Property="Margin" Value="0,2"/>
+                    <Setter Property="Margin" Value="0,1"/>
                     <Setter Property="Padding" Value="0"/>
                     <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ListBoxItem">
-                                <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}" Padding="10,8"
-                                        Background="Transparent"
-                                        BorderBrush="Transparent" BorderThickness="1">
+                                <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}" Padding="12,10"
+                                        Background="Transparent" BorderThickness="0">
                                     <ContentPresenter/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.SurfaceHover}"/>
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.RowHover}"/>
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
-                                        <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.RowActive}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -413,9 +496,9 @@
                         </Border>
                         <!-- إطار محتوى التيرمنال: خلفيّته شفّافة دائماً — الخلفيّة الفعليّة يرسمها العارض
                              (معتِمة حين لا صورة، شبه شفّافة مع صورة). فلا نعتمد على FindName لتبديلها. -->
-                        <Border x:Name="TerminalContentBorder" Grid.Row="1" CornerRadius="5" ClipToBounds="True"
-                                Background="Transparent"
-                                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                        <Border x:Name="TerminalContentBorder" Grid.Row="1"
+                                CornerRadius="{DynamicResource Radius.Card}" ClipToBounds="True"
+                                Background="Transparent" BorderThickness="0">
                             <ContentPresenter ContentSource="SelectedContent"/>
                         </Border>
                     </Grid>
@@ -431,19 +514,19 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
+                    <!-- تبويب شبح: شفّاف افتراضاً، والمحدَّد تعبئة طينيّة مخفّفة بنصّ عاديّ اللون —
+                         بدل المستطيل الممتلئ باللكنة الذي كان يسحب العين بعيداً عن التيرمنال. -->
                     <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}" Padding="12,7"
-                            Background="{DynamicResource Brush.Surface}"
-                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                            Background="Transparent" BorderThickness="0">
                         <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.SurfaceHover}"/>
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.RowHover}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Accent}"/>
-                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.OnAccent}"/>
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.RowActive}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
                             <Setter Property="TextElement.FontWeight" Value="SemiBold"/>
                         </Trigger>
                     </ControlTemplate.Triggers>

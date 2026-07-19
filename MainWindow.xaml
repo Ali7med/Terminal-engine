@@ -33,6 +33,7 @@
             <!-- ===== شريط العنوان ===== -->
             <Grid Grid.Row="0" Margin="14,0,8,0">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -59,7 +60,15 @@
                                VerticalAlignment="Center" Margin="10,0,0,0"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                <!-- حقل البحث المركزيّ: نقطة الدخول الوحيدة للمشاريع والأوامر — يعكس نصّه على بحث
+                     اللوحة الجانبيّة ويفتحها تلقائياً، فلا يوجد حقلا بحث منفصلان بحالتين. -->
+                <TextBox x:Name="HeaderSearch" Grid.Column="1" Style="{StaticResource SearchPill}"
+                         MaxWidth="420" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         MinWidth="240" Margin="16,0"
+                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                         TextChanged="HeaderSearch_TextChanged" GotKeyboardFocus="HeaderSearch_GotFocus"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Button x:Name="NewTabButton" Style="{StaticResource ChromeButton}"
                             Content="&#xE710;" Click="NewTabButton_Click"
@@ -97,14 +106,15 @@
             <!-- ===== المحتوى ===== -->
             <Grid x:Name="ContentGrid" Grid.Row="1" Margin="14,4,14,14">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="SidebarCol" Width="54"/>
+                    <ColumnDefinition x:Name="SidebarCol" Width="60"/>
                     <ColumnDefinition x:Name="SplitterCol" Width="0"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- الشريط الجانبيّ المطويّ: أيقونة + إضافة + مختصرات الأوامر؛ يفتح لوحةً كاملة بالمرور -->
-                <Border x:Name="SidebarRail" Grid.Column="0" Style="{StaticResource Card}"
-                        Background="{DynamicResource Brush.Bg}" CornerRadius="0" Padding="0"
+                <!-- الشريط الجانبيّ يطفو فوق الخلفيّة بلا بطاقة ولا حدّ — الفصل بالمسافة وحدها. -->
+                <Border x:Name="SidebarRail" Grid.Column="0" Background="Transparent"
+                        BorderThickness="0" CornerRadius="{DynamicResource Radius.Card}" Padding="0"
                         MouseEnter="SidebarRail_MouseEnter">
                     <DockPanel Margin="0,8">
                         <Button x:Name="SidebarMenuBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
@@ -114,7 +124,7 @@
                         <Button x:Name="SidebarAddBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
                                 Content="＋" FontSize="20" Height="38"
                                 Foreground="{DynamicResource Brush.Accent}" Click="AddButton_Click" ToolTip="إضافة أمر"/>
-                        <Border DockPanel.Dock="Top" Height="1" Margin="12,6" Background="{DynamicResource Brush.Border}"/>
+                        <Border DockPanel.Dock="Top" Height="1" Margin="14,8" Background="{DynamicResource Brush.Hairline}"/>
                         <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl x:Name="SidebarDots">
                                 <ItemsControl.ItemTemplate>
@@ -153,14 +163,28 @@
                     <!-- تلميح الفراغ: بلا سطح خاصّ — السطح الوحيد هو إطار التيرمنال، فيظهر التلميح داخله وسطاً -->
                     <Border x:Name="EmptyHintCard" Background="Transparent">
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="40"
-                                       Foreground="{DynamicResource Brush.TextMuted}" HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="HintLine1" Text="اختر أمراً واضغط «تشغيل» لفتح تيرمنال"
-                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="0,12,0,0"
+                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="34"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.55"
                                        HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="HintLine2" Text="أو Ctrl+Shift+T لتيرمنال فارغ"
-                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0"
-                                       FontSize="11" Opacity="0.8" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="HintLine1" Text="اختر أمراً واضغط «تشغيل» لفتح تيرمنال"
+                                       Foreground="{DynamicResource Brush.Text}" Margin="0,16,0,0"
+                                       Opacity="0.9" HorizontalAlignment="Center"/>
+                            <!-- الاختصار يُعرض رقاقاتِ كيبورد لا نصّاً — أسهل مسحاً بالعين وأهدأ بصريّاً -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0"
+                                        FlowDirection="LeftToRight">
+                                <Border Style="{StaticResource KeyCap}">
+                                    <TextBlock Text="ctrl" Style="{StaticResource KeyCapText}"/>
+                                </Border>
+                                <Border Style="{StaticResource KeyCap}">
+                                    <TextBlock Text="shift" Style="{StaticResource KeyCapText}"/>
+                                </Border>
+                                <Border Style="{StaticResource KeyCap}">
+                                    <TextBlock Text="T" Style="{StaticResource KeyCapText}"/>
+                                </Border>
+                                <TextBlock x:Name="HintLine2" Text="تيرمنال فارغ" VerticalAlignment="Center"
+                                           Margin="6,0,0,0" FontSize="{DynamicResource Size.Small}"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     <TabControl x:Name="TerminalTabs" PreviewMouseDown="TerminalTabs_PreviewMouseDown"/>
@@ -170,9 +194,9 @@
                 <Border x:Name="SidebarFlyout" Grid.ColumnSpan="3" Visibility="Collapsed"
                         HorizontalAlignment="Left" Width="300" VerticalAlignment="Stretch"
                         MouseLeave="SidebarFlyout_MouseLeave">
-                    <Border Style="{StaticResource Card}" Padding="12" Background="{DynamicResource Brush.Bg}">
+                    <Border Style="{StaticResource CardStrong}" Padding="14">
                         <Border.Effect>
-                            <DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="0" Opacity="0.45"/>
+                            <DropShadowEffect Color="#000000" BlurRadius="32" ShadowDepth="0" Opacity="0.5"/>
                         </Border.Effect>
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="2,0,0,10">
@@ -207,21 +231,8 @@
                                     <!-- شريط تمرير متوافق مع الثيم (بدل الافتراضيّ) — مثل بقيّة القوائم -->
                                     <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
                                 </ListBox.Resources>
-                                <ListBox.ContextMenu>
-                                    <ContextMenu Opened="EntriesContextMenu_Opened" Closed="EntriesContextMenu_Closed">
-                                        <MenuItem Header="{loc:T ctx.open}" InputGestureText="↵" Click="RunButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <MenuItem Header="{loc:T ctx.edit}" InputGestureText="E" Click="EditButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"/></MenuItem.Icon>
-                                        </MenuItem>
-                                        <Separator/>
-                                        <MenuItem Header="{loc:T dlg.delete}" InputGestureText="Del"
-                                                  Style="{StaticResource MenuItem.Danger}" Click="DeleteButton_Click">
-                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}" Foreground="{DynamicResource Brush.Danger}"/></MenuItem.Icon>
-                                        </MenuItem>
-                                    </ContextMenu>
-                                </ListBox.ContextMenu>
+                                <!-- قائمة المشروع السياقيّة تُبنى في الكود (BuildProjectContextMenu) لأنّها
+                                     تتضمّن صفّ ألوان ديناميكيّاً وحالةً تتغيّر حسب المشروع المحدَّد. -->
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,2,0,2">
@@ -231,11 +242,19 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
-                                                    Margin="0,0,9,0" VerticalAlignment="Center"
-                                                    Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}"/>
+                                            <!-- رقاقة المشروع: مربّع ملوّن بالحرف الأوّل بدل النقطة الصغيرة —
+                                                 يعطي الصفّ مرساةً بصريّة ويوازن السطرين. -->
+                                            <Border Grid.Column="0" Width="26" Height="26"
+                                                    CornerRadius="{DynamicResource Radius.Control}"
+                                                    Margin="0,0,10,0" VerticalAlignment="Center"
+                                                    Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}">
+                                                <TextBlock Text="{Binding Initial}" Foreground="#FFFFFF"
+                                                           FontWeight="SemiBold" FontSize="12"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}"
+                                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource Size.Ui}"
+                                                           FontFamily="{DynamicResource Font.Mono}"
                                                            HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
                                                 <!-- LTR content (filesystem path); HorizontalAlignment mirrors with the
                                                      parent's flow so both lines share the same start edge. -->
@@ -245,7 +264,7 @@
                                                            FlowDirection="LeftToRight" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                             <Border Grid.Column="2" CornerRadius="{DynamicResource Radius.Control}" Padding="7,1" VerticalAlignment="Center"
-                                                    Background="{DynamicResource Brush.Surface2}">
+                                                    Background="{DynamicResource Brush.KeyCap}">
                                                 <TextBlock Text="{Binding Commands.Count}" FontSize="{DynamicResource Size.Small}"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Border>

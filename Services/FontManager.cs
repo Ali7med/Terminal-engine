@@ -23,7 +23,7 @@ public sealed class FontSettings
     public double TitleSize { get; set; } = 16;
 
     /// <summary>استدارة حواف الكروت ونوافذ المشروع (نصف قطر الزاوية بالبكسل). 0 = زوايا حادّة.</summary>
-    public double CornerRadius { get; set; } = 12;
+    public double CornerRadius { get; set; } = 14;
 
     public FontSettings Clone() => (FontSettings)MemberwiseClone();
 }
@@ -142,7 +142,9 @@ public static class FontManager
         // استدارة الحواف: مورد CornerRadius مشترك للكروت ونوافذ المشروع، ونصفه للعناصر الصغيرة.
         double r = ClampRadius(s.CornerRadius);
         res["Radius.Card"]    = new CornerRadius(r);
-        res["Radius.Control"] = new CornerRadius(Math.Min(r, Math.Max(4, r * 0.6)));
+        res["Radius.Control"] = new CornerRadius(Math.Min(r, Math.Max(6, r * 0.72)));
+        // حبّة البحث: استدارة كاملة تقريباً مهما كان إعداد الاستدارة (نصف ارتفاع الحقل = 15).
+        res["Radius.Pill"]    = new CornerRadius(Math.Max(r, 15));
 
         Changed?.Invoke();
     }

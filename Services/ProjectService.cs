@@ -174,8 +174,35 @@ public static class ProjectService
     // ===== اللون (مشتقّ من التاك الأساس) =====
 
     /// <summary>لون المشروع = لون تاكه الأساس، أو null إن بلا تاكات.</summary>
+    /// <summary>
+    /// لون المشروع: اللون الصريح المختار من قائمة المشروع إن وُجد، وإلّا لون تاكه الأساس. اللون الصريح
+    /// يسبق التاك لأنّه اختيار مباشر من المستخدم لهذا المشروع بعينه.
+    /// </summary>
     public static Color? ColorOf(Project? p)
-        => p?.PrimaryTag is { } t ? TagService.ColorOf(t) : null;
+    {
+        if (p is null) return null;
+        if (!string.IsNullOrWhiteSpace(p.Color))
+        {
+            try { return (Color)ColorConverter.ConvertFromString(p.Color); }
+            catch { /* لون محفوظ تالف — نرتدّ للتاك */ }
+        }
+        return p.PrimaryTag is { } t ? TagService.ColorOf(t) : null;
+    }
+
+    /// <summary>
+    /// يُطلِق <see cref="Changed"/> يدويّاً (حفظ + إعادة رسم) بعد تعديل كائن مشروع مباشرةً — مثل نسخ
+    /// مشروع بحقوله وأوامره دفعةً واحدة بدل استدعاء مُضبِّط لكلّ حقل.
+    /// </summary>
+    public static void NotifyChanged() => Changed?.Invoke();
+
+    /// <summary>يضبط لون المشروع الصريح (فارغ = ارجع للون التاك). يُطلِق <see cref="Changed"/>.</summary>
+    public static void SetColor(string name, string hex)
+    {
+        var p = Find(name);
+        if (p == null) return;
+        p.Color = hex ?? "";
+        Changed?.Invoke();
+    }
 
     /// <summary>لون مشروع بالاسم (لون تاكه الأساس)، أو null.</summary>
     public static Color? ColorOf(string? projectName) => ColorOf(Find(projectName));

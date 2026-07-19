@@ -112,6 +112,7 @@ public partial class MainWindow : Window
         BuildBackgroundGallery();
         SyncSettingsUi();
         UpdateHint();
+        EntriesList.ContextMenu = BuildProjectContextMenu();
         ApplyLanguage();
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
@@ -268,15 +269,16 @@ public partial class MainWindow : Window
     {
         if (nonTheme)
         {
-            // عتامة الشريط الجانبيّ = شفافيّة التيرمنال + هامش، بحدٍّ أدنى 0.85 كي تبقى الكتابة واضحة.
-            double a = Math.Clamp(Math.Max(0.85, _settings.BackgroundOpacity + 0.15), 0.30, 1.00);
+            // الشريط يحمل أيقونات فقط (لا نصّاً دقيقاً)، فيكفيه ظلّ خفيف يفصله عن الخلفيّة بدل لوح
+            // شبه معتِم — هذا ما يعطي الواجهة إحساس الطبقة الواحدة الهادئة.
+            double a = Math.Clamp(Math.Max(0.28, _settings.BackgroundOpacity - 0.45), 0.15, 0.60);
             var c = ThemeManager.BackgroundColor;
             SidebarRail.Background = new SolidColorBrush(
                 Color.FromArgb((byte)Math.Round(a * 255), c.R, c.G, c.B));
         }
         else
         {
-            SidebarRail.SetResourceReference(Border.BackgroundProperty, "Brush.Bg");
+            SidebarRail.Background = Brushes.Transparent;   // خلفيّة الثيم تكفي — لا لوح فوق لوح
         }
     }
 
@@ -1038,6 +1040,7 @@ public partial class MainWindow : Window
 
         // لوحة المشاريع + الدوك
         SidebarSearch.Tag = Loc.T("proj.search");
+        HeaderSearch.Tag  = Loc.T("hdr.search");
         QuickNewCommand.Content = Loc.T("proj.cmd.new");
         QuickAddCurrent.Content = Loc.T("quick.addCurrent");
         QuickCmdEmpty.Text = Loc.T("quick.empty");
@@ -2204,17 +2207,22 @@ public partial class MainWindow : Window
         view.FocusTerminal();
     }
 
-    /// <summary>يفتح الأمر في تبويب جديد يحمل حاوية أجزاء بجزء واحد. <paramref name="sessionId"/> يُمرَّر عند الاسترجاع.</summary>
-    private void OpenTerminal(CommandEntry entry, string? sessionId = null)
+    /// <summary>
+    /// يفتح الأمر في تبويب جديد يحمل حاوية أجزاء بجزء واحد ويعيد التبويب المُنشأ (يستعمله الاسترجاع
+    /// لإعادة تطبيق لون التبويب). <paramref name="sessionId"/> يُمرَّر عند الاسترجاع.
+    /// </summary>
+    private TabItem OpenTerminal(CommandEntry entry, string? sessionId = null)
     {
         var container = new TerminalPaneContainer(CreateTerminalView(entry, sessionId));
         var tab = new TabItem { Content = container, Header = BuildHeader(entry.Name, out var closeButton), Tag = entry };
         container.Emptied += _ => CloseTab(tab);
         closeButton.Click += (_, _) => CloseTab(tab);
+        tab.ContextMenu = BuildTabContextMenu(tab);
         TerminalTabs.Items.Add(tab);
         TerminalTabs.SelectedItem = tab;
         UpdateHint();
         if (!_restoring) SaveSession();   // نُثبّت اللقطة فور فتح التبويب (لا تعتمد على الإغلاق السليم)
+        return tab;
     }
 
     /// <summary>يغلق التبويب: ينهي كل جلسات أجزائه أولاً (تنظيف الـ PTY) ثم يزيله.</summary>
@@ -2229,6 +2237,292 @@ public partial class MainWindow : Window
         // أُنهي البرنامج بلا إغلاق سليم (كان يُحفَظ في OnClosing فقط، فيبقى المغلَق في لقطة سابقة).
         if (!_restoring) SaveSession();
     }
+
+    // ===== قائمة المشروع السياقيّة (خيارات المشروع) =====
+
+    /// <summary>
+    /// قائمة صفّ المشروع بالزرّ الأيمن: فتح · نسخ الاسم/الباث · فتح في المستكشف · تسمية/تعديل/تكرار ·
+    /// حذف · صفّ ألوان. تُبنى مرّةً وتعمل على <see cref="Selected"/> — الصفّ يُحدَّد قبل الفتح.
+    /// </summary>
+    private ContextMenu BuildProjectContextMenu()
+    {
+        var menu = new ContextMenu();
+
+        MenuItem Item(string key, Action<Project> act, string? gesture = null, bool danger = false)
+        {
+            var mi = new MenuItem { Header = Loc.T(key), InputGestureText = gesture ?? "" };
+            if (danger) mi.Style = (Style)FindResource("MenuItem.Danger");
+            mi.Click += (_, _) => { if (Selected is { } p) act(p); };
+            menu.Items.Add(mi);
+            return mi;
+        }
+
+        Item("ctx.open", p => OpenQuickDock(p.Name), "↵");
+        Item("projctx.openNew", p => OpenProjectInNewTab(p));
+        menu.Items.Add(new Separator());
+
+        Item("projctx.copyName", p => CopyToClipboard(p.Name));
+        var copyPath = Item("projctx.copyPath", p => CopyToClipboard(p.Folder));
+        var explorer = Item("projctx.explorer", p => RevealInExplorer(p.Folder));
+        menu.Items.Add(new Separator());
+
+        Item("projctx.rename", RenameProject);
+        Item("ctx.edit", OpenProjectEditor, "E");
+        Item("projctx.duplicate", DuplicateProject);
+        menu.Items.Add(new Separator());
+
+        Item("dlg.delete", _ => DeleteButton_Click(this, new RoutedEventArgs()), "Del", danger: true);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(BuildColorRow(menu, hex =>
+        {
+            if (Selected is { } p) { ProjectService.SetColor(p.Name, hex); RefreshProjectsList(); }
+        }));
+
+        // بلا باث ⇒ نسخ الباث وفتح المستكشف بلا معنى.
+        menu.Opened += (s, e) =>
+        {
+            bool hasFolder = !string.IsNullOrWhiteSpace(Selected?.Folder);
+            copyPath.IsEnabled = hasFolder;
+            explorer.IsEnabled = hasFolder;
+            EntriesContextMenu_Opened(s, e);
+        };
+        menu.Closed += EntriesContextMenu_Closed;
+        return menu;
+    }
+
+    /// <summary>يفتح المشروع في تبويب تيرمنال جديد مباشرةً (بلا المرور بلوحة الأوامر).</summary>
+    private void OpenProjectInNewTab(Project p)
+        => OpenTerminal(new CommandEntry { Name = p.Name, Shell = p.Shell, Path = p.Folder });
+
+    /// <summary>يفتح مجلّد المشروع في مستكشف ويندوز (يتجاهل الباث غير الموجود بصمت).</summary>
+    private static void RevealInExplorer(string folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe", Arguments = $"\"{folder}\"", UseShellExecute = true,
+            });
+        }
+        catch { /* لا مستكشف — تجاهل */ }
+    }
+
+    /// <summary>يعيد تسمية المشروع بعد سؤال المستخدم (الاسم المكرّر يُرفَض داخل ProjectService).</summary>
+    private void RenameProject(Project p)
+    {
+        string? name = Views.AppDialog.Prompt(this, Loc.T("projctx.rename"), Loc.T("projctx.rename.msg"),
+            p.Name, Loc.T("dlg.save"));
+        if (name is null || name == p.Name) return;
+        ProjectService.Rename(p.Name, name);
+        RefreshProjectsList();
+    }
+
+    /// <summary>ينسخ المشروع بكلّ أوامره باسم «الاسم — نسخة» (اسم فريد عند التكرار).</summary>
+    private void DuplicateProject(Project p)
+    {
+        string baseName = $"{p.Name} — {Loc.T("projctx.copy.suffix")}";
+        string name = baseName;
+        for (int i = 2; ProjectService.Find(name) != null; i++) name = $"{baseName} {i}";
+
+        var copy = ProjectService.Create(name);
+        copy.Folder = p.Folder;
+        copy.Shell  = p.Shell;
+        copy.Color  = p.Color;
+        copy.Tags   = new List<string>(p.Tags);
+        copy.Commands = p.Commands
+            .Select(c => new ProjectCommand { Label = c.Label, Steps = new List<string>(c.Steps), Folder = c.Folder })
+            .ToList();
+        ProjectService.NotifyChanged();   // Create حفظ الاسم فقط — الحقول أعلاه تحتاج حفظاً ثانياً
+    }
+
+    // ===== قائمة التبويب السياقيّة (خيارات النافذة) =====
+
+    /// <summary>
+    /// قائمة التبويب بالزرّ الأيمن: تسمية/تكرار/فصل · نسخ العنوان والمجلّد · ترتيب · إغلاق (هو/الآخرون/
+    /// ما بعده) · صفّ ألوان. تُبنى مرّةً لكلّ تبويب وتُحدَّث حالتها عند كلّ فتح (Opened) — فالمواضع تتغيّر.
+    /// </summary>
+    private ContextMenu BuildTabContextMenu(TabItem tab)
+    {
+        var menu = new ContextMenu { FlowDirection = Loc.Flow };
+
+        MenuItem Item(string key, Action act)
+        {
+            var mi = new MenuItem { Header = Loc.T(key) };
+            mi.Click += (_, _) => act();
+            menu.Items.Add(mi);
+            return mi;
+        }
+
+        Item("tabctx.rename", () => RenameTab(tab));
+        Item("tabctx.duplicate", () => DuplicateTab(tab));
+        Item("tabctx.detach", () => DetachTab(tab));
+        menu.Items.Add(new Separator());
+
+        Item("tabctx.copyTitle", () => CopyToClipboard(HeaderTitle(tab) ?? ""));
+        Item("tabctx.copyCwd", () => CopyToClipboard((tab.Tag as CommandEntry)?.Path ?? ""));
+        menu.Items.Add(new Separator());
+
+        var moveStart = Item("tabctx.moveStart", () => MoveTab(tab, -1));
+        var moveEnd   = Item("tabctx.moveEnd",   () => MoveTab(tab, +1));
+        menu.Items.Add(new Separator());
+
+        Item("tabctx.close", () => CloseTab(tab));
+        var closeOthers = Item("tabctx.closeOthers", () => CloseOtherTabs(tab));
+        var closeAfter  = Item("tabctx.closeAfter",  () => CloseTabsAfter(tab));
+        menu.Items.Add(new Separator());
+
+        menu.Items.Add(BuildColorRow(menu, hex => SetTabColor(tab, hex)));
+
+        // الحالة تتغيّر مع ترتيب التبويبات وعددها، فتُحسَب عند كلّ فتح لا مرّةً عند البناء.
+        menu.Opened += (_, _) =>
+        {
+            int i = TerminalTabs.Items.IndexOf(tab), n = TerminalTabs.Items.Count;
+            moveStart.IsEnabled   = i > 0;
+            moveEnd.IsEnabled     = i >= 0 && i < n - 1;
+            closeOthers.IsEnabled = n > 1;
+            closeAfter.IsEnabled  = i >= 0 && i < n - 1;
+        };
+        return menu;
+    }
+
+    /// <summary>
+    /// صفّ ألوان أفقيّ داخل قائمة سياقيّة: دائرة «بلا لون» ثمّ لوحة التاكات. النقر يطبّق ويغلق القائمة.
+    /// يُستعمل لتلوين التبويب والمشروع معاً — نفس اللغة البصريّة في الموضعين.
+    /// </summary>
+    private MenuItem BuildColorRow(ContextMenu owner, Action<string> apply)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 2, 2, 2) };
+
+        Border Dot(string hex, bool none)
+        {
+            var b = new Border
+            {
+                Width = 18, Height = 18, CornerRadius = new CornerRadius(9),
+                Margin = new Thickness(0, 0, 6, 0), Cursor = Cursors.Hand,
+                ToolTip = none ? Loc.T("tabctx.color.none") : hex,
+                BorderThickness = new Thickness(1),
+                BorderBrush = (Brush)FindResource("Brush.Hairline"),
+                Background = none ? Brushes.Transparent : ColorBrush(hex),
+            };
+            if (none)
+                b.Child = new TextBlock
+                {
+                    Text = "✕", FontSize = 9,
+                    Foreground = (Brush)FindResource("Brush.TextMuted"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+            b.MouseLeftButtonUp += (_, _) => { apply(none ? "" : hex); owner.IsOpen = false; };
+            return b;
+        }
+
+        row.Children.Add(Dot("", none: true));
+        foreach (var hex in TagService.Palette) row.Children.Add(Dot(hex, none: false));
+
+        // العنصر نفسه ليس قابلاً للنقر — الرقاقات وحدها تتلقّى النقر.
+        return new MenuItem { Header = row, StaysOpenOnClick = true, Focusable = false };
+    }
+
+    /// <summary>فرشاة مجمَّدة من hex، ورماديّة عند لون غير صالح.</summary>
+    private static Brush ColorBrush(string hex)
+    {
+        try
+        {
+            var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            b.Freeze();
+            return b;
+        }
+        catch { return Brushes.Gray; }
+    }
+
+    /// <summary>نسخ نصّ للحافظة بأمان (الحافظة قد تكون مقفولة من تطبيق آخر).</summary>
+    private static void CopyToClipboard(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        try { Clipboard.SetText(text); } catch { /* الحافظة مشغولة — تجاهل بصمت */ }
+    }
+
+    /// <summary>يعيد تسمية التبويب (يحدّث الرأس فقط — الأمر المحفوظ لا يتغيّر).</summary>
+    private void RenameTab(TabItem tab)
+    {
+        string current = HeaderTitle(tab) ?? "";
+        string? name = Views.AppDialog.Prompt(this, Loc.T("tabctx.rename"), Loc.T("tabctx.rename.msg"),
+            current, Loc.T("dlg.save"));
+        if (name is null) return;
+        if (tab.Header is StackPanel p && p.Children.OfType<TextBlock>().FirstOrDefault() is { } tb)
+            tb.Text = name;
+        SaveSession();
+    }
+
+    /// <summary>يفتح تبويباً جديداً بنفس أمر التبويب الحاليّ (جلسة جديدة — لا يُنسخ تاريخ الجلسة).</summary>
+    private void DuplicateTab(TabItem tab)
+    {
+        if (tab.Tag is not CommandEntry entry) return;
+        var copy = OpenTerminal(new CommandEntry
+        {
+            Name = entry.Name, Shell = entry.Shell, Path = entry.Path, Command = entry.Command,
+        });
+        SetTabColor(copy, TabColor(tab));   // النسخة ترث لون الأصل
+    }
+
+    /// <summary>يفصل الجزء النشط في التبويب إلى نافذة مستقلّة (نفس مسار زرّ الفصل).</summary>
+    private void DetachTab(TabItem tab)
+    {
+        if ((tab.Content as TerminalPaneContainer)?.ActiveView is { } view) DetachViewToWindow(view);
+    }
+
+    /// <summary>ينقل التبويب خطوةً في الاتّجاه المعطى مع إبقائه محدَّداً.</summary>
+    private void MoveTab(TabItem tab, int delta)
+    {
+        int i = TerminalTabs.Items.IndexOf(tab);
+        int j = i + delta;
+        if (i < 0 || j < 0 || j >= TerminalTabs.Items.Count) return;
+        TerminalTabs.Items.Remove(tab);
+        TerminalTabs.Items.Insert(j, tab);
+        TerminalTabs.SelectedItem = tab;
+        SaveSession();
+    }
+
+    /// <summary>يغلق كلّ التبويبات عدا المعطى.</summary>
+    private void CloseOtherTabs(TabItem keep)
+    {
+        foreach (var other in TerminalTabs.Items.OfType<TabItem>().Where(t => t != keep).ToList())
+            CloseTab(other);
+    }
+
+    /// <summary>يغلق التبويبات التالية للمعطى (من الأبعد للأقرب كي لا تتزحزح المواضع).</summary>
+    private void CloseTabsAfter(TabItem tab)
+    {
+        int i = TerminalTabs.Items.IndexOf(tab);
+        if (i < 0) return;
+        for (int k = TerminalTabs.Items.Count - 1; k > i; k--)
+            if (TerminalTabs.Items[k] is TabItem t) CloseTab(t);
+    }
+
+    /// <summary>
+    /// يلوّن نقطة رأس التبويب (أو يخفيها عند لون فارغ) ويثبّت اللقطة كي يبقى اللون بعد إعادة التشغيل.
+    /// الـ hex يُحفَظ في <c>Tag</c> النقطة — مصدر الحقيقة عند القراءة، لا لون الفرشاة.
+    /// </summary>
+    private void SetTabColor(TabItem tab, string hex)
+    {
+        if (TabColorDot(tab) is not { } dot) return;
+        dot.Tag = hex ?? "";
+        if (string.IsNullOrEmpty(hex)) dot.Visibility = Visibility.Collapsed;
+        else
+        {
+            dot.Background = ColorBrush(hex);
+            dot.Visibility = Visibility.Visible;
+        }
+        if (!_restoring) SaveSession();
+    }
+
+    /// <summary>لون التبويب المحفوظ (فارغ = بلا لون).</summary>
+    private static string TabColor(TabItem tab) => TabColorDot(tab)?.Tag as string ?? "";
+
+    /// <summary>نقطة اللون في رأس التبويب (أوّل Border في الرأس — راجع <see cref="BuildHeader"/>).</summary>
+    private static Border? TabColorDot(TabItem tab)
+        => tab.Header is StackPanel p ? p.Children.OfType<Border>().FirstOrDefault() : null;
 
     // ===== التقسيمات (Ctrl+Shift+D عمودي · Ctrl+Shift+E أفقي · Ctrl+W إغلاق الجزء) =====
 
@@ -2266,6 +2560,15 @@ public partial class MainWindow : Window
     private StackPanel BuildHeader(string title, out Button closeButton)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        // نقطة لون التبويب: مخفيّة حتّى يختار المستخدم لوناً من قائمة التبويب. تسبق العنوان بصرياً
+        // لكنّ قراءة العنوان تبحث عن أوّل TextBlock فلا تتأثّر بترتيب الأبناء.
+        panel.Children.Add(new Border
+        {
+            Width = 7, Height = 7, CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+        });
         panel.Children.Add(new TextBlock
         {
             Text = string.IsNullOrWhiteSpace(title) ? "تيرمنال" : title,
@@ -2323,7 +2626,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>يفتح/يغلق لوحة الأوامر بانزلاق + تلاشٍ خفيف (≈150مي).</summary>
-    private void ShowSidebarFlyout(bool show)
+    private void ShowSidebarFlyout(bool show, bool focusSearch = true)
     {
         SidebarFlyout.RenderTransform = _sidebarFlyoutTransform;
         if (show)
@@ -2335,7 +2638,7 @@ public partial class MainWindow : Window
             SidebarFlyout.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur));
             _sidebarFlyoutTransform.BeginAnimation(TranslateTransform.XProperty,
                 new DoubleAnimation(-14, 0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            SidebarSearch.Focus();
+            if (focusSearch) SidebarSearch.Focus();
         }
         else
         {
@@ -2358,7 +2661,29 @@ public partial class MainWindow : Window
     }
 
     /// <summary>يصفّي قائمة الأوامر المحفوظة حسب نصّ البحث (الاسم/الباث/الأمر).</summary>
-    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshProjectsList();
+    private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RefreshProjectsList();
+        // مرآة عكسيّة: البحث من داخل اللوحة يبقى ظاهراً في حبّة الرأس، فلا يختلف الحقلان.
+        if (HeaderSearch.Text != SidebarSearch.Text) HeaderSearch.Text = SidebarSearch.Text;
+    }
+
+    /// <summary>
+    /// حبّة البحث في شريط العنوان: تعكس نصّها على بحث اللوحة الجانبيّة (مصدر التصفية الوحيد) وتفتح
+    /// اللوحة عند أوّل حرف — بلا سحب التركيز من الحقل الذي يكتب فيه المستخدم.
+    /// </summary>
+    private void HeaderSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (SidebarSearch.Text != HeaderSearch.Text) SidebarSearch.Text = HeaderSearch.Text;
+        if (HeaderSearch.Text.Length > 0 && SidebarFlyout.Visibility != Visibility.Visible)
+            ShowSidebarFlyout(true, focusSearch: false);
+    }
+
+    /// <summary>التركيز على حبّة البحث يفتح لوحة المشاريع فوراً (نتائج مباشرة قبل الكتابة).</summary>
+    private void HeaderSearch_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (SidebarFlyout.Visibility != Visibility.Visible) ShowSidebarFlyout(true, focusSearch: false);
+    }
 
     /// <summary>يحوّل عجلة الماوس/الباد إلى سكرول أفقيّ لصفوف الرقاقات (الدوك + شريط التاكات).</summary>
     private void HorizontalChips_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -2522,7 +2847,7 @@ public partial class MainWindow : Window
                     // نلتقط جلسة الجزء النشط (معرّفها + آخر أمر) لاسترجاعها وإعادة تنفيذ آخر أمر.
                     var view = (tab.Content as TerminalPaneContainer)?.ActiveView;
                     tabs.Add(new TabSnapshot(HeaderTitle(tab) ?? entry.Name, entry.Shell, entry.Path,
-                        view?.SessionId, view?.LastCommand));
+                        view?.SessionId, view?.LastCommand, TabColor(tab)));
                 }
 
             // لقطة واحدة أحدث دائماً: نمسح ثم نحفظ (أو نمسح فقط إن لا تبويبات).
@@ -2549,13 +2874,14 @@ public partial class MainWindow : Window
             foreach (var t in snapshot.Tabs)
             {
                 // نُعيد الجلسة بمعرّفها نفسه (فيبقى تاريخها للأسهم) ونضع آخر أمر في Command كي يُعاد تنفيذه.
-                OpenTerminal(new CommandEntry
+                var tab = OpenTerminal(new CommandEntry
                 {
                     Name = t.Title,
                     Shell = t.ShellKey ?? ShellCatalog.DefaultKey,
                     Path = t.WorkingDirectory ?? "",
                     Command = t.LastCommand ?? "",
                 }, t.SessionId);
+                SetTabColor(tab, t.Color ?? "");   // لون التبويب يعود كما تركه المستخدم
             }
         }
         catch
@@ -2568,10 +2894,10 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>يستخرج نصّ عنوان التبويب من رأسه المبنيّ (StackPanel ← TextBlock).</summary>
+    /// <summary>يستخرج نصّ عنوان التبويب من رأسه المبنيّ (أوّل TextBlock فيه — لا موضع ثابت).</summary>
     private static string? HeaderTitle(TabItem tab)
-        => tab.Header is StackPanel { Children.Count: > 0 } panel
-           && panel.Children[0] is TextBlock tb ? tb.Text : null;
+        => tab.Header is StackPanel panel
+           ? panel.Children.OfType<TextBlock>().FirstOrDefault()?.Text : null;
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {

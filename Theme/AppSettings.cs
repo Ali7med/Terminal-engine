@@ -11,7 +11,7 @@ public sealed class AppSettings
     public ThemeMode Mode { get; set; } = ThemeMode.Dark;
 
     /// <summary>معرّف الثيم المُسمّى المختار (مثل "helium-dark"). راجع <see cref="ThemeManager.Presets"/>.</summary>
-    public string ThemePresetId { get; set; } = "helium-dark";
+    public string ThemePresetId { get; set; } = "cozy-dark";
 
     /// <summary>مزامنة الفاتح/الداكن مع وضع نظام ويندوز (يتجاوز الثيم المختار عند التفعيل).</summary>
     public bool SyncThemeWithOs { get; set; } = false;
@@ -38,13 +38,13 @@ public sealed class AppSettings
     /// "gradient" (تدرّج)، "pattern" (نقش)، "image" (صورة مخصّصة عبر <see cref="BackgroundImagePath"/>).
     /// أيّ نوع ≠ "theme" يجعل التيرمنال شبه شفّاف ليظهر خلفه.
     /// </summary>
-    public string BackgroundKind { get; set; } = "theme";
+    public string BackgroundKind { get; set; } = "gradient";
 
     /// <summary>
     /// قيمة الخلفيّة الموافقة لـ <see cref="BackgroundKind"/>: hex للّون المصمت (#RRGGBB)،
     /// أو معرّف قالب للتدرّج/النقش. غير مستعملة للصورة (تُقرأ من <see cref="BackgroundImagePath"/>) ولا للثيم.
     /// </summary>
-    public string BackgroundValue { get; set; } = "";
+    public string BackgroundValue { get; set; } = "depth-cozy";
 
     /// <summary>حجم خطّ التيرمنال (يُغيَّر بـ Ctrl +/-؛ يبقى بين التشغيلات).</summary>
     public double TerminalFontSize { get; set; } = 13;

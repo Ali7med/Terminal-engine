@@ -34,12 +34,28 @@ public sealed class SettingsStore
         {
             string? json = _store.Get(SettingsKey) ?? MigrateLegacyJson();
             if (string.IsNullOrEmpty(json)) return new();
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new();
+            return MigrateToCozyDefaults(JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new());
         }
         catch
         {
             return new();
         }
+    }
+
+    /// <summary>
+    /// ترقية لمرّة واحدة إلى مظهر الجيل الثاني «المريح»: تنقل من كان لا يزال على الافتراضيّ القديم
+    /// (ثيم <c>helium-dark</c> + خلفيّة الثيم) إلى <c>cozy-dark</c> + حقل العمق الدافئ. من غيّر ثيمه
+    /// أو خلفيّته يبقى على اختياره — لا نلمس تفضيلاً صريحاً للمستخدم.
+    /// </summary>
+    private static AppSettings MigrateToCozyDefaults(AppSettings s)
+    {
+        if (s.ThemePresetId == "helium-dark" && s.BackgroundKind == "theme")
+        {
+            s.ThemePresetId  = "cozy-dark";
+            s.BackgroundKind = "gradient";
+            s.BackgroundValue = "depth-cozy";
+        }
+        return s;
     }
 
     public void Save(AppSettings settings)

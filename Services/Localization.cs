@@ -47,7 +47,10 @@ public static class Loc
         ["sidebar.search"]     = ("بحث…", "Search…"),
         ["btn.run"]            = ("▶  تشغيل", "▶  Run"),
         ["hint.pick"]          = ("اختر أمراً واضغط «تشغيل» لفتح تيرمنال", "Pick a command and press Run to open a terminal"),
-        ["hint.empty"]         = ("أو Ctrl+Shift+T لتيرمنال فارغ", "or Ctrl+Shift+T for an empty terminal"),
+        // يُعرض بجوار رقاقات الكيبورد (ctrl shift T) فلا يذكر الاختصار نصّاً.
+        ["hint.empty"]         = ("تيرمنال فارغ", "new empty terminal"),
+        // النصّ البديل في حقل البحث المركزيّ بشريط العنوان.
+        ["hdr.search"]         = ("ابحث في المشاريع والأوامر…", "Search projects, commands…"),
         ["settings.title"]     = ("الإعدادات", "Settings"),
         ["settings.appearance"]= ("المظهر", "Appearance"),
         ["settings.theme"]     = ("الثيم", "Theme"),
@@ -367,6 +370,30 @@ public static class Loc
         ["srv.mgmt.memFree"]   = ("حرّ", "Free"),
         ["srv.mgmt.memAvail"]  = ("متاح", "Available"),
         ["ctx.options"]        = ("خيارات", "Options"),
+
+        // ===== قائمة التبويب (النافذة) وقائمة المشروع =====
+        ["tabctx.rename"]      = ("إعادة تسمية التبويب…", "Rename tab…"),
+        ["tabctx.duplicate"]   = ("تكرار التبويب", "Duplicate tab"),
+        ["tabctx.detach"]      = ("فصل إلى نافذة مستقلّة", "Detach to new window"),
+        ["tabctx.copyTitle"]   = ("نسخ عنوان التبويب", "Copy tab title"),
+        ["tabctx.copyCwd"]     = ("نسخ مجلّد العمل", "Copy working directory"),
+        ["tabctx.moveStart"]   = ("نقل للأمام", "Move tab forward"),
+        ["tabctx.moveEnd"]     = ("نقل للخلف", "Move tab back"),
+        ["tabctx.close"]       = ("إغلاق التبويب", "Close tab"),
+        ["tabctx.closeOthers"] = ("إغلاق التبويبات الأخرى", "Close other tabs"),
+        ["tabctx.closeAfter"]  = ("إغلاق ما بعده", "Close tabs after this"),
+        ["tabctx.rename.msg"]  = ("اسم التبويب الجديد:", "New tab name:"),
+        ["tabctx.color.none"]  = ("بلا لون", "No color"),
+
+        ["projctx.openNew"]    = ("فتح في تبويب جديد", "Open in new tab"),
+        ["projctx.copyName"]   = ("نسخ اسم المشروع", "Copy project name"),
+        ["projctx.copyPath"]   = ("نسخ الباث", "Copy path"),
+        ["projctx.explorer"]   = ("فتح في المستكشف", "Reveal in File Explorer"),
+        ["projctx.duplicate"]  = ("تكرار المشروع", "Duplicate project"),
+        ["projctx.rename"]     = ("إعادة تسمية…", "Rename…"),
+        ["projctx.rename.msg"] = ("اسم المشروع الجديد:", "New project name:"),
+        ["projctx.color"]      = ("لون المشروع", "Project color"),
+        ["projctx.copy.suffix"]= ("نسخة", "copy"),
 
         // تقرير الأخطاء غير المتوقّعة (CrashReporter)
         ["crash.title"]    = ("حدث خطأ غير متوقّع", "Unexpected error"),

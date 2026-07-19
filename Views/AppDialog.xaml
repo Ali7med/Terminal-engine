@@ -22,6 +22,10 @@
                 <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="22" FontSize="13.5"
                            Foreground="{DynamicResource Brush.TextMuted}"/>
             </ScrollViewer>
+            <!-- حقل الإدخال: يظهر فقط في وضع «سؤال بنصّ» (AppDialog.Prompt) — مخفيّ في التأكيد/التنبيه -->
+            <TextBox x:Name="InputBox" Visibility="Collapsed" Margin="0,14,0,0"
+                     FontSize="13.5" Padding="10,8"/>
+
             <!-- الأزرار مجمّعة على الحافة الأماميّة (يمين في LTR، يسار في RTL) — تتبع اتّجاه اللغة -->
             <StackPanel x:Name="ButtonPanel" Orientation="Horizontal"
                         HorizontalAlignment="Right" Margin="0,24,0,0"/>

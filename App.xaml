@@ -29,26 +29,36 @@
             <sys:Double x:Key="Size.MenuGesture">12</sys:Double>
 
             <!-- استدارة الحواف (يضبطها FontManager من config.json — DynamicResource) -->
-            <CornerRadius x:Key="Radius.Card">12</CornerRadius>
-            <CornerRadius x:Key="Radius.Control">8</CornerRadius>
+            <CornerRadius x:Key="Radius.Card">14</CornerRadius>
+            <CornerRadius x:Key="Radius.Control">10</CornerRadius>
+            <!-- حقل البحث الحبّة (pill) في شريط العنوان -->
+            <CornerRadius x:Key="Radius.Pill">18</CornerRadius>
 
-            <!-- فراشٍ ابتدائية (دارك محايد دافئ) — يستبدلها ThemeManager عند الإقلاع -->
-            <SolidColorBrush x:Key="Brush.Bg"          Color="#1A1A1A"/>
-            <SolidColorBrush x:Key="Brush.Surface"     Color="#292826"/>
-            <SolidColorBrush x:Key="Brush.Surface2"    Color="#333230"/>
-            <SolidColorBrush x:Key="Brush.SurfaceHover" Color="#3D3B38"/>
-            <SolidColorBrush x:Key="Brush.Border"      Color="#3A3936"/>
-            <SolidColorBrush x:Key="Brush.Text"        Color="#ECEAE6"/>
-            <SolidColorBrush x:Key="Brush.TextMuted"   Color="#9D998F"/>
-            <SolidColorBrush x:Key="Brush.Accent"      Color="#C96442"/>
-            <SolidColorBrush x:Key="Brush.AccentHover" Color="#D67A5A"/>
-            <SolidColorBrush x:Key="Brush.AccentSoft"  Color="#C96442" Opacity="0.18"/>
+            <!-- فراشٍ ابتدائية (ثيم «مريح» الداكن) — يستبدلها ThemeManager عند الإقلاع -->
+            <SolidColorBrush x:Key="Brush.Bg"          Color="#151413"/>
+            <SolidColorBrush x:Key="Brush.Surface"     Color="#201F1D"/>
+            <SolidColorBrush x:Key="Brush.Surface2"    Color="#2A2825"/>
+            <SolidColorBrush x:Key="Brush.SurfaceHover" Color="#33302C"/>
+            <SolidColorBrush x:Key="Brush.Border"      Color="#2E2C29"/>
+            <SolidColorBrush x:Key="Brush.Text"        Color="#EDEAE4"/>
+            <SolidColorBrush x:Key="Brush.TextMuted"   Color="#9A948A"/>
+            <SolidColorBrush x:Key="Brush.Accent"      Color="#B5563F"/>
+            <SolidColorBrush x:Key="Brush.AccentHover" Color="#C86C52"/>
+            <SolidColorBrush x:Key="Brush.AccentSoft"  Color="#B5563F" Opacity="0.22"/>
             <SolidColorBrush x:Key="Brush.OnAccent"    Color="#FFFFFF"/>
-            <SolidColorBrush x:Key="Brush.TerminalBg"  Color="#1A1A1A"/>
-            <SolidColorBrush x:Key="Brush.HeaderScrim" Color="#292826" Opacity="0.78"/>
-            <SolidColorBrush x:Key="Brush.SurfaceGlass" Color="#292826" Opacity="0.92"/>
+            <SolidColorBrush x:Key="Brush.TerminalBg"  Color="#151413"/>
+            <SolidColorBrush x:Key="Brush.HeaderScrim" Color="#201F1D" Opacity="0.72"/>
+            <SolidColorBrush x:Key="Brush.SurfaceGlass" Color="#201F1D" Opacity="0.90"/>
             <SolidColorBrush x:Key="Brush.Danger"      Color="#E0603F"/>
             <SolidColorBrush x:Key="Brush.Success"     Color="#9ECE6A"/>
+
+            <!-- رموز الواجهة المريحة: أسطح زجاجيّة + خطّ شعرة + صفوف بلا حدود (يستبدلها ThemeManager) -->
+            <SolidColorBrush x:Key="Brush.Glass"       Color="#201F1D" Opacity="0.55"/>
+            <SolidColorBrush x:Key="Brush.GlassStrong" Color="#201F1D" Opacity="0.88"/>
+            <SolidColorBrush x:Key="Brush.Hairline"    Color="#EDEAE4" Opacity="0.12"/>
+            <SolidColorBrush x:Key="Brush.RowHover"    Color="#EDEAE4" Opacity="0.07"/>
+            <SolidColorBrush x:Key="Brush.RowActive"   Color="#B5563F" Opacity="0.25"/>
+            <SolidColorBrush x:Key="Brush.KeyCap"      Color="#EDEAE4" Opacity="0.10"/>
 
             <!-- شريط تمرير نحيل متوافق مع الثيم (مقبض دائريّ يتلوّن باللكنة عند المرور، مسار شفّاف، بلا أسهم).
                  مكتفٍ بذاته — يُطبَّق عبر ScrollViewer.Resources حيث يُراد (مثل لوحة الضبط). -->
