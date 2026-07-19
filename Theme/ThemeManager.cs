@@ -187,6 +187,9 @@ public static class ThemeManager
             new[]{ C(0x64,0x74,0x8B), C(0x94,0xA3,0xB8), C(0x47,0x55,0x69), C(0xA1,0x62,0x07) }),
     };
 
+    /// <summary>الثيم المطبَّق حاليّاً — تقرأه قوالب النقوش كي تتبع ألوانه بدل ألوان ثابتة.</summary>
+    public static ThemePreset Current { get; private set; } = Presets[0];
+
     public static Color BackgroundColor { get; private set; } = Presets[0].Bg;
     public static Color TerminalBackground { get; private set; } = Presets[0].TerminalBg;
 
@@ -205,6 +208,7 @@ public static class ThemeManager
 
         var r = Application.Current.Resources;
 
+        Current            = p;
         BackgroundColor    = p.Bg;
         TerminalBackground = p.TerminalBg;
 
@@ -390,15 +394,14 @@ public static class ThemeManager
                 ("#141B18", 0.55, 0.45, 1.00))));
 
         // --- نقوش (DrawingBrush مبلَّط) ---
+        // ألوانها تُقرأ من الثيم المطبَّق وقت إنشاء الفرشاة لا من hex ثابت، فالنقش يصير فاتحاً مع
+        // الثيم الفاتح وداكناً مع الداكن (كان نقشاً داكناً دائماً يناقض الواجهة الفاتحة).
         list.Add(new BackgroundTemplate("pat-dots", "نقاط", "Dots",
-            BackgroundTemplateKind.Pattern,
-            () => DotsPattern("#12141A", "#2A2F3A")));
+            BackgroundTemplateKind.Pattern, DotsPattern));
         list.Add(new BackgroundTemplate("pat-grid", "شبكة", "Grid",
-            BackgroundTemplateKind.Pattern,
-            () => GridPattern("#101216", "#22262E")));
+            BackgroundTemplateKind.Pattern, GridPattern));
         list.Add(new BackgroundTemplate("pat-diagonal", "أسطر مائلة", "Diagonal",
-            BackgroundTemplateKind.Pattern,
-            () => DiagonalPattern("#121016", "#242030")));
+            BackgroundTemplateKind.Pattern, DiagonalPattern));
 
         return list.ToArray();
     }
@@ -467,11 +470,27 @@ public static class ThemeManager
         return brush;
     }
 
-    /// <summary>نقش نقاط: خلفيّة مصمتة + نقطة صغيرة مكرّرة على بلاطة.</summary>
-    private static DrawingBrush DotsPattern(string bgHex, string dotHex)
+    /// <summary>
+    /// لوحة النقش من الثيم الحاليّ: القاعدة = خلفيّة الثيم، والحبر = مزج خفيف نحو لون النصّ — يظهر
+    /// النقش على الفاتح والداكن معاً بلا ضجيج ولا تباين قاسٍ.
+    /// </summary>
+    private static (Color Bg, Color Ink) PatternPalette()
     {
-        var bg = (Color)ColorConverter.ConvertFromString(bgHex);
-        var dot = (Color)ColorConverter.ConvertFromString(dotHex);
+        var p = Current;
+        return (p.Bg, Mix(p.Bg, p.Text, p.Mode == ThemeMode.Light ? 0.16 : 0.11));
+    }
+
+    /// <summary>مزج خطّيّ بين لونين بنسبة t (٠ = a، ١ = b).</summary>
+    private static Color Mix(Color a, Color b, double t)
+        => Color.FromRgb(
+            (byte)Math.Round(a.R + (b.R - a.R) * t),
+            (byte)Math.Round(a.G + (b.G - a.G) * t),
+            (byte)Math.Round(a.B + (b.B - a.B) * t));
+
+    /// <summary>نقش نقاط: خلفيّة الثيم + نقطة صغيرة مكرّرة على بلاطة.</summary>
+    private static DrawingBrush DotsPattern()
+    {
+        var (bg, dot) = PatternPalette();
         var group = new DrawingGroup();
         group.Children.Add(new GeometryDrawing(new SolidColorBrush(bg),
             null, new RectangleGeometry(new Rect(0, 0, 20, 20))));
@@ -488,11 +507,10 @@ public static class ThemeManager
         return brush;
     }
 
-    /// <summary>نقش شبكة: خطوط رفيعة أفقيّة/رأسيّة على بلاطة.</summary>
-    private static DrawingBrush GridPattern(string bgHex, string lineHex)
+    /// <summary>نقش شبكة: خطوط رفيعة أفقيّة/رأسيّة على بلاطة (بألوان الثيم).</summary>
+    private static DrawingBrush GridPattern()
     {
-        var bg = (Color)ColorConverter.ConvertFromString(bgHex);
-        var line = (Color)ColorConverter.ConvertFromString(lineHex);
+        var (bg, line) = PatternPalette();
         var pen = new Pen(new SolidColorBrush(line), 1);
         pen.Freeze();
         var group = new DrawingGroup();
@@ -514,11 +532,10 @@ public static class ThemeManager
         return brush;
     }
 
-    /// <summary>نقش أسطر مائلة: خطّ قطريّ رفيع مكرّر.</summary>
-    private static DrawingBrush DiagonalPattern(string bgHex, string lineHex)
+    /// <summary>نقش أسطر مائلة: خطّ قطريّ رفيع مكرّر (بألوان الثيم).</summary>
+    private static DrawingBrush DiagonalPattern()
     {
-        var bg = (Color)ColorConverter.ConvertFromString(bgHex);
-        var line = (Color)ColorConverter.ConvertFromString(lineHex);
+        var (bg, line) = PatternPalette();
         var pen = new Pen(new SolidColorBrush(line), 1.4);
         pen.Freeze();
         var group = new DrawingGroup();

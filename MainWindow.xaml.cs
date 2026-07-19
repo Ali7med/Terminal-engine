@@ -885,6 +885,7 @@ public partial class MainWindow : Window
         UpdateTextColorSelection();       // مؤشّر لون الكتابة يتبع الثيم في الوضع التلقائيّ
         ApplyFontToAllTabs();             // إعادة رسم التيرمنالات بلون/أساس الثيم الجديد فوراً
         ApplyBackground();                // يحدّث طبقات التعتيم (الشريط الجانبيّ/الرأس) بألوان الثيم الجديد
+        BuildBackgroundGallery();         // مصغّرات النقوش تتبع الثيم — نعيد بناءها كي لا تبقى بألوانه القديمة
         SaveSettings();
     }
 
@@ -900,6 +901,7 @@ public partial class MainWindow : Window
         UpdateTextColorSelection();
         ApplyFontToAllTabs();             // إعادة رسم التيرمنالات بلون/أساس الثيم الجديد فوراً
         ApplyBackground();                // يحدّث طبقات التعتيم بألوان الثيم الجديد
+        BuildBackgroundGallery();
         SaveSettings();
     }
 
