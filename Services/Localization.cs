@@ -125,6 +125,8 @@ public static class Loc
         ["tip.settings"]       = ("الإعدادات", "Settings"),
         ["tip.add"]            = ("إضافة أمر", "Add command"),
         ["profiles.manage"]    = ("إدارة البروفايلات…", "Manage profiles…"),
+        // {0} = العدد الكلّيّ للصدفات المتاحة.
+        ["profiles.showAll"]   = ("عرض كل الصدفات ({0})…", "Show all shells ({0})…"),
 
         // ===== تأكيد اللصق (حماية) =====
         ["paste.title"]        = ("تأكيد اللصق", "Confirm paste"),

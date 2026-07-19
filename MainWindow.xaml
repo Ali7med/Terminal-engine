@@ -251,7 +251,10 @@
                                         Click="AddButton_Click" ToolTip="إضافة أمر"/>
                             </Grid>
 
-                            <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,8"
+                            <!-- نفس حبّة بحث الرأس: عدسة + نصّ بديل (الحقل العادي كان يظهر صندوقاً فارغاً
+                                 بلا أيّ دلالة لأنّ الستايل الضمنيّ لا يرسم Tag كنصّ بديل). -->
+                            <TextBox x:Name="SidebarSearch" DockPanel.Dock="Top" Margin="0,0,0,10"
+                                     Style="{StaticResource SearchPill}"
                                      TextChanged="SidebarSearch_TextChanged"/>
 
                             <!-- مقطع «الإعدادات» أسفل اللوحة: عنوان مكتوم صغير + صفّ واحد — نفس بنية
@@ -272,8 +275,6 @@
                                 </Button>
                             </StackPanel>
 
-                            <TextBlock x:Name="SidebarProjectsCaption" DockPanel.Dock="Top" Text="المشاريع"
-                                       Style="{StaticResource Caption}" Margin="2,4,2,2"/>
 
                             <!-- شريط فلترة التاكات: «الكل» + رقاقة لكل تاك — صفّ أفقيّ بسكرول مربوط بالعجلة -->
                             <ScrollViewer x:Name="ProjectFilterScroll" DockPanel.Dock="Top"

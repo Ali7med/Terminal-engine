@@ -1008,7 +1008,6 @@ public partial class MainWindow : Window
         HintLine3.Text = Loc.T("hint.palette");
         HintLine4.Text = Loc.T("hint.splitV");
         HintLine5.Text = Loc.T("hint.splitH");
-        SidebarProjectsCaption.Text  = Loc.T("sidebar.projects");
         SidebarSettingsCaption.Text  = Loc.T("settings.title");
         SidebarSettingsText.Text     = Loc.T("settings.title");
         SettingsTitle.Text = Loc.T("settings.title");
@@ -1315,7 +1314,14 @@ public partial class MainWindow : Window
                 Background = new SolidColorBrush(c), Margin = new Thickness(0, 0, 5, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             });
-        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontSize = 11.5 });
+        // لون النصّ صريح لا موروث: الرقاقة تُلوَّن بلون التاك، فالوراثة قد تعطي نصّاً بلون الخلفيّة نفسها.
+        content.Children.Add(new TextBlock
+        {
+            Text = label,
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 11.5,
+            Foreground = (Brush)FindResource("Brush.Text"),
+        });
 
         var chip = new Border
         {
@@ -1999,24 +2005,47 @@ public partial class MainWindow : Window
 
     private void NewTabButton_Click(object sender, RoutedEventArgs e) => OpenEmptyTerminal();
 
-    /// <summary>سهم القائمة بجانب زرّ «+»: يعرض كل البروفايلات (مكتشَفة + مخصّصة) + إدارتها (T-101.4).</summary>
+    /// <summary>كم بروفايلاً يظهر قبل «عرض الكل» — قائمة قصيرة تُقرأ بلمحة.</summary>
+    private const int ProfileMenuPreviewCount = 5;
+
+    /// <summary>سهم القائمة بجانب زرّ «+»: أوّل خمسة بروفايلات + توسيع + إدارتها (T-101.4).</summary>
     private void NewTabDropDown_Click(object sender, RoutedEventArgs e)
+        => ShowProfilesMenu(sender as UIElement, showAll: false);
+
+    /// <summary>
+    /// يبني قائمة البروفايلات: افتراضاً أوّل <see cref="ProfileMenuPreviewCount"/> فقط مع بند
+    /// «عرض الكل (N)» يعيد بناءها كاملةً في المكان نفسه — فلا تطول القائمة بلا داعٍ.
+    /// </summary>
+    private void ShowProfilesMenu(UIElement? target, bool showAll)
     {
-        var menu = new ContextMenu { FlowDirection = Loc.Flow };
-        foreach (var p in ShellCatalog.Profiles)
+        var menu = new ContextMenu { FlowDirection = Loc.Flow, PlacementTarget = target };
+        var available = ShellCatalog.Profiles.Where(p => p.Available).ToList();
+        var shown = showAll ? available : available.Take(ProfileMenuPreviewCount).ToList();
+
+        foreach (var p in shown)
         {
-            if (!p.Available) continue;
             var captured = p.Id;
             var item = new MenuItem { Header = p.DisplayLabel };
             item.Click += (_, _) => OpenTerminalForProfile(captured);
             menu.Items.Add(item);
         }
+
+        if (shown.Count < available.Count)
+        {
+            var more = new MenuItem
+            {
+                Header = string.Format(Loc.T("profiles.showAll"), available.Count),
+                Foreground = (Brush)FindResource("Brush.TextMuted"),
+            };
+            more.Click += (_, _) => ShowProfilesMenu(target, showAll: true);
+            menu.Items.Add(more);
+        }
+
         menu.Items.Add(new Separator());
         var manage = new MenuItem { Header = Loc.T("profiles.manage") };
         manage.Click += (_, _) => OpenProfileManager();
         menu.Items.Add(manage);
 
-        menu.PlacementTarget = sender as UIElement;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen = true;
     }

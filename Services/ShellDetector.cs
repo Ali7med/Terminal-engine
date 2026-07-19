@@ -180,12 +180,16 @@ public static class ShellDetector
             proc.WaitForExit(4000);
             byte[] bytes = ms.ToArray();
 
+            // حارس أوّل: بلا توزيعات مثبّتة يطبع wsl.exe نصّ الاستعمال على stdout ويخرج بكود ≠ ٠،
+            // فكان كلّ سطر مساعدة يتحوّل إلى «توزيعة» ويغرق قائمة الصدفات. الكود وحده يكفي لرفضها.
+            if (proc.ExitCode != 0) return distros;
+
             string output = DecodeWslOutput(bytes);
             foreach (var raw in output.Split('\n'))
             {
                 // إزالة \r وأحرف NUL المتبقّية.
                 string name = raw.Replace("\0", "").Trim();
-                if (name.Length > 0) distros.Add(name);
+                if (LooksLikeDistroName(name)) distros.Add(name);
             }
         }
         catch
@@ -193,6 +197,17 @@ public static class ShellDetector
             // wsl.exe غير مثبّت أو تعذّر تشغيله — لا توزيعات.
         }
         return distros;
+    }
+
+    /// <summary>
+    /// حارس ثانٍ (دفاع بالعمق): هل يشبه السطر اسم توزيعة فعليّاً؟ أسماء التوزيعات قصيرة وبلا علامات
+    /// صياغة الأوامر. يمنع تسرّب أسطر المساعدة/التحذير لو خرج wsl.exe بكود ٠ رغم عدم وجود توزيعات.
+    /// </summary>
+    private static bool LooksLikeDistroName(string name)
+    {
+        if (name.Length == 0 || name.Length > 64) return false;
+        if (name.StartsWith("-")) return false;                      // خيارات مثل --install
+        return name.IndexOfAny(new[] { ':', '[', ']', '<', '>', '(', ')', ',' }) < 0;
     }
 
     /// <summary>يفكّ مخرجات wsl: UTF-16LE إن كثُرت أحرف NUL المتخلّلة، وإلا UTF-8.</summary>
