@@ -502,20 +502,83 @@ public partial class TerminalTabView : UserControl
     // ===== صندوق التأليف =====
 
     /// <summary>
-    /// يُظهر صندوق التأليف على الشاشة الأساس (حين يكون مُفعَّلاً ولم يُخفَ يدويّاً بـ Esc)، ويخفيه في
-    /// الشاشة البديلة (vim/less/أيّ تطبيق كامل الشاشة) فيعود الإدخال داخل الشبكة تلقائياً.
+    /// هل الصدفة عند موجّه جاهز للأمر (لا أمر تفاعليّ يعمل)؟ إشارة: سطر المؤشّر ينتهي برمز موجّه
+    /// (<c>$ &gt; # % ❯</c>) وليست شاشةً بديلة. حين يعمل claude/الوكيل/أيّ برنامج تفاعليّ يكون المؤشّر
+    /// في مكانٍ آخر (لا رمز موجّه) ⇒ نُخفي الصندوق وتصير الشبكة هي الإدخال، فيتوافق مع تلك الأدوات.
     /// </summary>
+    private bool IsAtShellPrompt(ScreenSnapshot? snap)
+    {
+        if (snap == null || snap.AltScreen) return false;
+        int cl = snap.CursorLine;
+        if (cl < 0 || cl >= snap.Lines.Count) return false;
+
+        string line = LinePlainText(snap.Lines[cl]);
+        int col = Math.Clamp(snap.CursorColumn, 0, line.Length);
+        string upto = line[..col].TrimEnd();
+        if (upto.Length == 0) upto = line.TrimEnd();   // المؤشّر أوّل السطر ⇒ افحص السطر كاملاً
+        if (upto.Length == 0) return false;
+
+        char last = upto[^1];
+        return last is '$' or '>' or '#' or '%' or '❯';
+    }
+
+    /// <summary>
+    /// يُظهر صندوق التأليف فقط حين تكون الصدفة <b>عند موجّه جاهز</b>؛ ويخفيه متى عمل أمر تفاعليّ
+    /// (claude/الوكيل/less/vim/أيّ برنامج يقرأ الإدخال بنفسه) فتصير الشبكة هي الإدخال تلقائياً —
+    /// فيتوافق مع تلك الأدوات. الإخفاء اليدويّ بـ Esc يبقى محترَماً.
+    /// </summary>
+    private DispatcherTimer? _composerHideTimer;
+
     private void UpdateComposerVisibility()
     {
         bool altScreen = _lastSnapshot?.AltScreen ?? false;
-        bool show = _composerEnabled && !altScreen && !_composerSuppressReshow;
+        bool wantShow = _composerEnabled && IsAtShellPrompt(_lastSnapshot) && !_composerSuppressReshow;
 
+        if (wantShow)
+        {
+            CancelComposerHide();
+            SetComposerShown(true);
+        }
+        else if (altScreen || !_composerEnabled || _composerSuppressReshow)
+        {
+            CancelComposerHide();      // إشارة قاطعة (شاشة بديلة/معطّل/Esc) ⇒ إخفاء فوريّ
+            SetComposerShown(false);
+        }
+        else
+        {
+            // ليس عند موجّه لكن ليس شاشة بديلة (أمر يعمل): إخفاء مؤجّل ~٣٥٠مي يتفادى وميض
+            // الأوامر السريعة (ls) ويُخفيه فعلاً للأدوات التفاعليّة الطويلة (claude/الوكيل).
+            ScheduleComposerHide();
+        }
+    }
+
+    private void ScheduleComposerHide()
+    {
+        if (ComposerBar.Visibility != Visibility.Visible || _composerHideTimer != null) return;
+        _composerHideTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        { Interval = TimeSpan.FromMilliseconds(350) };
+        _composerHideTimer.Tick += (_, _) =>
+        {
+            CancelComposerHide();
+            if (!(_composerEnabled && IsAtShellPrompt(_lastSnapshot) && !_composerSuppressReshow))
+                SetComposerShown(false);
+        };
+        _composerHideTimer.Start();
+    }
+
+    private void CancelComposerHide()
+    {
+        _composerHideTimer?.Stop();
+        _composerHideTimer = null;
+    }
+
+    /// <summary>يُظهر/يخفي صندوق التأليف فعليّاً (مع التركيز ومؤشّر الشبكة).</summary>
+    private void SetComposerShown(bool show)
+    {
         if (show && ComposerBar.Visibility != Visibility.Visible)
         {
             ComposerBar.Visibility = Visibility.Visible;
             Renderer.SuppressCursor = true;   // الإدخال في الصندوق ⇒ لا مؤشّر في الشبكة
-            // تركيز افتراضيّ على الصندوق (لا يحتاج المستخدم نقرةً): بعد التخطيط، ما لم يكن التركيز
-            // في حقلٍ آخر (بحث/محرّر) أو خارج هذا العرض.
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (ComposerBar.Visibility == Visibility.Visible
@@ -531,7 +594,7 @@ public partial class TerminalTabView : UserControl
             ComposerBar.Visibility = Visibility.Collapsed;
             HideSuggestions();
             Renderer.SuppressCursor = false;
-            if (hadFocus) Renderer.Focus();   // الشاشة البديلة تحتاج تركيز الشبكة (مفاتيح vim)
+            if (hadFocus) Renderer.Focus();   // الشبكة تحتاج التركيز (claude/vim)
         }
         else
         {
@@ -583,7 +646,7 @@ public partial class TerminalTabView : UserControl
 
         SuggestList.ItemsSource = matches;
         SuggestList.SelectedIndex = 0;
-        SuggestBox.Visibility = Visibility.Visible;
+        SuggestPopup.IsOpen = true;
 
         SetGhost(matches[0].Text, text);   // الشبح = ذيل أعلى اقتراح (إن كان بادئةً للنصّ)
     }
@@ -705,7 +768,7 @@ public partial class TerminalTabView : UserControl
 
     private void HideSuggestions()
     {
-        SuggestBox.Visibility = Visibility.Collapsed;
+        SuggestPopup.IsOpen = false;
         SuggestList.ItemsSource = null;
     }
 
@@ -734,7 +797,7 @@ public partial class TerminalTabView : UserControl
         var mods = Keyboard.Modifiers;
         bool ctrl = (mods & ModifierKeys.Control) != 0;
         bool shift = (mods & ModifierKeys.Shift) != 0;
-        bool suggesting = SuggestBox.Visibility == Visibility.Visible && SuggestList.Items.Count > 0;
+        bool suggesting = SuggestPopup.IsOpen && SuggestList.Items.Count > 0;
 
         switch (e.Key)
         {

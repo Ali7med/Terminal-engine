@@ -228,48 +228,57 @@
                         Background="Transparent"
                         BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0">
                     <DockPanel>
-                        <!-- قائمة الاقتراحات: منسدلة تطفو فوق سطر الإدخال — لها سطح خفيف للقراءة.
-                             تستعمل ستايل ListBox المُثيَّم (تمرير خافت + نشِط بلكنة) — لا override محلّيّ. -->
-                        <Border x:Name="SuggestBox" DockPanel.Dock="Top" Visibility="Collapsed"
-                                Margin="10,8,10,0" Padding="4,4,4,0" CornerRadius="10,10,0,0"
-                                Background="{DynamicResource Brush.Glass}"
-                                BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
-                            <ListBox x:Name="SuggestList" MaxHeight="240" BorderThickness="0"
-                                     Background="Transparent" Padding="0,0,0,6"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     PreviewMouseLeftButtonUp="SuggestList_Click">
-                                <ListBox.Resources>
-                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
-                                </ListBox.Resources>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="18"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding Text}"
-                                                       FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                                       Foreground="{DynamicResource Brush.Text}"
-                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                            <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="9,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource Brush.KeyCap}">
-                                                <TextBlock Text="{Binding Kind}" FontSize="9.5"
+                        <!-- قائمة الاقتراحات: Popup طافٍ فوق الإنبت — لا يُعيد ترتيب التيرمنال (لا يزحفه).
+                             Focusable=False فيبقى التركيز في الحقل والتنقّل بالأسهم. عرضها = عرض الإنبت. -->
+                        <Popup x:Name="SuggestPopup" Placement="Top" StaysOpen="True"
+                               AllowsTransparency="True" Focusable="False"
+                               PlacementTarget="{Binding ElementName=ComposerInputArea}"
+                               PopupAnimation="Fade">
+                            <Border Margin="0,0,0,6" CornerRadius="10"
+                                    Background="{DynamicResource Brush.GlassStrong}"
+                                    BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
+                                    Padding="4"
+                                    Width="{Binding ActualWidth, ElementName=ComposerInputArea}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.4" Color="#000000"/>
+                                </Border.Effect>
+                                <ListBox x:Name="SuggestList" MaxHeight="240" BorderThickness="0"
+                                         Background="Transparent"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         PreviewMouseLeftButtonUp="SuggestList_Click">
+                                    <ListBox.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
+                                    </ListBox.Resources>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="18"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11"
+                                                           VerticalAlignment="Center"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Border>
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                           FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                                           Foreground="{DynamicResource Brush.Text}"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="9,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Brush.KeyCap}">
+                                                    <TextBlock Text="{Binding Kind}" FontSize="9.5"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </Popup>
 
                         <!-- منطقة الإدخال: سطر الباث (كامل) فوق، ثمّ سطر الموجّه + الحقل -->
-                        <StackPanel Margin="14,8,14,11">
+                        <StackPanel x:Name="ComposerInputArea" Margin="14,8,14,11">
                             <!-- الباث الحاليّ (مجلد العمل) على سطر مستقلّ — يظهر كاملاً بلا اقتطاع -->
                             <TextBlock x:Name="ComposerCwd" Margin="0,0,0,3"
                                        FontFamily="Cascadia Mono, Consolas" FontSize="11.5"

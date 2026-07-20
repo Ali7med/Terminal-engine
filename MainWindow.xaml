@@ -103,8 +103,8 @@
                 </StackPanel>
             </Grid>
 
-            <!-- ===== المحتوى ===== -->
-            <Grid x:Name="ContentGrid" Grid.Row="1" Margin="14,4,14,14">
+            <!-- ===== المحتوى ===== (بلا هامش: التيرمنال يملأ حتى حافّة النافذة) -->
+            <Grid x:Name="ContentGrid" Grid.Row="1" Margin="0">
                 <Grid.ColumnDefinitions>
                     <!-- عرض الشريط الجانبيّ: 280 موسَّعاً (الافتراضي) · 60 مطويّاً — يضبطه SetSidebarExpanded -->
                     <ColumnDefinition x:Name="SidebarCol" Width="280"/>
