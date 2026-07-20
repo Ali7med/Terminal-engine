@@ -280,13 +280,25 @@
                                        Margin="0,1,10,0" FontFamily="Cascadia Mono, Consolas"
                                        FontSize="15" FontWeight="Bold"
                                        Foreground="{DynamicResource Brush.Accent}"/>
-                            <!-- الشبح inline: طبقة خلف الحقل تعرض الاقتراح الأعلى باهتاً (يُقبَل بـ Tab) -->
-                            <TextBlock Grid.Column="1" x:Name="ComposerGhost" IsHitTestVisible="False"
-                                       FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
-                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.45"/>
+                            <!-- طبقة الشبح: ذيل الإكمال (لون أفتح مكتوم) + حبّة tab — تُوضَع أفقيّاً عند
+                                 نهاية النصّ المكتوب عبر GetRectFromCharacterIndex فتتحاذى تماماً. -->
+                            <Canvas Grid.Column="1" IsHitTestVisible="False" ClipToBounds="True">
+                                <StackPanel x:Name="ComposerGhostPanel" Orientation="Horizontal"
+                                            Canvas.Top="0" Visibility="Collapsed">
+                                    <TextBlock x:Name="ComposerGhost"
+                                               FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
+                                               Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.5"/>
+                                    <Border x:Name="ComposerTabChip" Margin="8,0,0,0" Padding="6,0"
+                                            Height="17" VerticalAlignment="Center" CornerRadius="4"
+                                            Background="{DynamicResource Brush.KeyCap}">
+                                        <TextBlock Text="tab" FontFamily="Cascadia Mono, Consolas"
+                                                   FontSize="10.5" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Canvas>
                             <TextBox Grid.Column="1" x:Name="ComposerInput"
-                                     Background="Transparent" BorderThickness="0"
+                                     Background="Transparent" BorderThickness="0" Padding="0"
                                      Foreground="{DynamicResource Brush.Text}"
                                      CaretBrush="{DynamicResource Brush.Accent}"
                                      FontFamily="Cascadia Mono, Consolas" FontSize="13.5"

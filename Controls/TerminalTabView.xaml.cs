@@ -497,7 +497,7 @@ public partial class TerminalTabView : UserControl
         if (text.Contains('\n') || text.Length == 0)
         {
             HideSuggestions();
-            ComposerGhost.Text = "";
+            SetGhost(null, "");
             return;
         }
 
@@ -505,7 +505,7 @@ public partial class TerminalTabView : UserControl
         if (matches.Count == 0)
         {
             HideSuggestions();
-            ComposerGhost.Text = "";
+            SetGhost(null, "");
             return;
         }
 
@@ -513,10 +513,51 @@ public partial class TerminalTabView : UserControl
         SuggestList.SelectedIndex = 0;
         SuggestBox.Visibility = Visibility.Visible;
 
-        // الشبح inline: أعلى اقتراح يبدأ بالنصّ المكتوب (بادئة) — يُعرَض كاملاً باهتاً خلف الحقل.
-        var top = matches[0];
-        ComposerGhost.Text = top.Text.StartsWith(text, StringComparison.OrdinalIgnoreCase)
-            ? top.Text : "";
+        SetGhost(matches[0].Text, text);   // الشبح = ذيل أعلى اقتراح (إن كان بادئةً للنصّ)
+    }
+
+    /// <summary>
+    /// يضبط الشبح inline: يعرض <b>ذيل</b> الاقتراح (ما بعد المكتوب) بلون أفتح مكتوم مع حبّة tab، ويضعه
+    /// أفقيّاً عند نهاية النصّ المكتوب بدقّة (GetRectFromCharacterIndex) فيتحاذى مع الكتابة تماماً.
+    /// تمرير suggestion=null يُخفي الشبح.
+    /// </summary>
+    private void SetGhost(string? suggestion, string typed)
+    {
+        bool ok = suggestion != null && typed.Length > 0
+               && suggestion.StartsWith(typed, StringComparison.OrdinalIgnoreCase)
+               && suggestion.Length > typed.Length;
+        if (!ok)
+        {
+            ComposerGhostPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ComposerGhost.Text = suggestion!.Substring(typed.Length);   // الذيل فقط
+        _ghostSuggestion = suggestion;
+        ComposerGhostPanel.Visibility = Visibility.Visible;
+
+        // الموضع الأفقيّ = طرف آخر حرف مكتوب؛ يُؤجَّل لِما بعد إعادة التخطيط كي يكون الطرف محدَّثاً.
+        Dispatcher.BeginInvoke(new Action(PositionGhost), DispatcherPriority.Loaded);
+    }
+
+    private string? _ghostSuggestion;
+
+    /// <summary>يضع طبقة الشبح عند نهاية النصّ المكتوب رأسيّاً ووسطاً.</summary>
+    private void PositionGhost()
+    {
+        if (ComposerGhostPanel.Visibility != Visibility.Visible) return;
+        try
+        {
+            int idx = Math.Max(0, ComposerInput.Text.Length - 1);
+            var rect = ComposerInput.GetRectFromCharacterIndex(ComposerInput.Text.Length, true);
+            if (rect.IsEmpty) rect = ComposerInput.GetRectFromCharacterIndex(idx, true);
+            if (rect.IsEmpty) return;
+            Canvas.SetLeft(ComposerGhostPanel, rect.X);
+            // توسيط رأسيّ مع سطر الكتابة.
+            double h = ComposerGhostPanel.ActualHeight > 0 ? ComposerGhostPanel.ActualHeight : 18;
+            Canvas.SetTop(ComposerGhostPanel, rect.Y + (rect.Height - h) / 2);
+        }
+        catch { /* التخطيط لم يجهز بعد — سيُعاد الضبط عند التغيير التالي */ }
     }
 
     /// <summary>
@@ -601,7 +642,7 @@ public partial class TerminalTabView : UserControl
     {
         ComposerInput.Text = cmd;
         ComposerInput.CaretIndex = cmd.Length;
-        ComposerGhost.Text = "";
+        ClearGhost();
         HideSuggestions();
         ComposerInput.Focus();
     }
@@ -628,8 +669,8 @@ public partial class TerminalTabView : UserControl
             // Tab / السهم الأيمن عند النهاية: يقبل الشبح (الاقتراح الأعلى) — نمط Warp.
             case Key.Tab when !shift:
             case Key.Right when ComposerInput.CaretIndex == ComposerInput.Text.Length
-                             && ComposerGhost.Text.Length > 0:
-                if (ComposerGhost.Text.Length > 0) { AcceptSuggestion(ComposerGhost.Text); e.Handled = true; }
+                             && _ghostSuggestion != null:
+                if (_ghostSuggestion != null) { AcceptSuggestion(_ghostSuggestion); e.Handled = true; }
                 else if (suggesting && SuggestList.SelectedItem is ComposerSuggestion s1) { AcceptSuggestion(s1.Text); e.Handled = true; }
                 break;
 
@@ -666,7 +707,7 @@ public partial class TerminalTabView : UserControl
                 break;
 
             case Key.Escape:
-                if (suggesting) { HideSuggestions(); ComposerGhost.Text = ""; e.Handled = true; break; }
+                if (suggesting) { HideSuggestions(); ClearGhost(); e.Handled = true; break; }
                 _composerSuppressReshow = true;   // إخفاء يدويّ حتّى تركيز/Enter لاحق
                 ComposerBar.Visibility = Visibility.Collapsed;
                 Renderer.SuppressCursor = false;
@@ -693,9 +734,15 @@ public partial class TerminalTabView : UserControl
     /// <summary>يضبط الشبح ليطابق العنصر المحدَّد في القائمة (عند التنقّل بالأسهم).</summary>
     private void SyncGhostToSelection()
     {
-        ComposerGhost.Text = SuggestList.SelectedItem is ComposerSuggestion s
-            && s.Text.StartsWith(ComposerInput.Text, StringComparison.OrdinalIgnoreCase)
-            ? s.Text : "";
+        if (SuggestList.SelectedItem is ComposerSuggestion s) SetGhost(s.Text, ComposerInput.Text);
+        else ClearGhost();
+    }
+
+    /// <summary>يُخفي طبقة الشبح ويمسح اقتراحه المخزَّن.</summary>
+    private void ClearGhost()
+    {
+        ComposerGhostPanel.Visibility = Visibility.Collapsed;
+        _ghostSuggestion = null;
     }
 
     /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc).</summary>
@@ -710,7 +757,7 @@ public partial class TerminalTabView : UserControl
     {
         string text = ComposerInput.Text;
         ComposerInput.Clear();
-        ComposerGhost.Text = "";
+        ClearGhost();
         HideSuggestions();
         _histIndex = -1;
 
