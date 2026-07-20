@@ -166,46 +166,85 @@
                  للقراءة فقط بمنطق كونسول: PreviewTextInput/التحديد/النسخ/التمرير كلّها على العارض.
                  العارض يستقبل تركيز لوحة المفاتيح (Focusable) ويرسم LTR مهما كان اتّجاه الواجهة. -->
             <Grid Grid.Column="0">
-                <!-- هامش أيسر بعرض شريط التمرير: الشريط طبقةٌ فوق نفس الخليّة، فبدونه كان يغطّي
-                     العمود صفر من الشبكة (العارض LTR) فتُحجَب تحديثات الحافّة اليسرى. -->
-                <ctrl:SkiaTerminalRenderer x:Name="Renderer"
-                                           Margin="11,0,0,0"
-                                           Focusable="True" ClipToBounds="True"
-                                           FlowDirection="LeftToRight"
-                                           PreviewKeyDown="Renderer_PreviewKeyDown"
-                                           PreviewTextInput="Renderer_PreviewTextInput"
-                                           PreviewMouseLeftButtonDown="Renderer_MouseLeftDown"
-                                           PreviewMouseMove="Renderer_MouseMove"
-                                           PreviewMouseLeftButtonUp="Renderer_MouseLeftUp"
-                                           PreviewMouseRightButtonUp="Renderer_MouseRightUp"
-                                           PreviewMouseWheel="Renderer_MouseWheel"/>
-                <ScrollBar x:Name="Scroll" Orientation="Vertical" Style="{StaticResource SlimScroll}"
-                           HorizontalAlignment="Left" Margin="0,2"
-                           Scroll="Scroll_Scroll"/>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <!-- صندوق التأليف: ارتفاع تلقائيّ، مطويّ حتى يُفعَّل ويكون على الشاشة الأساس -->
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- شريط البحث في المخرجات (Ctrl+F) — يظهر أعلى الزاوية فوق التيرمنال، LTR داخلياً -->
-                <Border x:Name="SearchBar" Visibility="Collapsed"
-                        VerticalAlignment="Top" HorizontalAlignment="Right" Margin="10"
-                        FlowDirection="LeftToRight"
-                        Background="{DynamicResource Brush.Surface}"
-                        BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
-                        CornerRadius="9" Padding="6,4">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox x:Name="SearchInput" Width="180" Height="26"
-                                 BorderThickness="0" Background="Transparent" Padding="6,2"
-                                 VerticalContentAlignment="Center"
-                                 TextChanged="SearchInput_TextChanged"
-                                 PreviewKeyDown="SearchInput_PreviewKeyDown"/>
-                        <TextBlock x:Name="SearchCount" MinWidth="54" Margin="6,0" FontSize="11"
-                                   VerticalAlignment="Center" TextAlignment="Center"
+                <Grid Grid.Row="0">
+                    <!-- هامش أيسر بعرض شريط التمرير: الشريط طبقةٌ فوق نفس الخليّة، فبدونه كان يغطّي
+                         العمود صفر من الشبكة (العارض LTR) فتُحجَب تحديثات الحافّة اليسرى. -->
+                    <ctrl:SkiaTerminalRenderer x:Name="Renderer"
+                                               Margin="11,0,0,0"
+                                               Focusable="True" ClipToBounds="True"
+                                               FlowDirection="LeftToRight"
+                                               PreviewKeyDown="Renderer_PreviewKeyDown"
+                                               PreviewTextInput="Renderer_PreviewTextInput"
+                                               PreviewMouseLeftButtonDown="Renderer_MouseLeftDown"
+                                               PreviewMouseMove="Renderer_MouseMove"
+                                               PreviewMouseLeftButtonUp="Renderer_MouseLeftUp"
+                                               PreviewMouseRightButtonUp="Renderer_MouseRightUp"
+                                               PreviewMouseWheel="Renderer_MouseWheel"/>
+                    <ScrollBar x:Name="Scroll" Orientation="Vertical" Style="{StaticResource SlimScroll}"
+                               HorizontalAlignment="Left" Margin="0,2"
+                               Scroll="Scroll_Scroll"/>
+
+                    <!-- شريط البحث في المخرجات (Ctrl+F) — يظهر أعلى الزاوية فوق التيرمنال، LTR داخلياً -->
+                    <Border x:Name="SearchBar" Visibility="Collapsed"
+                            VerticalAlignment="Top" HorizontalAlignment="Right" Margin="10"
+                            FlowDirection="LeftToRight"
+                            Background="{DynamicResource Brush.Surface}"
+                            BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                            CornerRadius="9" Padding="6,4">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox x:Name="SearchInput" Width="180" Height="26"
+                                     BorderThickness="0" Background="Transparent" Padding="6,2"
+                                     VerticalContentAlignment="Center"
+                                     TextChanged="SearchInput_TextChanged"
+                                     PreviewKeyDown="SearchInput_PreviewKeyDown"/>
+                            <TextBlock x:Name="SearchCount" MinWidth="54" Margin="6,0" FontSize="11"
+                                       VerticalAlignment="Center" TextAlignment="Center"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <Button Style="{StaticResource IconButton}" Content="‹" FontSize="16"
+                                    Click="SearchPrev_Click" ToolTip="السابق (Shift+Enter)"/>
+                            <Button Style="{StaticResource IconButton}" Content="›" FontSize="16"
+                                    Click="SearchNext_Click" ToolTip="التالي (Enter)"/>
+                            <Button Style="{StaticResource IconButton}" Content="✕"
+                                    Click="SearchClose_Click" ToolTip="إغلاق (Esc)"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ===== صندوق التأليف (نمط Warp) =====
+                     يُكتب فيه الأمر كاملاً ثمّ يُرسَل عند Enter. يظهر على الشاشة الأساس فقط ويختفي
+                     في الشاشة البديلة (vim/less) وأثناء أمر جارٍ. LTR داخليّاً (النصّ أوامر). -->
+                <Border x:Name="ComposerBar" Grid.Row="1" Visibility="Collapsed"
+                        FlowDirection="LeftToRight" Margin="11,4,9,8"
+                        Background="{DynamicResource Brush.Glass}"
+                        BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
+                        CornerRadius="{DynamicResource Radius.Card}" Padding="10,7">
+                    <DockPanel>
+                        <!-- رمز الموجّه: يلمّح أنّ هذا سطر أمر لا صندوق بحث -->
+                        <TextBlock DockPanel.Dock="Left" Text="❯" VerticalAlignment="Top"
+                                   Margin="0,1,9,0" FontFamily="Cascadia Mono, Consolas"
+                                   FontSize="14" FontWeight="Bold"
+                                   Foreground="{DynamicResource Brush.Accent}"/>
+                        <TextBlock DockPanel.Dock="Right" x:Name="ComposerHint" Text="Enter ⏎"
+                                   VerticalAlignment="Bottom" Margin="9,0,0,0"
+                                   FontSize="10" Opacity="0.5"
                                    Foreground="{DynamicResource Brush.TextMuted}"/>
-                        <Button Style="{StaticResource IconButton}" Content="‹" FontSize="16"
-                                Click="SearchPrev_Click" ToolTip="السابق (Shift+Enter)"/>
-                        <Button Style="{StaticResource IconButton}" Content="›" FontSize="16"
-                                Click="SearchNext_Click" ToolTip="التالي (Enter)"/>
-                        <Button Style="{StaticResource IconButton}" Content="✕"
-                                Click="SearchClose_Click" ToolTip="إغلاق (Esc)"/>
-                    </StackPanel>
+                        <TextBox x:Name="ComposerInput"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{DynamicResource Brush.Text}"
+                                 CaretBrush="{DynamicResource Brush.Accent}"
+                                 FontFamily="Cascadia Mono, Consolas" FontSize="13"
+                                 AcceptsReturn="True" AcceptsTab="False" MaxLength="0"
+                                 TextWrapping="Wrap" MaxLines="8"
+                                 VerticalScrollBarVisibility="Auto"
+                                 GotKeyboardFocus="Composer_GotFocus"
+                                 PreviewKeyDown="Composer_PreviewKeyDown"/>
+                    </DockPanel>
                 </Border>
             </Grid>
 

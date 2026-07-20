@@ -79,6 +79,19 @@ public partial class TerminalTabView : UserControl
     // أيّ غموض في الحالة يمسح السطر والشبح (شبحٌ خاطئ أسوأ من لا شبح).
     private readonly StringBuilder _inputLine = new();
 
+    // ===== صندوق التأليف (نمط Warp — الخيار B) =====
+    // صندوق WPF منفصل يُكتب فيه الأمر ثمّ يُرسَل عند Enter. يظهر على الشاشة الأساس فقط ويختفي في
+    // الشاشة البديلة (vim/less) — فلا يكسر التطبيقات كاملة الشاشة. راجع docs/WarpInputBox_Design.md.
+    private bool _composerEnabled = true;
+    private bool _composerSuppressReshow;   // Esc: يُبقيه مخفيّاً حتّى نقرة/تركيز يدويّ ولو بقينا بالشاشة الأساس
+
+    /// <summary>تفعيل صندوق التأليف المنفصل (يضبطه المُضيف من الإعدادات). إطفاؤه يعيد الكتابة داخل الشبكة.</summary>
+    public bool ComposerEnabled
+    {
+        get => _composerEnabled;
+        set { _composerEnabled = value; UpdateComposerVisibility(); }
+    }
+
     private string _newline = "\r";
     private int _commandSent;
     // يُكتَب من خيط قراءة الـPTY ويُستهلَك على خيط الواجهة ⇒ int عبر Interlocked لا bool:
@@ -421,6 +434,140 @@ public partial class TerminalTabView : UserControl
 
         Renderer.SetSnapshot(snap);   // ScrollOffset=0 (القاع) يبقى ملتصقاً بالأسفل تلقائياً
         UpdateScrollBar();
+        UpdateComposerVisibility();   // الشاشة البديلة تُخفي الصندوق، والعودة منها تُظهره
+    }
+
+    // ===== صندوق التأليف =====
+
+    /// <summary>
+    /// يُظهر صندوق التأليف على الشاشة الأساس (حين يكون مُفعَّلاً ولم يُخفَ يدويّاً بـ Esc)، ويخفيه في
+    /// الشاشة البديلة (vim/less/أيّ تطبيق كامل الشاشة) فيعود الإدخال داخل الشبكة تلقائياً.
+    /// </summary>
+    private void UpdateComposerVisibility()
+    {
+        bool altScreen = _lastSnapshot?.AltScreen ?? false;
+        bool show = _composerEnabled && !altScreen && !_composerSuppressReshow;
+
+        if (show && ComposerBar.Visibility != Visibility.Visible)
+        {
+            ComposerBar.Visibility = Visibility.Visible;
+            if (IsKeyboardFocusWithin) ComposerInput.Focus();
+        }
+        else if (!show && ComposerBar.Visibility == Visibility.Visible)
+        {
+            bool hadFocus = ComposerInput.IsKeyboardFocusWithin;
+            ComposerBar.Visibility = Visibility.Collapsed;
+            if (hadFocus) Renderer.Focus();   // الشاشة البديلة تحتاج تركيز الشبكة (مفاتيح vim)
+        }
+    }
+
+    /// <summary>
+    /// مفاتيح صندوق التأليف: Enter يُرسل الأمر (متعدّد الأسطر عبر Bracketed Paste)، Shift+Enter سطر
+    /// جديد، Esc يعيد التركيز للشبكة، Ctrl+C يُفرغه، والأسهم عند الحدّ تتنقّل تاريخ الجلسة.
+    /// </summary>
+    private void Composer_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var mods = Keyboard.Modifiers;
+        bool ctrl = (mods & ModifierKeys.Control) != 0;
+        bool shift = (mods & ModifierKeys.Shift) != 0;
+
+        switch (e.Key)
+        {
+            case Key.Enter when !shift:
+                SubmitComposer();
+                e.Handled = true;
+                break;
+
+            case Key.Escape:
+                // إخفاء يدويّ: يبقى مخفيّاً حتّى ينقر المستخدم الصندوق أو الشبكة ثانيةً.
+                _composerSuppressReshow = true;
+                ComposerBar.Visibility = Visibility.Collapsed;
+                Renderer.Focus();
+                e.Handled = true;
+                break;
+
+            case Key.C when ctrl:
+                if (ComposerInput.SelectionLength == 0)   // بلا تحديد ⇒ إفراغ لا نسخ
+                {
+                    ComposerInput.Clear();
+                    _histIndex = -1;
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Up when !ComposerIsMultiline() && NavigateComposerHistory(older: true):
+            case Key.Down when !ComposerIsMultiline() && NavigateComposerHistory(older: false):
+                e.Handled = true;
+                break;
+
+            case Key.L when ctrl:   // Ctrl+L: تنظيف الشاشة كنمط الصدفة
+                ClearButton_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc).</summary>
+    private void Composer_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
+        => _composerSuppressReshow = false;
+
+    /// <summary>هل نصّ الصندوق متعدّد الأسطر فعلاً؟ (عندئذ الأسهم تحرّك المؤشّر لا التاريخ).</summary>
+    private bool ComposerIsMultiline() => ComposerInput.Text.Contains('\n');
+
+    /// <summary>يُرسل محتوى الصندوق للصدفة ثمّ يُفرغه ويسجّله في التاريخ. الفارغ يُرسل سطراً فارغاً.</summary>
+    private void SubmitComposer()
+    {
+        string text = ComposerInput.Text;
+        ComposerInput.Clear();
+        _histIndex = -1;
+
+        string trimmed = text.Trim();
+        if (trimmed.Length > 0) RecordHistory(trimmed);
+
+        // بديل الكتلة الاستدلاليّ: بدء كتلة أمر جديدة (يُتجاهَل تحت OSC 133 الحقيقيّ).
+        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(trimmed);
+
+        // متعدّد الأسطر ⇒ Bracketed Paste كي تتلقّاه الصدفة كنصّ واحد لا كأوامر منفصلة، ثمّ سطر تنفيذ.
+        if (text.Contains('\n'))
+        {
+            SendPaste(text.Replace("\r\n", "\n").TrimEnd('\n'));
+            Send(_newline);
+        }
+        else
+        {
+            Send(text + _newline);
+        }
+
+        ClearInputTracking();   // الصندوق هو مصدر الإدخال الآن — لا شبح داخل الشبكة
+        Renderer.ScrollOffset = 0;   // القفز للقاع كي تُرى المخرجات
+    }
+
+    /// <summary>يملأ الصندوق من تاريخ الجلسة (سهم أعلى=أقدم). يعيد false إن لا تنقّل ممكن.</summary>
+    private bool NavigateComposerHistory(bool older)
+    {
+        if (_sessionCommands.Count == 0) return false;
+
+        if (_histIndex == -1)
+        {
+            if (!older) return false;              // Down بلا تنقّل نشط ⇒ لا شيء
+            _histSavedLine = ComposerInput.Text;   // احفظ السطر الحيّ قبل الاستبدال
+            _histIndex = _sessionCommands.Count;
+        }
+
+        int next = older ? _histIndex - 1 : _histIndex + 1;
+        if (next < 0) return true;                 // تجاوزنا الأقدم ⇒ ابقَ (ابتلاع السهم)
+        if (next >= _sessionCommands.Count)
+        {
+            _histIndex = -1;                       // تجاوزنا الأحدث ⇒ استعد السطر الحيّ
+            ComposerInput.Text = _histSavedLine ?? "";
+            ComposerInput.CaretIndex = ComposerInput.Text.Length;
+            return true;
+        }
+
+        _histIndex = next;
+        ComposerInput.Text = _sessionCommands[_histIndex];
+        ComposerInput.CaretIndex = ComposerInput.Text.Length;
+        return true;
     }
 
     /// <summary>يُزامن شريط التمرير مع هندسة العارض (الأعلى=التمرير للأعلى) دون إطلاق حلقة تغذية.</summary>
@@ -805,8 +952,22 @@ public partial class TerminalTabView : UserControl
 
     // ===== محاكي الكونسول: كتابة مباشرة =====
 
+    /// <summary>هل صندوق التأليف نشط الآن (مُفعَّل وظاهر)؟ عندئذ هو مالك إدخال الأوامر لا الشبكة.</summary>
+    private bool ComposerActive => _composerEnabled && ComposerBar.Visibility == Visibility.Visible;
+
     private void Renderer_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
+        // الصندوق نشط ⇒ يملك إدخال الأوامر: نوجّه الكتابة إليه (نقر الشبكة ثمّ الكتابة يقفز للصندوق).
+        if (ComposerActive)
+        {
+            ComposerInput.Focus();
+            int caret = ComposerInput.CaretIndex;
+            ComposerInput.Text = ComposerInput.Text.Insert(caret, e.Text);
+            ComposerInput.CaretIndex = caret + e.Text.Length;
+            e.Handled = true;
+            return;
+        }
+
         Send(e.Text);
         // تتبّع الإدخال المطبوع (T-205): نُلحق الأحرف القابلة للطباعة ثمّ نحدّث الشبح.
         AppendTypedText(e.Text);
@@ -943,6 +1104,23 @@ public partial class TerminalTabView : UserControl
             e.Handled = true;
             return;
         }
+
+        // 1.1) الصندوق نشط والشبكة تحمل التركيز (بعد نقرة تحديد مثلاً): مفاتيح تحرير/تنفيذ سطر الأمر
+        // تخصّ الصندوق لا الشبكة — ننقل التركيز إليه ونعيد توجيه المفتاح كي لا يذهب للـPTY.
+        if (ComposerActive && !ctrl && !alt
+            && key is Key.Enter or Key.Back or Key.Left or Key.Right or Key.Up or Key.Down
+                    or Key.Home or Key.End or Key.Delete)
+        {
+            ComposerInput.Focus();
+            if (key == Key.Enter) { SubmitComposer(); e.Handled = true; }
+            // مفاتيح التحرير الأخرى: التركيز انتقل للصندوق، فيلتقطها هو في الضغطة التالية.
+            return;
+        }
+
+        // كان الصندوق مخفيّاً يدويّاً بـ Esc والمستخدم يكتب في الشبكة: أوّل Enter يُنتِج موجّهاً جديداً
+        // ⇒ نلغي الكتم فيعود الصندوق مع اللقطة التالية (وإلّا بقي مخفيّاً حتّى إعادة التشغيل).
+        if (_composerSuppressReshow && _composerEnabled && key == Key.Enter)
+            _composerSuppressReshow = false;
 
         // التطبيق يحرّر سطره بنفسه ⇒ لا نخطف مفاتيحه ولا نتتبّع سطره ولا نرسم شبحاً فوقه.
         // (كان Tab/الأيمن يُسرقان من كلود كود، والأسهم تُسرق منه، وReplaceInputLine يحقن
@@ -2004,7 +2182,12 @@ public partial class TerminalTabView : UserControl
     }
 
     /// <summary>يمنح منطقة الإخراج تركيز لوحة المفاتيح (يُستدعى عند تفعيل الجزء).</summary>
-    public void FocusTerminal() => Renderer.Focus();
+    /// <summary>يركّز مدخل الكتابة: صندوق التأليف إن كان نشطاً، وإلّا شبكة التيرمنال.</summary>
+    public void FocusTerminal()
+    {
+        if (ComposerActive) ComposerInput.Focus();
+        else Renderer.Focus();
+    }
 
     /// <summary>يعيد المؤشّر إلى الطور الظاهر ويُعيد تشغيل مؤقّت الوميض (يُستدعى مع كل ضغطة مفتاح).</summary>
     private void ResetCursorBlink()

@@ -19,6 +19,12 @@ public sealed class AppSettings
     /// <summary>الشريط الجانبيّ موسَّع (لوحة مشاريع كاملة) أم مطويّ إلى شريط أيقونيّ. يبقى بين التشغيلات.</summary>
     public bool SidebarExpanded { get; set; } = true;
 
+    /// <summary>
+    /// صندوق التأليف المنفصل (نمط Warp): يُكتب فيه الأمر ثمّ يُرسَل عند Enter. مُفعَّل افتراضاً؛ إطفاؤه
+    /// يعيد الكتابة داخل شبكة التيرمنال مباشرةً. راجع docs/WarpInputBox_Design.md.
+    /// </summary>
+    public bool UseCommandComposer { get; set; } = true;
+
     /// <summary>لغة الواجهة: "ar" (عربي، RTL) أو "en" (إنجليزي، LTR).</summary>
     public string Language { get; set; } = "ar";
 

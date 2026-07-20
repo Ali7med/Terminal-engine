@@ -191,6 +191,7 @@ public partial class MainWindow : Window
     {
         _syncingUi = true;
         SyncOsCheck.IsChecked = _settings.SyncThemeWithOs;
+        ComposerCheck.IsChecked = _settings.UseCommandComposer;
         UpdateThemeSelection();
 
         FontSizeSlider.Value = _settings.TerminalFontSize;
@@ -730,6 +731,18 @@ public partial class MainWindow : Window
             if (item is TabItem { Content: TerminalPaneContainer container })
                 foreach (var view in container.AllViews)
                     view.ApplyFontSettings(_settings.TerminalFontSize, _settings.FontFamily);
+    }
+
+    /// <summary>تبديل صندوق التأليف المنفصل (نمط Warp) — يُطبَّق على كلّ الأجزاء المفتوحة فوراً.</summary>
+    private void ComposerCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+        _settings.UseCommandComposer = ComposerCheck.IsChecked == true;
+        SaveSettings();
+        foreach (var item in TerminalTabs.Items)
+            if (item is TabItem { Content: TerminalPaneContainer container })
+                foreach (var view in container.AllViews)
+                    view.ComposerEnabled = _settings.UseCommandComposer;
     }
 
     private static Color ParseColor(string hex)
@@ -2210,6 +2223,7 @@ public partial class MainWindow : Window
             _settings.TerminalFontSize, OnTerminalFontSizeChanged, () => _settings.AiAssistantEnabled, sessionId);
         view.ApplyFontSettings(_settings.TerminalFontSize, _settings.FontFamily);   // نوع الخطّ + لون الكتابة الحاليّان
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
+        view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
         view.DetachRequested += DetachViewToWindow;   // زرّ الفصل → نافذة مستقلّة
         return view;
     }

@@ -637,6 +637,14 @@
 
                                         <!-- ===== فئة: الخطّ ===== -->
                                         <StackPanel x:Name="CatFont" Visibility="Collapsed" Margin="0,22,0,0">
+                                            <!-- صندوق التأليف المنفصل (نمط Warp) -->
+                                            <CheckBox x:Name="ComposerCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="صندوق إدخال منفصل للأوامر (نمط Warp)" Margin="2,0,2,4"
+                                                      Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
+                                            <TextBlock Text="يُكتب فيه الأمر ثمّ يُرسَل عند Enter؛ يختفي تلقائياً في محرّرات كامل الشاشة (vim/less)."
+                                                       TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
+                                                       FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
+
                                             <TextBlock x:Name="FontSizeLabel" Text="حجم الخطّ" Style="{StaticResource SectionLabel}"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
                                                 <Grid.ColumnDefinitions>
