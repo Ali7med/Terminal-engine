@@ -451,19 +451,24 @@ public partial class TerminalTabView : UserControl
     {
         if (ComposerBar.Visibility != Visibility.Visible) return;
 
+        // نمسح أسطر الموجّه الحاليّ (من بداية الكتلة المفتوحة للأسفل، وإلّا آخر ٦ أسطر) بحثاً عن مسار.
+        // موجّه bash سطران (المسار على السطر الأعلى، و$ تحته)، فقراءة سطر واحد كانت تفشل ⇒ يرتدّ
+        // للمسار الابتدائيّ ولا يتبع cd. المسح من الأسفل للأعلى يلتقط أحدث مسار مطبوع.
         string? cwd = null;
-        if (!snap.AltScreen && snap.Blocks is { Count: > 0 })
+        if (!snap.AltScreen)
         {
-            BlockSnapshot? open = null;
-            foreach (var b in snap.Blocks) if (b.EndLine == long.MaxValue) open = b;
-            if (open != null)
+            int from = snap.Lines.Count - 6;
+            if (snap.Blocks is { Count: > 0 })
             {
-                int idx = (int)(open.StartLine - snap.BaseLine);
-                if (idx >= 0 && idx < snap.Lines.Count)
-                    cwd = ExtractCwd(LinePlainText(snap.Lines[idx]));
+                BlockSnapshot? open = null;
+                foreach (var b in snap.Blocks) if (b.EndLine == long.MaxValue) open = b;
+                if (open != null) from = (int)(open.StartLine - snap.BaseLine);
             }
+            from = Math.Max(0, from);
+            for (int i = snap.Lines.Count - 1; i >= from && cwd == null; i--)
+                cwd = ExtractCwd(LinePlainText(snap.Lines[i]));
         }
-        cwd ??= _entry.Path;
+        cwd ??= _entry.Path.Replace('\\', '/');
         ComposerCwd.Text = ShortenPath(cwd);
     }
 

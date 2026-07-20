@@ -173,10 +173,10 @@
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
-                    <!-- هامش أيسر بعرض شريط التمرير: الشريط طبقةٌ فوق نفس الخليّة، فبدونه كان يغطّي
-                         العمود صفر من الشبكة (العارض LTR) فتُحجَب تحديثات الحافّة اليسرى. -->
+                    <!-- العارض يملأ العرض كاملاً (كعرض الرأس). شريط التمرير يطفو داخليّاً على الحافّة
+                         اليمنى (LTR) بلا اقتطاع عرض — يظهر فقط عند الحاجة، فوق آخر عمود (هامش عادةً). -->
                     <ctrl:SkiaTerminalRenderer x:Name="Renderer"
-                                               Margin="11,0,0,0"
+                                               Margin="0"
                                                Focusable="True" ClipToBounds="True"
                                                FlowDirection="LeftToRight"
                                                PreviewKeyDown="Renderer_PreviewKeyDown"
@@ -187,7 +187,8 @@
                                                PreviewMouseRightButtonUp="Renderer_MouseRightUp"
                                                PreviewMouseWheel="Renderer_MouseWheel"/>
                     <ScrollBar x:Name="Scroll" Orientation="Vertical" Style="{StaticResource SlimScroll}"
-                               HorizontalAlignment="Left" Margin="0,2"
+                               FlowDirection="LeftToRight"
+                               HorizontalAlignment="Right" Margin="0,2"
                                Scroll="Scroll_Scroll"/>
 
                     <!-- شريط البحث في المخرجات (Ctrl+F) — يظهر أعلى الزاوية فوق التيرمنال، LTR داخلياً -->
@@ -220,15 +221,18 @@
                      صندوق إدخال منفصل واضح: يُكتب فيه الأمر، تظهر قائمة اقتراحات فوقه (تاريخ + أوامر
                      شائعة + ملفات المجلد)، والإكمال الشبحيّ inline يُقبَل بـ Tab. يُرسَل عند Enter.
                      يظهر على الشاشة الأساس فقط ويختفي في الشاشة البديلة (vim/less). LTR داخليّاً. -->
+                <!-- الإنبت والتيرمنال قطعة واحدة: خلفيّة شفّافة (تظهر خلفهما الصورة نفسها) ويفصلهما
+                     خطّ شعرة رفيع فقط لا بنل صلبة — كتصميم Warp. -->
                 <Border x:Name="ComposerBar" Grid.Row="1" Visibility="Collapsed"
                         FlowDirection="LeftToRight" Margin="0"
-                        Background="{DynamicResource Brush.Surface}"
+                        Background="Transparent"
                         BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0">
                     <DockPanel>
-                        <!-- قائمة الاقتراحات: مطويّة حتى تُوجد مطابقات؛ تنمو للأعلى فوق سطر الإدخال.
+                        <!-- قائمة الاقتراحات: منسدلة تطفو فوق سطر الإدخال — لها سطح خفيف للقراءة.
                              تستعمل ستايل ListBox المُثيَّم (تمرير خافت + نشِط بلكنة) — لا override محلّيّ. -->
                         <Border x:Name="SuggestBox" DockPanel.Dock="Top" Visibility="Collapsed"
-                                Margin="10,8,10,0"
+                                Margin="10,8,10,0" Padding="4,4,4,0" CornerRadius="10,10,0,0"
+                                Background="{DynamicResource Brush.Glass}"
                                 BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
                             <ListBox x:Name="SuggestList" MaxHeight="240" BorderThickness="0"
                                      Background="Transparent" Padding="0,0,0,6"
