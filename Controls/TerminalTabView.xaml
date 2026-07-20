@@ -284,6 +284,10 @@
                             <!-- طبقة الشبح: ذيل الإكمال (لون أفتح مكتوم) + حبّة tab — تُوضَع أفقيّاً عند
                                  نهاية النصّ المكتوب عبر GetRectFromCharacterIndex فتتحاذى تماماً. -->
                             <Canvas Grid.Column="2" IsHitTestVisible="False" ClipToBounds="True">
+                                <!-- مؤشّر مخصّص واضح (شريط باللكنة) — أوضح من مؤشّر النظام الرفيع.
+                                     يُوضَع عند موضع الكتابة عبر GetRectFromCharacterIndex ويومض. -->
+                                <Border x:Name="ComposerCaret" Width="2.5" Height="18" CornerRadius="1"
+                                        Background="{DynamicResource Brush.Accent}" Visibility="Collapsed"/>
                                 <StackPanel x:Name="ComposerGhostPanel" Orientation="Horizontal"
                                             Canvas.Top="0" Visibility="Collapsed">
                                     <TextBlock x:Name="ComposerGhost"
@@ -301,12 +305,14 @@
                             <TextBox Grid.Column="2" x:Name="ComposerInput"
                                      Background="Transparent" BorderThickness="0" Padding="0"
                                      Foreground="{DynamicResource Brush.Text}"
-                                     CaretBrush="{DynamicResource Brush.Accent}"
+                                     CaretBrush="Transparent"
                                      FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
                                      AcceptsReturn="True" AcceptsTab="False" MaxLength="0"
                                      TextWrapping="Wrap" MaxLines="8"
                                      VerticalScrollBarVisibility="Auto"
                                      TextChanged="Composer_TextChanged"
+                                     SelectionChanged="Composer_SelectionChanged"
+                                     LostKeyboardFocus="Composer_LostFocus"
                                      GotKeyboardFocus="Composer_GotFocus"
                                      PreviewKeyDown="Composer_PreviewKeyDown"/>
                             <TextBlock Grid.Column="3" x:Name="ComposerHint" Text="↵"

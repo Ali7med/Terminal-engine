@@ -179,9 +179,14 @@ public partial class TerminalTabView : UserControl
         _statusTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _statusTimer.Tick += (_, _) => RefreshRunningStatus();
 
-        // وميض المؤشّر (T-005.5): يقلّب طور الوميض كل ~530ms (نمط xterm).
+        // وميض المؤشّر (T-005.5): يقلّب طور الوميض كل ~530ms (نمط xterm). يخدم الشبكة ومؤشّر الصندوق.
         _blinkTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(530) };
-        _blinkTimer.Tick += (_, _) => Renderer.CursorBlinkOn = !Renderer.CursorBlinkOn;
+        _blinkTimer.Tick += (_, _) =>
+        {
+            Renderer.CursorBlinkOn = !Renderer.CursorBlinkOn;
+            if (ComposerCaret.Visibility == Visibility.Visible)
+                ComposerCaret.Opacity = ComposerCaret.Opacity > 0.5 ? 0.0 : 1.0;
+        };
 
         Loaded += OnLoaded;
         SizeChanged += (_, _) => OnViewSizeChanged();
@@ -485,13 +490,16 @@ public partial class TerminalTabView : UserControl
         return null;
     }
 
-    /// <summary>يختصر المسار لآخر جزأين مع «…» بادئة إن كان أطول — يبقى مقروءاً وقصيراً.</summary>
+    /// <summary>
+    /// يعرض المسار كاملاً؛ إن تجاوز حدّاً معقولاً يُقصّ من <b>البداية</b> (يبقى اسم المجلد في النهاية
+    /// ظاهراً) بإضافة «…» بادئة — فالمعلومة المهمّة (أين تقف) لا تُفقَد.
+    /// </summary>
     private static string ShortenPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "";
-        var parts = path.Replace('\\', '/').TrimEnd('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length <= 2) return path.Replace('\\', '/');
-        return "…/" + parts[^2] + "/" + parts[^1];
+        string p = path.Replace('\\', '/').TrimEnd('/');
+        const int max = 44;
+        return p.Length <= max ? p : "…" + p[^max..];
     }
 
     // ===== صندوق التأليف =====
@@ -557,6 +565,7 @@ public partial class TerminalTabView : UserControl
     private void Composer_TextChanged(object sender, TextChangedEventArgs e)
     {
         _histIndex = -1;   // الكتابة تُنهي تنقّل التاريخ
+        if (ComposerInput.IsKeyboardFocusWithin) { ShowComposerCaret(true); PositionComposerCaret(); }
         string text = ComposerInput.Text;
 
         // متعدّد الأسطر ⇒ لا اقتراحات (نصّ مركّب) — نُخفيها ونمسح الشبح.
@@ -811,9 +820,48 @@ public partial class TerminalTabView : UserControl
         _ghostSuggestion = null;
     }
 
-    /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc).</summary>
+    /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc) ويُظهر المؤشّر.</summary>
     private void Composer_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
-        => _composerSuppressReshow = false;
+    {
+        _composerSuppressReshow = false;
+        ShowComposerCaret(true);
+        PositionComposerCaret();
+    }
+
+    /// <summary>فقدان التركيز يُخفي المؤشّر المخصّص (لا نُبقيه واقفاً في صندوق غير نشط).</summary>
+    private void Composer_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
+        => ShowComposerCaret(false);
+
+    /// <summary>تحرّك المؤشّر/التحديد يعيد وضع المؤشّر المخصّص (وميضه يعود ظاهراً فوراً).</summary>
+    private void Composer_SelectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (ComposerInput.IsKeyboardFocusWithin) { ShowComposerCaret(true); PositionComposerCaret(); }
+    }
+
+    private void ShowComposerCaret(bool show)
+    {
+        ComposerCaret.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ComposerCaret.Opacity = 1.0;   // يعود ظاهراً فوراً عند كلّ حركة (لا ينتظر دورة وميض)
+    }
+
+    /// <summary>يضع المؤشّر المخصّص عند موضع الكتابة (CaretIndex) بدقّة عبر GetRectFromCharacterIndex.</summary>
+    private void PositionComposerCaret()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                int ci = ComposerInput.CaretIndex;
+                var rect = ComposerInput.GetRectFromCharacterIndex(ci, false);
+                if (rect.IsEmpty && ci > 0) rect = ComposerInput.GetRectFromCharacterIndex(ci - 1, true);
+                if (rect.IsEmpty) { Canvas.SetLeft(ComposerCaret, 0); Canvas.SetTop(ComposerCaret, 2); return; }
+                ComposerCaret.Height = rect.Height > 4 ? rect.Height : 18;
+                Canvas.SetLeft(ComposerCaret, rect.X);
+                Canvas.SetTop(ComposerCaret, rect.Y);
+            }
+            catch { /* التخطيط لم يجهز — يُعاد عند الحركة التالية */ }
+        }), DispatcherPriority.Loaded);
+    }
 
     /// <summary>هل نصّ الصندوق متعدّد الأسطر فعلاً؟ (عندئذ الأسهم تحرّك المؤشّر لا التاريخ).</summary>
     private bool ComposerIsMultiline() => ComposerInput.Text.Contains('\n');
