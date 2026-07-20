@@ -771,7 +771,7 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
             if (float.IsNegativeInfinity(y0) || float.IsNegativeInfinity(y1)) continue;
 
             bool open = b.EndLine == long.MaxValue;
-            paint.Color = fg.WithAlpha(open ? (byte)16 : (byte)9);
+            paint.Color = fg.WithAlpha(open ? (byte)22 : (byte)9);   // النشطة أبرز: هنا يكتب المستخدم
             canvas.DrawRoundRect(sideMargin, y0 - inset, pixelW - 2 * sideMargin,
                 (y1 - y0) + 2 * inset, radius, radius, paint);
         }

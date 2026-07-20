@@ -20,10 +20,11 @@ public sealed class AppSettings
     public bool SidebarExpanded { get; set; } = true;
 
     /// <summary>
-    /// صندوق التأليف المنفصل (نمط Warp): يُكتب فيه الأمر ثمّ يُرسَل عند Enter. مُفعَّل افتراضاً؛ إطفاؤه
-    /// يعيد الكتابة داخل شبكة التيرمنال مباشرةً. راجع docs/WarpInputBox_Design.md.
+    /// صندوق التأليف المنفصل: يُكتب فيه الأمر ثمّ يُرسَل عند Enter. مُطفأ افتراضاً — النمط الافتراضيّ
+    /// هو الإدخال inline على بطاقة الكتلة النشطة (نمط Warp). تفعيله يُظهر صندوقاً منفصلاً أسفل التيرمنال.
+    /// راجع docs/WarpInputBox_Design.md.
     /// </summary>
-    public bool UseCommandComposer { get; set; } = true;
+    public bool UseCommandComposer { get; set; } = false;
 
     /// <summary>لغة الواجهة: "ar" (عربي، RTL) أو "en" (إنجليزي، LTR).</summary>
     public string Language { get; set; } = "ar";
