@@ -267,26 +267,26 @@
                             </ListBox>
                         </Border>
 
-                        <!-- سطر الإدخال: باث المجلد (مكتوم) + رمز الموجّه + الحقل + تلميح -->
-                        <Grid Margin="14,10,14,11">
+                        <!-- منطقة الإدخال: سطر الباث (كامل) فوق، ثمّ سطر الموجّه + الحقل -->
+                        <StackPanel Margin="14,8,14,11">
+                            <!-- الباث الحاليّ (مجلد العمل) على سطر مستقلّ — يظهر كاملاً بلا اقتطاع -->
+                            <TextBlock x:Name="ComposerCwd" Margin="0,0,0,3"
+                                       FontFamily="Cascadia Mono, Consolas" FontSize="11.5"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.85"
+                                       TextTrimming="CharacterEllipsis"/>
+                        <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <!-- الباث الحاليّ (مجلد العمل) — يُستخرَج من الموجّه؛ يعرف المستخدم أين يقف -->
-                            <TextBlock Grid.Column="0" x:Name="ComposerCwd" VerticalAlignment="Center"
-                                       Margin="0,0,8,0" FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       TextTrimming="CharacterEllipsis" MaxWidth="260"/>
-                            <TextBlock Grid.Column="1" Text="❯" VerticalAlignment="Center"
+                            <TextBlock Grid.Column="0" Text="❯" VerticalAlignment="Center"
                                        Margin="0,0,10,0" FontFamily="Cascadia Mono, Consolas"
                                        FontSize="14" FontWeight="Bold"
                                        Foreground="{DynamicResource Brush.Accent}"/>
                             <!-- طبقة الشبح: ذيل الإكمال (لون أفتح مكتوم) + حبّة tab — تُوضَع أفقيّاً عند
                                  نهاية النصّ المكتوب عبر GetRectFromCharacterIndex فتتحاذى تماماً. -->
-                            <Canvas Grid.Column="2" IsHitTestVisible="False" ClipToBounds="True">
+                            <Canvas Grid.Column="1" IsHitTestVisible="False" ClipToBounds="True">
                                 <!-- مؤشّر مخصّص واضح (شريط باللكنة) — أوضح من مؤشّر النظام الرفيع.
                                      يُوضَع عند موضع الكتابة عبر GetRectFromCharacterIndex ويومض. -->
                                 <Border x:Name="ComposerCaret" Width="2.5" Height="18" CornerRadius="1"
@@ -305,7 +305,7 @@
                                     </Border>
                                 </StackPanel>
                             </Canvas>
-                            <TextBox Grid.Column="2" x:Name="ComposerInput"
+                            <TextBox Grid.Column="1" x:Name="ComposerInput"
                                      Background="Transparent" BorderThickness="0" Padding="0"
                                      Foreground="{DynamicResource Brush.Text}"
                                      CaretBrush="Transparent"
@@ -318,11 +318,12 @@
                                      LostKeyboardFocus="Composer_LostFocus"
                                      GotKeyboardFocus="Composer_GotFocus"
                                      PreviewKeyDown="Composer_PreviewKeyDown"/>
-                            <TextBlock Grid.Column="3" x:Name="ComposerHint" Text="↵"
+                            <TextBlock Grid.Column="2" x:Name="ComposerHint" Text="↵"
                                        VerticalAlignment="Center" Margin="10,0,0,0"
                                        FontSize="11" Opacity="0.4"
                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                         </Grid>
+                        </StackPanel>
                     </DockPanel>
                 </Border>
             </Grid>

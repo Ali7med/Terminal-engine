@@ -495,17 +495,9 @@ public partial class TerminalTabView : UserControl
         return null;
     }
 
-    /// <summary>
-    /// يعرض المسار كاملاً؛ إن تجاوز حدّاً معقولاً يُقصّ من <b>البداية</b> (يبقى اسم المجلد في النهاية
-    /// ظاهراً) بإضافة «…» بادئة — فالمعلومة المهمّة (أين تقف) لا تُفقَد.
-    /// </summary>
+    /// <summary>يطبّع المسار (شرطات مائلة) ويعرضه كاملاً — على سطره المستقلّ لا يحتاج اقتطاعاً.</summary>
     private static string ShortenPath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return "";
-        string p = path.Replace('\\', '/').TrimEnd('/');
-        const int max = 44;
-        return p.Length <= max ? p : "…" + p[^max..];
-    }
+        => string.IsNullOrWhiteSpace(path) ? "" : path.Replace('\\', '/').TrimEnd('/');
 
     // ===== صندوق التأليف =====
 
@@ -2535,9 +2527,18 @@ public partial class TerminalTabView : UserControl
         Renderer.BackgroundAlpha = alpha;
         bool imageActive = alpha < 0.9999;
         if (imageActive)
+        {
             RootGrid.Background = System.Windows.Media.Brushes.Transparent;
+            // خلفيّة الإنبت = نفس تعتيم التيرمنال (لون خلفيّة التيرمنال بشفافيّة alpha) كي يبدوَا قطعةً
+            // واحدة فوق الصورة؛ بلا هذا يُظهر الإنبت الصورةَ كاملة السطوع فيبدو بنلاً مختلفاً.
+            var c = global::TerminalLauncher.Terminal.AnsiPalette.BackgroundColor;
+            ComposerBar.Background = new System.Windows.Media.SolidColorBrush(c) { Opacity = alpha };
+        }
         else
+        {
             RootGrid.SetResourceReference(System.Windows.Controls.Grid.BackgroundProperty, "Brush.TerminalBg");
+            ComposerBar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Brush.TerminalBg");
+        }
     }
 
     /// <summary>يمنح منطقة الإخراج تركيز لوحة المفاتيح (يُستدعى عند تفعيل الجزء).</summary>
