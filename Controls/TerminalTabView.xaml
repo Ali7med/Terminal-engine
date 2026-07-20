@@ -187,8 +187,7 @@
                                                PreviewMouseRightButtonUp="Renderer_MouseRightUp"
                                                PreviewMouseWheel="Renderer_MouseWheel"/>
                     <ScrollBar x:Name="Scroll" Orientation="Vertical" Style="{StaticResource SlimScroll}"
-                               FlowDirection="LeftToRight"
-                               HorizontalAlignment="Right" Margin="0,2"
+                               HorizontalAlignment="Left" Margin="0,2"
                                Scroll="Scroll_Scroll"/>
 
                     <!-- شريط البحث في المخرجات (Ctrl+F) — يظهر أعلى الزاوية فوق التيرمنال، LTR داخلياً -->

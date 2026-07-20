@@ -495,9 +495,10 @@
                             <TabPanel IsItemsHost="True" Panel.ZIndex="1"/>
                         </Border>
                         <!-- إطار محتوى التيرمنال: خلفيّته شفّافة دائماً — الخلفيّة الفعليّة يرسمها العارض
-                             (معتِمة حين لا صورة، شبه شفّافة مع صورة). فلا نعتمد على FindName لتبديلها. -->
+                             (معتِمة حين لا صورة، شبه شفّافة مع صورة). استدارة خفيفة (٦) لا كيرف بارز
+                             كي لا تبدو نشازاً، فيصير التيرمنال + الإنبت بنلاً واحداً يفصلهما خطّ الشعرة. -->
                         <Border x:Name="TerminalContentBorder" Grid.Row="1"
-                                CornerRadius="{DynamicResource Radius.Card}" ClipToBounds="True"
+                                CornerRadius="6" ClipToBounds="True"
                                 Background="Transparent" BorderThickness="0">
                             <ContentPresenter ContentSource="SelectedContent"/>
                         </Border>
