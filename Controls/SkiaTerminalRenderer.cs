@@ -631,9 +631,9 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
 
         using var paint = new SKPaint { IsAntialias = true };
 
-        // شريط الأمر النشط: خلفيّة متمايزة + خطّ فاصل فوق أوّل سطر من الكتلة المفتوحة، فتنفصل
-        // منطقة الكتابة بصريّاً عن مساحة المخرجات (الإدخال نفسه يبقى للـ PTY كما هو).
-        DrawActivePromptBand(canvas, paint, snap, top, rows, total, pad, cellH, pixelW);
+        // بطاقات الكتل (نمط Warp): شريط خلفية full-width أفتح قليلاً خلف سطر الأمر (رأس) كلّ كتلة —
+        // فيبدو كلّ أمر بطاقةً منفصلة عن مخرجاته. يُرسَم قبل النصّ كي يجلس النصّ فوقه.
+        DrawBlockBands(canvas, paint, snap, top, rows, total, pad, cellH, pixelW);
 
         for (int vis = 0; vis < rows; vis++)
         {
@@ -740,37 +740,41 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
     }
 
     /// <summary>
-    /// يفصل منطقة الكتابة بصريّاً: خطّ فاصل رفيع فوق أوّل سطر من الكتلة المفتوحة (سطر الأمر
-    /// الحاليّ) وخلفيّة أفتح/أغمق قليلاً تحته حتّى القاع. الإدخال نفسه لا يتغيّر — يبقى للـ PTY،
-    /// فلا تتأثّر برامج الشاشة الكاملة (vim/less) وهي أصلاً مستثناة بالشاشة البديلة.
+    /// بطاقات الكتل بنمط Warp: خلف سطر الأمر (رأس الكتلة = من StartLine إلى OutputStartLine) لكلّ
+    /// كتلة، نرسم شريطاً مستطيلاً مستدير الحواف بطبقة رقيقة من لون المقدّمة — فيبدو كلّ أمر بطاقةً
+    /// أفتح من مخرجاته. الكتلة المفتوحة أبرز قليلاً. تُتخطّى في الشاشة البديلة (لا كتل هناك).
     /// </summary>
-    private void DrawActivePromptBand(SKCanvas canvas, SKPaint paint, ScreenSnapshot snap,
+    private void DrawBlockBands(SKCanvas canvas, SKPaint paint, ScreenSnapshot snap,
         int top, int rows, int total, float pad, float cellH, int pixelW)
     {
         if (snap.AltScreen || snap.Blocks is not { Count: > 0 }) return;
 
-        // الكتلة المفتوحة = التي لم تُغلَق بعد (EndLine = MaxValue) — سطرها الأوّل هو سطر الأمر.
-        BlockSnapshot? open = null;
-        foreach (var b in snap.Blocks)
-            if (b.EndLine == long.MaxValue) open = b;
-        if (open is null) return;
-
-        int startIndex = (int)(open.StartLine - snap.BaseLine);
-        int vis = startIndex - top;
-        if (vis < 0 || vis >= rows) return;
-
-        float y = RowY(vis);
-        if (float.IsNegativeInfinity(y)) return;
-
-        // الخلفيّة: طبقة رقيقة من لون المقدّمة (٤٪) — تعمل على الثيم الفاتح والداكن معاً.
         var fg = ToSk(AnsiPalette.DefaultForeground);
+        float inset = cellH * 0.28f;            // هامش رأسيّ للبطاقة حول سطر الأمر
+        float radius = cellH * 0.32f;           // استدارة حواف البطاقة
+        float sideMargin = pad * 0.5f;          // هامش جانبيّ بسيط عن حافّتي النافذة
         paint.Style = SKPaintStyle.Fill;
-        paint.Color = fg.WithAlpha(10);
-        canvas.DrawRect(0, y - cellH * 0.25f, pixelW, (pad + rows * cellH) - y + cellH * 0.25f, paint);
 
-        // الخطّ الفاصل فوق سطر الأمر.
-        paint.Color = fg.WithAlpha(38);
-        canvas.DrawRect(0, y - cellH * 0.25f, pixelW, Math.Max(1f, cellH * 0.05f), paint);
+        foreach (var b in snap.Blocks)
+        {
+            // رأس الكتلة = سطر الأمر (وربّما أسطر متتابعة قبل بدء المخرجات).
+            int startIndex = (int)(b.StartLine - snap.BaseLine);
+            long headAbs = b.OutputStartLine > b.StartLine ? b.OutputStartLine : b.StartLine + 1;
+            int headEnd = (int)(headAbs - snap.BaseLine);
+
+            int visStart = Math.Max(startIndex, top);
+            int visEnd = Math.Min(headEnd, top + rows);
+            if (visEnd <= visStart) continue;
+
+            float y0 = RowY(visStart - top);
+            float y1 = RowY(visEnd - 1 - top) + cellH;
+            if (float.IsNegativeInfinity(y0) || float.IsNegativeInfinity(y1)) continue;
+
+            bool open = b.EndLine == long.MaxValue;
+            paint.Color = fg.WithAlpha(open ? (byte)16 : (byte)9);
+            canvas.DrawRoundRect(sideMargin, y0 - inset, pixelW - 2 * sideMargin,
+                (y1 - y0) + 2 * inset, radius, radius, paint);
+        }
     }
 
     /// <summary>يرسم سطراً واحداً: يمشي المقاطع متتبّعاً العمود (يحترم الأحرف العريضة = خليّتان).</summary>
