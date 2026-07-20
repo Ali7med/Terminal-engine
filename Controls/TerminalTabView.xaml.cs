@@ -451,14 +451,165 @@ public partial class TerminalTabView : UserControl
         if (show && ComposerBar.Visibility != Visibility.Visible)
         {
             ComposerBar.Visibility = Visibility.Visible;
+            Renderer.SuppressCursor = true;   // الإدخال في الصندوق ⇒ لا مؤشّر في الشبكة
             if (IsKeyboardFocusWithin) ComposerInput.Focus();
         }
         else if (!show && ComposerBar.Visibility == Visibility.Visible)
         {
             bool hadFocus = ComposerInput.IsKeyboardFocusWithin;
             ComposerBar.Visibility = Visibility.Collapsed;
+            HideSuggestions();
+            Renderer.SuppressCursor = false;
             if (hadFocus) Renderer.Focus();   // الشاشة البديلة تحتاج تركيز الشبكة (مفاتيح vim)
         }
+        else
+        {
+            Renderer.SuppressCursor = show;
+        }
+    }
+
+    // ===== محرّك الاقتراحات (الإكمال التلقائيّ داخل الصندوق) =====
+
+    /// <summary>عنصر اقتراح في قائمة الصندوق: نصّ الأمر + أيقونة + وسم نوع (تاريخ/أمر/ملفّ).</summary>
+    public sealed class ComposerSuggestion
+    {
+        public string Text { get; init; } = "";
+        public string Icon { get; init; } = "";
+        public string Kind { get; init; } = "";
+    }
+
+    /// <summary>أوامر شائعة تُقترَح حسب عائلة الصدفة (تكمِّل التاريخ حين يكون فارغاً/قصيراً).</summary>
+    private static readonly string[] CommonUnix =
+        { "ls", "cd ", "cat ", "grep ", "git status", "git add .", "git commit -m \"\"", "git push",
+          "git pull", "git log --oneline", "npm run dev", "npm install", "npm run build", "code .",
+          "mkdir ", "rm -rf ", "cp ", "mv ", "clear", "pwd", "chmod +x " };
+    private static readonly string[] CommonPwsh =
+        { "ls", "cd ", "Get-Content ", "Select-String ", "git status", "git add .", "git push",
+          "git pull", "npm run dev", "npm install", "code .", "clear", "pwd", "Remove-Item -Recurse -Force " };
+
+    /// <summary>يعيد بناء قائمة الاقتراحات والشبح من نصّ الصندوق الحاليّ.</summary>
+    private void Composer_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _histIndex = -1;   // الكتابة تُنهي تنقّل التاريخ
+        string text = ComposerInput.Text;
+
+        // متعدّد الأسطر ⇒ لا اقتراحات (نصّ مركّب) — نُخفيها ونمسح الشبح.
+        if (text.Contains('\n') || text.Length == 0)
+        {
+            HideSuggestions();
+            ComposerGhost.Text = "";
+            return;
+        }
+
+        var matches = BuildSuggestions(text);
+        if (matches.Count == 0)
+        {
+            HideSuggestions();
+            ComposerGhost.Text = "";
+            return;
+        }
+
+        SuggestList.ItemsSource = matches;
+        SuggestList.SelectedIndex = 0;
+        SuggestBox.Visibility = Visibility.Visible;
+
+        // الشبح inline: أعلى اقتراح يبدأ بالنصّ المكتوب (بادئة) — يُعرَض كاملاً باهتاً خلف الحقل.
+        var top = matches[0];
+        ComposerGhost.Text = top.Text.StartsWith(text, StringComparison.OrdinalIgnoreCase)
+            ? top.Text : "";
+    }
+
+    /// <summary>
+    /// يبني اقتراحات مرتّبة من: تاريخ الجلسة، ثمّ السجلّ العامّ، ثمّ ملفات المجلد، ثمّ الأوامر الشائعة.
+    /// البادئة تسبق التطابق الجزئيّ، وبلا تكرار، بحدٍّ أقصى معقول.
+    /// </summary>
+    private List<ComposerSuggestion> BuildSuggestions(string text)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var prefix = new List<ComposerSuggestion>();
+        var contains = new List<ComposerSuggestion>();
+
+        void Consider(string cmd, string icon, string kind)
+        {
+            cmd = cmd.Trim();
+            if (cmd.Length == 0 || cmd.Equals(text, StringComparison.OrdinalIgnoreCase)) return;
+            if (!seen.Add(cmd)) return;
+            if (cmd.StartsWith(text, StringComparison.OrdinalIgnoreCase))
+                prefix.Add(new ComposerSuggestion { Text = cmd, Icon = icon, Kind = kind });
+            else if (cmd.Contains(text, StringComparison.OrdinalIgnoreCase))
+                contains.Add(new ComposerSuggestion { Text = cmd, Icon = icon, Kind = kind });
+        }
+
+        // 1) تاريخ الجلسة (الأحدث أوّلاً).
+        for (int i = _sessionCommands.Count - 1; i >= 0; i--) Consider(_sessionCommands[i], "🕘", "session");
+        // 2) السجلّ العامّ.
+        try { foreach (var c in _history.Recent(200)) Consider(c, "🕘", "history"); } catch { }
+        // 3) ملفات/مجلدات المجلد الحاليّ (تكمِّل الكلمة الأخيرة — مسارات).
+        foreach (var f in CwdCompletions(text)) Consider(f, "📄", "file");
+        // 4) أوامر شائعة حسب الصدفة.
+        foreach (var c in (IsPwsh ? CommonPwsh : CommonUnix)) Consider(c, "⌘", "command");
+
+        var result = new List<ComposerSuggestion>(prefix.Count + contains.Count);
+        result.AddRange(prefix);
+        result.AddRange(contains);
+        if (result.Count > 12) result.RemoveRange(12, result.Count - 12);
+        return result;
+    }
+
+    /// <summary>هل الصدفة من عائلة PowerShell؟ (لاختيار قائمة الأوامر الشائعة).</summary>
+    private bool IsPwsh => _entry.Shell.Contains("powershell", StringComparison.OrdinalIgnoreCase)
+                        || _entry.Shell.Contains("pwsh", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// إكمال الكلمة الأخيرة من المسار: يقرأ محتوى مجلد العمل (باث المشروع) ويعيد أوامر مكتملة بأسماء
+    /// الملفات/المجلدات المطابقة. best-effort — يتجاهل الأخطاء ولا يتتبّع cd (يستعمل مجلد البدء).
+    /// </summary>
+    private IEnumerable<string> CwdCompletions(string text)
+    {
+        string dir = _entry.Path;
+        if (string.IsNullOrWhiteSpace(dir) || !System.IO.Directory.Exists(dir)) yield break;
+
+        int sp = text.LastIndexOf(' ');
+        string head = sp >= 0 ? text[..(sp + 1)] : "";
+        string frag = sp >= 0 ? text[(sp + 1)..] : text;
+        if (frag.Length == 0) yield break;
+
+        string[] entries;
+        try { entries = System.IO.Directory.GetFileSystemEntries(dir); } catch { yield break; }
+
+        int n = 0;
+        foreach (var full in entries)
+        {
+            string name = System.IO.Path.GetFileName(full);
+            if (name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+            {
+                bool isDir = System.IO.Directory.Exists(full);
+                yield return head + name + (isDir ? "/" : "");
+                if (++n >= 20) yield break;
+            }
+        }
+    }
+
+    private void HideSuggestions()
+    {
+        SuggestBox.Visibility = Visibility.Collapsed;
+        SuggestList.ItemsSource = null;
+    }
+
+    /// <summary>يقبل اقتراحاً: يستبدل نصّ الصندوق به ويضع المؤشّر في نهايته ويُخفي القائمة.</summary>
+    private void AcceptSuggestion(string cmd)
+    {
+        ComposerInput.Text = cmd;
+        ComposerInput.CaretIndex = cmd.Length;
+        ComposerGhost.Text = "";
+        HideSuggestions();
+        ComposerInput.Focus();
+    }
+
+    private void SuggestList_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (SuggestList.SelectedItem is ComposerSuggestion s) { AcceptSuggestion(s.Text); e.Handled = true; }
+        else if (SuggestList.Items.Count > 0 && SuggestList.Items[0] is ComposerSuggestion top) AcceptSuggestion(top.Text);
     }
 
     /// <summary>
@@ -470,24 +621,61 @@ public partial class TerminalTabView : UserControl
         var mods = Keyboard.Modifiers;
         bool ctrl = (mods & ModifierKeys.Control) != 0;
         bool shift = (mods & ModifierKeys.Shift) != 0;
+        bool suggesting = SuggestBox.Visibility == Visibility.Visible && SuggestList.Items.Count > 0;
 
         switch (e.Key)
         {
+            // Tab / السهم الأيمن عند النهاية: يقبل الشبح (الاقتراح الأعلى) — نمط Warp.
+            case Key.Tab when !shift:
+            case Key.Right when ComposerInput.CaretIndex == ComposerInput.Text.Length
+                             && ComposerGhost.Text.Length > 0:
+                if (ComposerGhost.Text.Length > 0) { AcceptSuggestion(ComposerGhost.Text); e.Handled = true; }
+                else if (suggesting && SuggestList.SelectedItem is ComposerSuggestion s1) { AcceptSuggestion(s1.Text); e.Handled = true; }
+                break;
+
+            // الأسهم تتنقّل قائمة الاقتراحات إن كانت ظاهرة، وإلّا تاريخ الجلسة.
+            case Key.Down:
+                if (suggesting)
+                {
+                    SuggestList.SelectedIndex = Math.Min(SuggestList.SelectedIndex + 1, SuggestList.Items.Count - 1);
+                    SuggestList.ScrollIntoView(SuggestList.SelectedItem);
+                    SyncGhostToSelection();
+                    e.Handled = true;
+                }
+                else if (!ComposerIsMultiline() && NavigateComposerHistory(older: false)) e.Handled = true;
+                break;
+            case Key.Up:
+                if (suggesting)
+                {
+                    SuggestList.SelectedIndex = Math.Max(SuggestList.SelectedIndex - 1, 0);
+                    SuggestList.ScrollIntoView(SuggestList.SelectedItem);
+                    SyncGhostToSelection();
+                    e.Handled = true;
+                }
+                else if (!ComposerIsMultiline() && NavigateComposerHistory(older: true)) e.Handled = true;
+                break;
+
             case Key.Enter when !shift:
-                SubmitComposer();
+                // اقتراح مُحدَّد بالأسهم (غير الأوّل) ⇒ Enter يقبله بدل الإرسال؛ وإلّا يُرسل.
+                if (suggesting && SuggestList.SelectedIndex > 0
+                    && SuggestList.SelectedItem is ComposerSuggestion s2)
+                    AcceptSuggestion(s2.Text);
+                else
+                    SubmitComposer();
                 e.Handled = true;
                 break;
 
             case Key.Escape:
-                // إخفاء يدويّ: يبقى مخفيّاً حتّى ينقر المستخدم الصندوق أو الشبكة ثانيةً.
-                _composerSuppressReshow = true;
+                if (suggesting) { HideSuggestions(); ComposerGhost.Text = ""; e.Handled = true; break; }
+                _composerSuppressReshow = true;   // إخفاء يدويّ حتّى تركيز/Enter لاحق
                 ComposerBar.Visibility = Visibility.Collapsed;
+                Renderer.SuppressCursor = false;
                 Renderer.Focus();
                 e.Handled = true;
                 break;
 
             case Key.C when ctrl:
-                if (ComposerInput.SelectionLength == 0)   // بلا تحديد ⇒ إفراغ لا نسخ
+                if (ComposerInput.SelectionLength == 0)
                 {
                     ComposerInput.Clear();
                     _histIndex = -1;
@@ -495,16 +683,19 @@ public partial class TerminalTabView : UserControl
                 }
                 break;
 
-            case Key.Up when !ComposerIsMultiline() && NavigateComposerHistory(older: true):
-            case Key.Down when !ComposerIsMultiline() && NavigateComposerHistory(older: false):
-                e.Handled = true;
-                break;
-
-            case Key.L when ctrl:   // Ctrl+L: تنظيف الشاشة كنمط الصدفة
+            case Key.L when ctrl:
                 ClearButton_Click(this, new RoutedEventArgs());
                 e.Handled = true;
                 break;
         }
+    }
+
+    /// <summary>يضبط الشبح ليطابق العنصر المحدَّد في القائمة (عند التنقّل بالأسهم).</summary>
+    private void SyncGhostToSelection()
+    {
+        ComposerGhost.Text = SuggestList.SelectedItem is ComposerSuggestion s
+            && s.Text.StartsWith(ComposerInput.Text, StringComparison.OrdinalIgnoreCase)
+            ? s.Text : "";
     }
 
     /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc).</summary>
@@ -519,6 +710,8 @@ public partial class TerminalTabView : UserControl
     {
         string text = ComposerInput.Text;
         ComposerInput.Clear();
+        ComposerGhost.Text = "";
+        HideSuggestions();
         _histIndex = -1;
 
         string trimmed = text.Trim();

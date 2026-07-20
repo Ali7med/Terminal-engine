@@ -56,12 +56,12 @@ public sealed class SettingsStore
             s.BackgroundValue = "depth-cozy";
         }
 
-        // ترقية لمرّة واحدة: النمط الافتراضيّ صار الإدخال inline (نمط Warp)، فنُطفئ صندوق التأليف
-        // القديم لمن أبقاه مُفعَّلاً قبل هذا التغيير. من يريده يُعيد تفعيله من الإعدادات.
-        if (!s.InlineInputMigrated)
+        // ترقية «صندوق Warp الغنيّ»: تُعيد تفعيل صندوق التأليف لمرّة واحدة (تتجاوز إطفاءه السابق)
+        // بعد أن صار صندوقاً غنيّاً بالاقتراحات والإكمال. من لا يريده يُطفئه من الإعدادات.
+        if (!s.RichComposerApplied)
         {
-            s.UseCommandComposer = false;
-            s.InlineInputMigrated = true;
+            s.UseCommandComposer = true;
+            s.RichComposerApplied = true;
         }
         return s;
     }

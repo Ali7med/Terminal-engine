@@ -24,10 +24,13 @@ public sealed class AppSettings
     /// هو الإدخال inline على بطاقة الكتلة النشطة (نمط Warp). تفعيله يُظهر صندوقاً منفصلاً أسفل التيرمنال.
     /// راجع docs/WarpInputBox_Design.md.
     /// </summary>
-    public bool UseCommandComposer { get; set; } = false;
+    public bool UseCommandComposer { get; set; } = true;
 
-    /// <summary>حارس ترقية لمرّة واحدة: أُطفئ صندوق التأليف القديم لصالح الإدخال inline (نمط Warp).</summary>
+    /// <summary>مهجور — حارس ترقية قديم (كان يُطفئ الصندوق). يبقى لتوافق قراءة الإعدادات القديمة.</summary>
     public bool InlineInputMigrated { get; set; } = false;
+
+    /// <summary>حارس ترقية «صندوق Warp الغنيّ»: يُعيد تفعيل الصندوق لمرّة واحدة (يتجاوز الإطفاء السابق).</summary>
+    public bool RichComposerApplied { get; set; } = false;
 
     /// <summary>لغة الواجهة: "ar" (عربي، RTL) أو "en" (إنجليزي، LTR).</summary>
     public string Language { get; set; } = "ar";

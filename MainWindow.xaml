@@ -639,9 +639,9 @@
                                         <StackPanel x:Name="CatFont" Visibility="Collapsed" Margin="0,22,0,0">
                                             <!-- صندوق التأليف المنفصل (نمط Warp) -->
                                             <CheckBox x:Name="ComposerCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="صندوق إدخال منفصل للأوامر" Margin="2,0,2,4"
+                                                      Content="صندوق إدخال غنيّ منفصل (نمط Warp)" Margin="2,0,2,4"
                                                       Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
-                                            <TextBlock Text="بدل الإدخال inline على بطاقة الكتلة (الافتراضيّ نمط Warp)، يُظهر صندوق أمر منفصلاً أسفل التيرمنال. يختفي تلقائياً في محرّرات كامل الشاشة."
+                                            <TextBlock Text="صندوق أمر واضح أسفل التيرمنال مع اقتراحات وإكمال شبحيّ. إطفاؤه يعيد الكتابة داخل الشبكة مباشرةً. يختفي تلقائياً في محرّرات كامل الشاشة."
                                                        TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
                                                        FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
 

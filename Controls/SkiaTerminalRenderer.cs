@@ -198,6 +198,14 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         set { if (_cursorBlinkOn == value) return; _cursorBlinkOn = value; Invalidate(); }
     }
 
+    private bool _suppressCursor;
+    /// <summary>يُخفي مؤشّر الشبكة (حين يكون الإدخال في صندوق التأليف — المؤشّر هناك لا في الشبكة).</summary>
+    public bool SuppressCursor
+    {
+        get => _suppressCursor;
+        set { if (_suppressCursor == value) return; _suppressCursor = value; Invalidate(); }
+    }
+
     /// <summary>
     /// إزاحة التمرير بالسطور من القاع: 0 = عرض ذيل السطور (الأحدث). قيمة موجبة تُظهر سطوراً أعلى.
     /// تُقصّ إلى مدى صالح عند الرسم.
@@ -648,7 +656,7 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         DrawBlocks(canvas, paint, snap, top, rows, total, pad, cellH);
 
         // المؤشّر: نحوّل فهرس سطره المطلق داخل lines إلى صفّ ظاهر (يُخفى في طور الوميض المُطفَأ).
-        if (snap.CursorVisible && _cursorBlinkOn)
+        if (snap.CursorVisible && _cursorBlinkOn && !_suppressCursor)
         {
             int cursorVisRow = snap.CursorLine - top;
             if (cursorVisRow >= 0 && cursorVisRow < rows)

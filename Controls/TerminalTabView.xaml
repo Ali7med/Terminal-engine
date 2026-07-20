@@ -216,34 +216,91 @@
                     </Border>
                 </Grid>
 
-                <!-- ===== صندوق التأليف (نمط Warp) =====
-                     يُكتب فيه الأمر كاملاً ثمّ يُرسَل عند Enter. يظهر على الشاشة الأساس فقط ويختفي
-                     في الشاشة البديلة (vim/less) وأثناء أمر جارٍ. LTR داخليّاً (النصّ أوامر). -->
+                <!-- ===== صندوق التأليف الغنيّ (نمط Warp) =====
+                     صندوق إدخال منفصل واضح: يُكتب فيه الأمر، تظهر قائمة اقتراحات فوقه (تاريخ + أوامر
+                     شائعة + ملفات المجلد)، والإكمال الشبحيّ inline يُقبَل بـ Tab. يُرسَل عند Enter.
+                     يظهر على الشاشة الأساس فقط ويختفي في الشاشة البديلة (vim/less). LTR داخليّاً. -->
                 <Border x:Name="ComposerBar" Grid.Row="1" Visibility="Collapsed"
-                        FlowDirection="LeftToRight" Margin="11,4,9,8"
-                        Background="{DynamicResource Brush.Glass}"
+                        FlowDirection="LeftToRight" Margin="10,2,10,10"
+                        Background="{DynamicResource Brush.GlassStrong}"
                         BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
-                        CornerRadius="{DynamicResource Radius.Card}" Padding="10,7">
+                        CornerRadius="{DynamicResource Radius.Card}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.35" Color="#000000"/>
+                    </Border.Effect>
                     <DockPanel>
-                        <!-- رمز الموجّه: يلمّح أنّ هذا سطر أمر لا صندوق بحث -->
-                        <TextBlock DockPanel.Dock="Left" Text="❯" VerticalAlignment="Top"
-                                   Margin="0,1,9,0" FontFamily="Cascadia Mono, Consolas"
-                                   FontSize="14" FontWeight="Bold"
-                                   Foreground="{DynamicResource Brush.Accent}"/>
-                        <TextBlock DockPanel.Dock="Right" x:Name="ComposerHint" Text="Enter ⏎"
-                                   VerticalAlignment="Bottom" Margin="9,0,0,0"
-                                   FontSize="10" Opacity="0.5"
-                                   Foreground="{DynamicResource Brush.TextMuted}"/>
-                        <TextBox x:Name="ComposerInput"
-                                 Background="Transparent" BorderThickness="0"
-                                 Foreground="{DynamicResource Brush.Text}"
-                                 CaretBrush="{DynamicResource Brush.Accent}"
-                                 FontFamily="Cascadia Mono, Consolas" FontSize="13"
-                                 AcceptsReturn="True" AcceptsTab="False" MaxLength="0"
-                                 TextWrapping="Wrap" MaxLines="8"
-                                 VerticalScrollBarVisibility="Auto"
-                                 GotKeyboardFocus="Composer_GotFocus"
-                                 PreviewKeyDown="Composer_PreviewKeyDown"/>
+                        <!-- قائمة الاقتراحات: مطويّة حتى تُوجد مطابقات؛ تنمو للأعلى فوق سطر الإدخال -->
+                        <Border x:Name="SuggestBox" DockPanel.Dock="Top" Visibility="Collapsed"
+                                Margin="6,6,6,0" Padding="2"
+                                BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
+                            <ListBox x:Name="SuggestList" MaxHeight="220" BorderThickness="0"
+                                     Background="Transparent"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     PreviewMouseLeftButtonUp="SuggestList_Click">
+                                <ListBox.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
+                                </ListBox.Resources>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="8,5"/>
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="12"
+                                                       Margin="0,0,9,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                       FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="10"
+                                                       Margin="9,0,0,0" VerticalAlignment="Center" Opacity="0.6"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+
+                        <!-- سطر الإدخال: رمز الموجّه + الحقل + تلميح -->
+                        <Grid Margin="12,9,12,9">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="❯" VerticalAlignment="Top"
+                                       Margin="0,1,10,0" FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="15" FontWeight="Bold"
+                                       Foreground="{DynamicResource Brush.Accent}"/>
+                            <!-- الشبح inline: طبقة خلف الحقل تعرض الاقتراح الأعلى باهتاً (يُقبَل بـ Tab) -->
+                            <TextBlock Grid.Column="1" x:Name="ComposerGhost" IsHitTestVisible="False"
+                                       FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.45"/>
+                            <TextBox Grid.Column="1" x:Name="ComposerInput"
+                                     Background="Transparent" BorderThickness="0"
+                                     Foreground="{DynamicResource Brush.Text}"
+                                     CaretBrush="{DynamicResource Brush.Accent}"
+                                     FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
+                                     AcceptsReturn="True" AcceptsTab="False" MaxLength="0"
+                                     TextWrapping="Wrap" MaxLines="8"
+                                     VerticalScrollBarVisibility="Auto"
+                                     TextChanged="Composer_TextChanged"
+                                     GotKeyboardFocus="Composer_GotFocus"
+                                     PreviewKeyDown="Composer_PreviewKeyDown"/>
+                            <TextBlock Grid.Column="2" x:Name="ComposerHint" Text="↵"
+                                       VerticalAlignment="Bottom" Margin="10,0,0,0"
+                                       FontSize="11" Opacity="0.4"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                        </Grid>
                     </DockPanel>
                 </Border>
             </Grid>
