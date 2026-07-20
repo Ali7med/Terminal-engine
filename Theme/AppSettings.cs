@@ -26,6 +26,9 @@ public sealed class AppSettings
     /// </summary>
     public bool UseCommandComposer { get; set; } = false;
 
+    /// <summary>حارس ترقية لمرّة واحدة: أُطفئ صندوق التأليف القديم لصالح الإدخال inline (نمط Warp).</summary>
+    public bool InlineInputMigrated { get; set; } = false;
+
     /// <summary>لغة الواجهة: "ar" (عربي، RTL) أو "en" (إنجليزي، LTR).</summary>
     public string Language { get; set; } = "ar";
 

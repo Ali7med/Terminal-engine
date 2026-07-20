@@ -696,6 +696,33 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
             }
             col += width;
         }
+
+        // حبّة «tab» بعد الشبح (نمط Warp): تلميح أنّ Tab يقبل الإكمال. تُرسَم فقط إن اتّسع لها الصفّ.
+        DrawTabChip(canvas, col + 1, visRow, cols, pad, cellW, cellH, ascent, fontN);
+    }
+
+    /// <summary>يرسم حبّة «tab» صغيرة (خلفية مستديرة + نصّ مكتوم) عند العمود المعطى إن اتّسع لها.</summary>
+    private void DrawTabChip(SKCanvas canvas, int col, int visRow, int cols,
+        float pad, float cellW, float cellH, float ascent, SKFont fontN)
+    {
+        const string label = "tab";
+        int chipCols = label.Length + 2;                 // حرفان هامش
+        if (col + chipCols > cols) return;
+
+        float y = RowY(visRow);
+        float x = pad + col * cellW;
+        float h = cellH * 0.82f;
+        float top = y + (cellH - h) / 2f;
+        float w = chipCols * cellW;
+        float r = h * 0.32f;
+
+        var fg = ToSk(AnsiPalette.DefaultForeground);
+        using var bg = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = fg.WithAlpha(28) };
+        canvas.DrawRoundRect(x, top, w, h, r, r, bg);
+
+        using var txt = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = fg.WithAlpha(150) };
+        float tx = x + cellW;                            // هامش حرف واحد داخل الحبّة
+        canvas.DrawText(label, tx, y + ascent, SKTextAlign.Left, fontN, txt);
     }
 
     /// <summary>يرسم أشرطة تزيين الكتل الرأسيّة (نمط Warp) على يسار صفوفها الظاهرة (تُتخطّى في الشاشة البديلة).</summary>
@@ -740,9 +767,10 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
     }
 
     /// <summary>
-    /// بطاقات الكتل بنمط Warp: خلف سطر الأمر (رأس الكتلة = من StartLine إلى OutputStartLine) لكلّ
-    /// كتلة، نرسم شريطاً مستطيلاً مستدير الحواف بطبقة رقيقة من لون المقدّمة — فيبدو كلّ أمر بطاقةً
-    /// أفتح من مخرجاته. الكتلة المفتوحة أبرز قليلاً. تُتخطّى في الشاشة البديلة (لا كتل هناك).
+    /// بطاقات الكتل بنمط Warp: تظليل خفيف خلف <b>الكتلة كاملةً</b> (أمر + مخرجاته، من StartLine إلى
+    /// EndLine) كبطاقة مستديرة الحواف — فتنفصل كلّ كتلة عن جارتها بالفراغ والعتامة معاً. المفتوحة
+    /// (حيث يكتب المستخدم) أبرز قليلاً. تظليل الكتلة كاملةً يمنع «الشريط الفارغ» الذي كان يظهر حين
+    /// يُقصّ رأس الكتلة وحده للأعلى. تُتخطّى في الشاشة البديلة (لا كتل هناك).
     /// </summary>
     private void DrawBlockBands(SKCanvas canvas, SKPaint paint, ScreenSnapshot snap,
         int top, int rows, int total, float pad, float cellH, int pixelW)
@@ -750,20 +778,20 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
         if (snap.AltScreen || snap.Blocks is not { Count: > 0 }) return;
 
         var fg = ToSk(AnsiPalette.DefaultForeground);
-        float inset = cellH * 0.28f;            // هامش رأسيّ للبطاقة حول سطر الأمر
-        float radius = cellH * 0.32f;           // استدارة حواف البطاقة
+        float radius = cellH * 0.35f;           // استدارة حواف البطاقة
         float sideMargin = pad * 0.5f;          // هامش جانبيّ بسيط عن حافّتي النافذة
+        float vInset = cellH * 0.22f;           // هامش رأسيّ داخل الفجوة بين البطاقات
         paint.Style = SKPaintStyle.Fill;
 
         foreach (var b in snap.Blocks)
         {
-            // رأس الكتلة = سطر الأمر (وربّما أسطر متتابعة قبل بدء المخرجات).
             int startIndex = (int)(b.StartLine - snap.BaseLine);
-            long headAbs = b.OutputStartLine > b.StartLine ? b.OutputStartLine : b.StartLine + 1;
-            int headEnd = (int)(headAbs - snap.BaseLine);
+            long endAbs = b.EndLine == long.MaxValue ? snap.BaseLine + total : b.EndLine;
+            int endIndex = (int)(endAbs - snap.BaseLine);
 
+            // تقاطع مدى الكتلة كاملاً مع نافذة العرض — التظليل يحوي محتوى دائماً (لا شريط فارغ).
             int visStart = Math.Max(startIndex, top);
-            int visEnd = Math.Min(headEnd, top + rows);
+            int visEnd = Math.Min(endIndex, top + rows);
             if (visEnd <= visStart) continue;
 
             float y0 = RowY(visStart - top);
@@ -771,9 +799,9 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
             if (float.IsNegativeInfinity(y0) || float.IsNegativeInfinity(y1)) continue;
 
             bool open = b.EndLine == long.MaxValue;
-            paint.Color = fg.WithAlpha(open ? (byte)22 : (byte)9);   // النشطة أبرز: هنا يكتب المستخدم
-            canvas.DrawRoundRect(sideMargin, y0 - inset, pixelW - 2 * sideMargin,
-                (y1 - y0) + 2 * inset, radius, radius, paint);
+            paint.Color = fg.WithAlpha(open ? (byte)14 : (byte)7);   // النشطة أبرز: هنا يكتب المستخدم
+            canvas.DrawRoundRect(sideMargin, y0 - vInset, pixelW - 2 * sideMargin,
+                (y1 - y0) + 2 * vInset, radius, radius, paint);
         }
     }
 

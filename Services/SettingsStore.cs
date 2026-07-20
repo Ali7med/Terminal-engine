@@ -55,6 +55,14 @@ public sealed class SettingsStore
             s.BackgroundKind = "gradient";
             s.BackgroundValue = "depth-cozy";
         }
+
+        // ترقية لمرّة واحدة: النمط الافتراضيّ صار الإدخال inline (نمط Warp)، فنُطفئ صندوق التأليف
+        // القديم لمن أبقاه مُفعَّلاً قبل هذا التغيير. من يريده يُعيد تفعيله من الإعدادات.
+        if (!s.InlineInputMigrated)
+        {
+            s.UseCommandComposer = false;
+            s.InlineInputMigrated = true;
+        }
         return s;
     }
 
