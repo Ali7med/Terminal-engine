@@ -221,68 +221,69 @@
                      شائعة + ملفات المجلد)، والإكمال الشبحيّ inline يُقبَل بـ Tab. يُرسَل عند Enter.
                      يظهر على الشاشة الأساس فقط ويختفي في الشاشة البديلة (vim/less). LTR داخليّاً. -->
                 <Border x:Name="ComposerBar" Grid.Row="1" Visibility="Collapsed"
-                        FlowDirection="LeftToRight" Margin="10,2,10,10"
-                        Background="{DynamicResource Brush.GlassStrong}"
-                        BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
-                        CornerRadius="{DynamicResource Radius.Card}">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.35" Color="#000000"/>
-                    </Border.Effect>
+                        FlowDirection="LeftToRight" Margin="0"
+                        Background="{DynamicResource Brush.Surface}"
+                        BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0">
                     <DockPanel>
-                        <!-- قائمة الاقتراحات: مطويّة حتى تُوجد مطابقات؛ تنمو للأعلى فوق سطر الإدخال -->
+                        <!-- قائمة الاقتراحات: مطويّة حتى تُوجد مطابقات؛ تنمو للأعلى فوق سطر الإدخال.
+                             تستعمل ستايل ListBox المُثيَّم (تمرير خافت + نشِط بلكنة) — لا override محلّيّ. -->
                         <Border x:Name="SuggestBox" DockPanel.Dock="Top" Visibility="Collapsed"
-                                Margin="6,6,6,0" Padding="2"
+                                Margin="10,8,10,0"
                                 BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
-                            <ListBox x:Name="SuggestList" MaxHeight="220" BorderThickness="0"
-                                     Background="Transparent"
+                            <ListBox x:Name="SuggestList" MaxHeight="240" BorderThickness="0"
+                                     Background="Transparent" Padding="0,0,0,6"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      PreviewMouseLeftButtonUp="SuggestList_Click">
                                 <ListBox.Resources>
                                     <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
                                 </ListBox.Resources>
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="8,5"/>
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="18"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="12"
-                                                       Margin="0,0,9,0" VerticalAlignment="Center"
+                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11"
+                                                       VerticalAlignment="Center"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                                             <TextBlock Grid.Column="1" Text="{Binding Text}"
                                                        FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                                       Foreground="{DynamicResource Brush.Text}"
                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="10"
-                                                       Margin="9,0,0,0" VerticalAlignment="Center" Opacity="0.6"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="9,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource Brush.KeyCap}">
+                                                <TextBlock Text="{Binding Kind}" FontSize="9.5"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Border>
 
-                        <!-- سطر الإدخال: رمز الموجّه + الحقل + تلميح -->
-                        <Grid Margin="12,9,12,9">
+                        <!-- سطر الإدخال: باث المجلد (مكتوم) + رمز الموجّه + الحقل + تلميح -->
+                        <Grid Margin="14,10,14,11">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="❯" VerticalAlignment="Top"
-                                       Margin="0,1,10,0" FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="15" FontWeight="Bold"
+                            <!-- الباث الحاليّ (مجلد العمل) — يُستخرَج من الموجّه؛ يعرف المستخدم أين يقف -->
+                            <TextBlock Grid.Column="0" x:Name="ComposerCwd" VerticalAlignment="Center"
+                                       Margin="0,0,8,0" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="260"/>
+                            <TextBlock Grid.Column="1" Text="❯" VerticalAlignment="Center"
+                                       Margin="0,0,10,0" FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="14" FontWeight="Bold"
                                        Foreground="{DynamicResource Brush.Accent}"/>
                             <!-- طبقة الشبح: ذيل الإكمال (لون أفتح مكتوم) + حبّة tab — تُوضَع أفقيّاً عند
                                  نهاية النصّ المكتوب عبر GetRectFromCharacterIndex فتتحاذى تماماً. -->
-                            <Canvas Grid.Column="1" IsHitTestVisible="False" ClipToBounds="True">
+                            <Canvas Grid.Column="2" IsHitTestVisible="False" ClipToBounds="True">
                                 <StackPanel x:Name="ComposerGhostPanel" Orientation="Horizontal"
                                             Canvas.Top="0" Visibility="Collapsed">
                                     <TextBlock x:Name="ComposerGhost"
@@ -297,7 +298,7 @@
                                     </Border>
                                 </StackPanel>
                             </Canvas>
-                            <TextBox Grid.Column="1" x:Name="ComposerInput"
+                            <TextBox Grid.Column="2" x:Name="ComposerInput"
                                      Background="Transparent" BorderThickness="0" Padding="0"
                                      Foreground="{DynamicResource Brush.Text}"
                                      CaretBrush="{DynamicResource Brush.Accent}"
@@ -308,8 +309,8 @@
                                      TextChanged="Composer_TextChanged"
                                      GotKeyboardFocus="Composer_GotFocus"
                                      PreviewKeyDown="Composer_PreviewKeyDown"/>
-                            <TextBlock Grid.Column="2" x:Name="ComposerHint" Text="↵"
-                                       VerticalAlignment="Bottom" Margin="10,0,0,0"
+                            <TextBlock Grid.Column="3" x:Name="ComposerHint" Text="↵"
+                                       VerticalAlignment="Center" Margin="10,0,0,0"
                                        FontSize="11" Opacity="0.4"
                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                         </Grid>

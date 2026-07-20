@@ -435,6 +435,63 @@ public partial class TerminalTabView : UserControl
         Renderer.SetSnapshot(snap);   // ScrollOffset=0 (القاع) يبقى ملتصقاً بالأسفل تلقائياً
         UpdateScrollBar();
         UpdateComposerVisibility();   // الشاشة البديلة تُخفي الصندوق، والعودة منها تُظهره
+        UpdateComposerCwd(snap);      // باث المجلد في الصندوق يتبع الموجّه الحاليّ
+    }
+
+    /// <summary>
+    /// يحدّث باث المجلد المعروض في الصندوق من سطر الموجّه الحاليّ (الكتلة المفتوحة). يستخرج المسار
+    /// حسب نمط الصدفة (cmd/pwsh/bash) ويعرض آخر جزأين مختصرَين؛ يرتدّ لمجلد البدء عند الفشل.
+    /// </summary>
+    private void UpdateComposerCwd(ScreenSnapshot snap)
+    {
+        if (ComposerBar.Visibility != Visibility.Visible) return;
+
+        string? cwd = null;
+        if (!snap.AltScreen && snap.Blocks is { Count: > 0 })
+        {
+            BlockSnapshot? open = null;
+            foreach (var b in snap.Blocks) if (b.EndLine == long.MaxValue) open = b;
+            if (open != null)
+            {
+                int idx = (int)(open.StartLine - snap.BaseLine);
+                if (idx >= 0 && idx < snap.Lines.Count)
+                    cwd = ExtractCwd(LinePlainText(snap.Lines[idx]));
+            }
+        }
+        cwd ??= _entry.Path;
+        ComposerCwd.Text = ShortenPath(cwd);
+    }
+
+    /// <summary>يستخرج مجلد العمل من نصّ الموجّه (cmd: ...&gt; · pwsh: PS ...&gt; · bash: توكِن مسار).</summary>
+    private static string? ExtractCwd(string prompt)
+    {
+        prompt = prompt.TrimEnd();
+        if (prompt.Length == 0) return null;
+
+        // cmd / pwsh: ينتهي بـ '>' والمسار قبله (نزيل بادئة "PS " إن وُجدت).
+        if (prompt.EndsWith(">"))
+        {
+            string p = prompt[..^1].Trim();
+            if (p.StartsWith("PS ", StringComparison.Ordinal)) p = p[3..].Trim();
+            if (p.Length is > 1 and < 260 && (p.Contains(":\\") || p.StartsWith("/") || p.StartsWith("~")))
+                return p;
+        }
+
+        // bash/zsh: أوّل توكِن يشبه مساراً (/c/... أو ~/...).
+        foreach (var tok in prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            if (tok.StartsWith("/") || tok.StartsWith("~/") || tok == "~")
+                return tok;
+
+        return null;
+    }
+
+    /// <summary>يختصر المسار لآخر جزأين مع «…» بادئة إن كان أطول — يبقى مقروءاً وقصيراً.</summary>
+    private static string ShortenPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var parts = path.Replace('\\', '/').TrimEnd('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length <= 2) return path.Replace('\\', '/');
+        return "…/" + parts[^2] + "/" + parts[^1];
     }
 
     // ===== صندوق التأليف =====
@@ -452,7 +509,16 @@ public partial class TerminalTabView : UserControl
         {
             ComposerBar.Visibility = Visibility.Visible;
             Renderer.SuppressCursor = true;   // الإدخال في الصندوق ⇒ لا مؤشّر في الشبكة
-            if (IsKeyboardFocusWithin) ComposerInput.Focus();
+            // تركيز افتراضيّ على الصندوق (لا يحتاج المستخدم نقرةً): بعد التخطيط، ما لم يكن التركيز
+            // في حقلٍ آخر (بحث/محرّر) أو خارج هذا العرض.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ComposerBar.Visibility == Visibility.Visible
+                    && !ComposerInput.IsKeyboardFocusWithin
+                    && !SearchInput.IsKeyboardFocusWithin
+                    && !EditorPanel.IsKeyboardFocusWithin)
+                    ComposerInput.Focus();
+            }), DispatcherPriority.Input);
         }
         else if (!show && ComposerBar.Visibility == Visibility.Visible)
         {
