@@ -2529,15 +2529,17 @@ public partial class TerminalTabView : UserControl
         if (imageActive)
         {
             RootGrid.Background = System.Windows.Media.Brushes.Transparent;
-            // خلفيّة الإنبت = نفس تعتيم التيرمنال (لون خلفيّة التيرمنال بشفافيّة alpha) كي يبدوَا قطعةً
-            // واحدة فوق الصورة؛ بلا هذا يُظهر الإنبت الصورةَ كاملة السطوع فيبدو بنلاً مختلفاً.
+            // خلفيّة الشريط العلويّ والإنبت = نفس تعتيم التيرمنال (لون خلفيّته بشفافيّة alpha) كي تبدو
+            // ثلاثتها قطعةً واحدة فوق الصورة؛ بلا هذا تُظهر الصورةَ كاملة السطوع فتبدو بنلاً مختلفاً.
             var c = global::TerminalLauncher.Terminal.AnsiPalette.BackgroundColor;
             ComposerBar.Background = new System.Windows.Media.SolidColorBrush(c) { Opacity = alpha };
+            HeaderBar.Background = new System.Windows.Media.SolidColorBrush(c) { Opacity = alpha };
         }
         else
         {
             RootGrid.SetResourceReference(System.Windows.Controls.Grid.BackgroundProperty, "Brush.TerminalBg");
             ComposerBar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Brush.TerminalBg");
+            HeaderBar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Brush.TerminalBg");
         }
     }
 

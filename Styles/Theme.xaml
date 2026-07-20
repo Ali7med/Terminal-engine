@@ -494,11 +494,10 @@
                         <Border Grid.Row="0" Padding="4,4,4,8">
                             <TabPanel IsItemsHost="True" Panel.ZIndex="1"/>
                         </Border>
-                        <!-- إطار محتوى التيرمنال: خلفيّته شفّافة دائماً — الخلفيّة الفعليّة يرسمها العارض
-                             (معتِمة حين لا صورة، شبه شفّافة مع صورة). استدارة خفيفة (٦) لا كيرف بارز
-                             كي لا تبدو نشازاً، فيصير التيرمنال + الإنبت بنلاً واحداً يفصلهما خطّ الشعرة. -->
+                        <!-- إطار محتوى التيرمنال: بلا استدارة ولا حدّ ولا خلفيّة — الخلفيّة يرسمها العارض
+                             والإنبت بنفس التعتيم، فيصيران قطعةً واحدة متّصلة بلا بنل مؤطِّر. -->
                         <Border x:Name="TerminalContentBorder" Grid.Row="1"
-                                CornerRadius="6" ClipToBounds="True"
+                                CornerRadius="0" ClipToBounds="True"
                                 Background="Transparent" BorderThickness="0">
                             <ContentPresenter ContentSource="SelectedContent"/>
                         </Border>

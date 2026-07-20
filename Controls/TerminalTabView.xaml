@@ -64,10 +64,11 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- شريط علوي مدمج: طبقة تعتيم شبه شفّافة حسب الثيم (Brush.HeaderScrim) كي يبقى نصّ الشريط
-             مقروءاً فوق صورة الخلفيّة — داكنة/كتابة فاتحة في الوضع الداكن، فاتحة/كتابة داكنة في الفاتح -->
-        <Border Grid.Row="0" Padding="8,5" Background="{DynamicResource Brush.HeaderScrim}"
-                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1">
+        <!-- شريط علوي: خلفيّته تُطابق تعتيم التيرمنال (تُضبَط في SetBackgroundAlpha) فيصير الشريط
+             والتيرمنال والإنبت سطحاً واحداً متّصلاً؛ يفصلهم خطّ شعرة رفيع فقط لا حدّ بارز ولا بنل. -->
+        <Border x:Name="HeaderBar" Grid.Row="0" Padding="8,5"
+                Background="{DynamicResource Brush.TerminalBg}"
+                BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
