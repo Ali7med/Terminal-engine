@@ -903,7 +903,8 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
                 {
                     // محارف الكتل (U+2580–259F) تُرسَم هندسيّاً (مستطيلات محاذاة لبكسل صحيح) لا كغليف
                     // خطّ — فتتلاصق الخلايا بلا فجوات (شعارات ASCII الكتليّة تظهر حادّة كـ Warp).
-                    if (!TryDrawBlockElement(canvas, paint, rune, x, y, rectW, cellH, fg))
+                    if (!TryDrawBlockElement(canvas, paint, rune, x, y, rectW, cellH, fg)
+                        && !TryDrawBoxDrawing(canvas, paint, rune, x, y, rectW, cellH, fg))
                     {
                         paint.Style = SKPaintStyle.Fill;
                         paint.Color = fg;
@@ -1023,6 +1024,76 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// أوزان أذرع محارف الإطار (box-drawing): لكلّ رون (يسار، يمين، أعلى، أسفل) — 0 لا شيء · 1 خفيف ·
+    /// 2 ثقيل · 3 مزدوج. يغطّي الخطوط والزوايا والوصلات الخفيفة/الثقيلة/المزدوجة + الزوايا المدوّرة.
+    /// </summary>
+    private static readonly Dictionary<int, (byte L, byte R, byte U, byte D)> BoxParts = new()
+    {
+        [0x2500] = (1, 1, 0, 0), [0x2501] = (2, 2, 0, 0),                 // ─ ━
+        [0x2502] = (0, 0, 1, 1), [0x2503] = (0, 0, 2, 2),                 // │ ┃
+        [0x250C] = (0, 1, 0, 1), [0x250D] = (0, 2, 0, 1), [0x250E] = (0, 1, 0, 2), [0x250F] = (0, 2, 0, 2), // ┌┍┎┏
+        [0x2510] = (1, 0, 0, 1), [0x2511] = (2, 0, 0, 1), [0x2512] = (1, 0, 0, 2), [0x2513] = (2, 0, 0, 2), // ┐┑┒┓
+        [0x2514] = (0, 1, 1, 0), [0x2515] = (0, 2, 1, 0), [0x2516] = (0, 1, 2, 0), [0x2517] = (0, 2, 2, 0), // └┕┖┗
+        [0x2518] = (1, 0, 1, 0), [0x2519] = (2, 0, 1, 0), [0x251A] = (1, 0, 2, 0), [0x251B] = (2, 0, 2, 0), // ┘┙┚┛
+        [0x251C] = (0, 1, 1, 1), [0x2523] = (0, 2, 2, 2),                 // ├ ┣
+        [0x2524] = (1, 0, 1, 1), [0x252B] = (2, 0, 2, 2),                 // ┤ ┫
+        [0x252C] = (1, 1, 0, 1), [0x2533] = (2, 2, 0, 2),                 // ┬ ┳
+        [0x2534] = (1, 1, 1, 0), [0x253B] = (2, 2, 2, 0),                 // ┴ ┻
+        [0x253C] = (1, 1, 1, 1), [0x254B] = (2, 2, 2, 2),                 // ┼ ╋
+        [0x2550] = (3, 3, 0, 0), [0x2551] = (0, 0, 3, 3),                 // ═ ║
+        [0x2554] = (0, 3, 0, 3), [0x2557] = (3, 0, 0, 3),                 // ╔ ╗
+        [0x255A] = (0, 3, 3, 0), [0x255D] = (3, 0, 3, 0),                 // ╚ ╝
+        [0x2560] = (0, 3, 3, 3), [0x2563] = (3, 0, 3, 3),                 // ╠ ╣
+        [0x2566] = (3, 3, 0, 3), [0x2569] = (3, 3, 3, 0), [0x256C] = (3, 3, 3, 3), // ╦ ╩ ╬
+        [0x256D] = (0, 1, 0, 1), [0x256E] = (1, 0, 0, 1),                 // ╭ ╮ (مدوّرة ≈ زاوية خفيفة)
+        [0x256F] = (1, 0, 1, 0), [0x2570] = (0, 1, 1, 0),                 // ╯ ╰
+    };
+
+    /// <summary>
+    /// يرسم محارف الإطار (U+2500–257F) هندسيّاً: كلّ ذراع خطٌّ من مركز الخليّة إلى حافّتها بسماكة توافق
+    /// وزنه، محاذاة لبكسل صحيح — فتلتحم الزوايا والوصلات بلا فجوات (على خلاف غليف الخطّ). المزدوج
+    /// خطّان متوازيان. يعيد false لما ليس في الجدول (فيُرسَم كغليف عاديّ).
+    /// </summary>
+    private bool TryDrawBoxDrawing(SKCanvas canvas, SKPaint paint, int rune,
+        float x, float y, float w, float h, SKColor fg)
+    {
+        if (!BoxParts.TryGetValue(rune, out var p)) return false;
+
+        float x0 = MathF.Round(x), x1 = MathF.Round(x + w);
+        float y0 = MathF.Round(y), y1 = MathF.Round(y + h);
+        float mx = MathF.Round((x0 + x1) / 2f), my = MathF.Round((y0 + y1) / 2f);
+
+        float light = MathF.Max(1f, MathF.Round((y1 - y0) * 0.09f));
+        float heavy = MathF.Max(2f, MathF.Round((y1 - y0) * 0.20f));
+        float gap = MathF.Max(1f, MathF.Round((y1 - y0) * 0.11f));   // نصف المسافة بين خطّي المزدوج
+
+        paint.Style = SKPaintStyle.Fill;
+        paint.Color = fg;
+
+        // ذراع أفقيّ [ax..bx] عند صفّ المركز (يشمل المركز فيلتحم مع الرأسيّ).
+        void Horiz(float ax, float bx, byte wt)
+        {
+            if (wt == 0) return;
+            float lo = MathF.Min(ax, bx), len = MathF.Abs(bx - ax);
+            if (wt == 3) { canvas.DrawRect(lo, my - gap - light, len, light, paint); canvas.DrawRect(lo, my + gap, len, light, paint); }
+            else { float t = wt == 2 ? heavy : light; canvas.DrawRect(lo, my - t / 2f, len, t, paint); }
+        }
+        void Vert(float ay, float by, byte wt)
+        {
+            if (wt == 0) return;
+            float lo = MathF.Min(ay, by), len = MathF.Abs(by - ay);
+            if (wt == 3) { canvas.DrawRect(mx - gap - light, lo, light, len, paint); canvas.DrawRect(mx + gap, lo, light, len, paint); }
+            else { float t = wt == 2 ? heavy : light; canvas.DrawRect(mx - t / 2f, lo, t, len, paint); }
+        }
+
+        Horiz(x0, mx, p.L);
+        Horiz(mx, x1, p.R);
+        Vert(y0, my, p.U);
+        Vert(my, y1, p.D);
+        return true;
     }
 
     /// <summary>هل الخليّة (lineIndex, col) ضمن مدى التحديد؟ (إحداثيّات فهارس snapshot.Lines).</summary>
