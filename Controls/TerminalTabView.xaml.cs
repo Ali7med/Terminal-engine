@@ -1671,7 +1671,11 @@ public partial class TerminalTabView : UserControl
         string Cursor(char c) => appCursor ? $"\x1bO{c}" : $"\x1b[{c}";
         return key switch
         {
-            Key.Enter => _newline,
+            // زرّ Enter يرسل CR (\r) دائماً — معيار كلّ الطرفيّات. التطبيقات التفاعليّة (claude/الوكيل/
+            // TUI في الوضع الخام) تتوقّع \r لتُنفِّذ؛ إرسال \n كان يُفسَّر «أضف سطراً» فلا يُنفَّذ. الصدفات
+            // في الوضع المطبوخ تُترجم \r→\n عبر line discipline فتعمل أيضاً. (_newline يبقى للإرسال
+            // البرمجيّ للأوامر المحفوظة/الإنبت حيث يُغذّى محرّر سطر الصدفة مباشرةً.)
+            Key.Enter => "\r",
             // Backspace المجرّد يرسل DEL (0x7F) لا BS (0x08) — هذا ما ترسله كلّ الطرفيّات الحديثة
             // (xterm/Windows Terminal/iTerm) وما تتوقّعه محرّرات الأسطر وتطبيقات TUI.
             // ‏0x08 محجوز اصطلاحاً لـ Ctrl+Backspace = «احذف كلمة» (يُعالَج في Renderer_PreviewKeyDown)،
