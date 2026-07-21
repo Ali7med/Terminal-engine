@@ -919,6 +919,10 @@
                             <ListBox x:Name="CommandPaletteList" MaxHeight="330"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      MouseDoubleClick="CommandPaletteList_MouseDoubleClick">
+                                <!-- سكرول الثيم النحيل بدل سكرول WPF الرمادي الافتراضي -->
+                                <ListBox.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                </ListBox.Resources>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid>
