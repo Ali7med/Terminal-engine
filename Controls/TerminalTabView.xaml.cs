@@ -598,11 +598,17 @@ public partial class TerminalTabView : UserControl
         }
         else if (!show && ComposerBar.Visibility == Visibility.Visible)
         {
-            bool hadFocus = ComposerInput.IsKeyboardFocusWithin;
             ComposerBar.Visibility = Visibility.Collapsed;
             HideSuggestions();
             Renderer.SuppressCursor = false;
-            if (hadFocus) Renderer.Focus();   // الشبكة تحتاج التركيز (claude/vim)
+            // التحكّم ينتقل للتطبيق التفاعليّ (claude/vim/الوكيل): نُركّز الشبكة كي تصل كلّ ضغطة مفتاح
+            // إليه مباشرةً (حرف-بحرف) بلا نقرة يدويّة — إلّا إن كان التركيز في البحث/المحرّر. مؤجَّل
+            // كي يثبت بعد إخفاء الصندوق.
+            if (!SearchInput.IsKeyboardFocusWithin && !EditorPanel.IsKeyboardFocusWithin)
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (ComposerBar.Visibility != Visibility.Visible) Renderer.Focus();
+                }), DispatcherPriority.Input);
         }
         else
         {
