@@ -901,10 +901,15 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
                 // الأساس الحرف (إيموجي/CJK) كي يظهر بدل المربّع الفارغ.
                 if (!arabic && rune != ' ' && rune != 0)
                 {
-                    paint.Style = SKPaintStyle.Fill;
-                    paint.Color = fg;
-                    string glyph = char.ConvertFromUtf32(rune);
-                    canvas.DrawText(glyph, x, y + ascent, SKTextAlign.Left, GlyphFont(font, rune), paint);
+                    // محارف الكتل (U+2580–259F) تُرسَم هندسيّاً (مستطيلات محاذاة لبكسل صحيح) لا كغليف
+                    // خطّ — فتتلاصق الخلايا بلا فجوات (شعارات ASCII الكتليّة تظهر حادّة كـ Warp).
+                    if (!TryDrawBlockElement(canvas, paint, rune, x, y, rectW, cellH, fg))
+                    {
+                        paint.Style = SKPaintStyle.Fill;
+                        paint.Color = fg;
+                        string glyph = char.ConvertFromUtf32(rune);
+                        canvas.DrawText(glyph, x, y + ascent, SKTextAlign.Left, GlyphFont(font, rune), paint);
+                    }
                 }
 
                 // تسطير / خطّ وسط. الروابط التشعّبيّة تُسطَّر بلون الرابط دائماً.
@@ -947,6 +952,77 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// يرسم محارف الكتل (U+2580–259F) هندسيّاً بمستطيلات مملوءة محاذاة لحدود بكسل صحيحة — فتتلاصق
+    /// الخلايا المتجاورة تماماً بلا فجوات (على خلاف غليف الخطّ عند مواضع كسريّة). يعيد <c>false</c>
+    /// إن لم يكن الرون كتلةً معروفة (فيُرسَم كغليف عاديّ). يغطّي: الكتلة الكاملة، الأنصاف، الأثمان
+    /// (سفليّة/يسرى/علويّة/يمنى)، التظليلات، والأرباع — وهي ما تتكوّن منه شعارات ASCII الكتليّة.
+    /// </summary>
+    private bool TryDrawBlockElement(SKCanvas canvas, SKPaint paint, int rune,
+        float x, float y, float w, float h, SKColor fg)
+    {
+        if (rune < 0x2580 || rune > 0x259F) return false;
+
+        // حدود الخليّة مقرَّبة لبكسل صحيح ⇒ الحافّة اليمنى/السفلى تُطابق الحافّة اليسرى/العليا للجارة.
+        float x0 = MathF.Round(x), x1 = MathF.Round(x + w);
+        float y0 = MathF.Round(y), y1 = MathF.Round(y + h);
+        float cw = x1 - x0, ch = y1 - y0;
+
+        paint.Style = SKPaintStyle.Fill;
+        paint.Color = fg;
+
+        void Rect(float rx, float ry, float rw, float rh) => canvas.DrawRect(rx, ry, rw, rh, paint);
+        // كسر من الأعلى/الأسفل/اليسار/اليمين (n من 8).
+        void Bottom(int n) => Rect(x0, y1 - ch * n / 8f, cw, ch * n / 8f);
+        void Left(int n)   => Rect(x0, y0, cw * n / 8f, ch);
+
+        switch (rune)
+        {
+            case 0x2588: Rect(x0, y0, cw, ch); return true;              // █ كاملة
+            case 0x2580: Rect(x0, y0, cw, ch / 2f); return true;        // ▀ نصف علويّ
+            case 0x2584: Bottom(4); return true;                         // ▄ نصف سفليّ
+            case 0x258C: Left(4); return true;                           // ▌ نصف أيسر
+            case 0x2590: Rect(x0 + cw / 2f, y0, cw / 2f, ch); return true; // ▐ نصف أيمن
+            case 0x2594: Rect(x0, y0, cw, ch / 8f); return true;        // ▔ ثمن علويّ
+            case 0x2595: Rect(x1 - cw / 8f, y0, cw / 8f, ch); return true; // ▕ ثمن أيمن
+
+            // ▁▂▃▄▅▆▇ الأثمان السفليّة (١..٧ من ٨).
+            case >= 0x2581 and <= 0x2587: Bottom(rune - 0x2580); return true;
+            // ▉▊▋▌▍▎▏ الأثمان اليسرى (٧..١ من ٨).
+            case >= 0x2589 and <= 0x258F: Left(0x2590 - rune); return true;
+
+            // ░▒▓ تظليلات: الكتلة الكاملة بلون المقدّمة بشفافيّة متدرّجة.
+            case 0x2591: paint.Color = fg.WithAlpha(64);  Rect(x0, y0, cw, ch); return true;
+            case 0x2592: paint.Color = fg.WithAlpha(128); Rect(x0, y0, cw, ch); return true;
+            case 0x2593: paint.Color = fg.WithAlpha(192); Rect(x0, y0, cw, ch); return true;
+
+            // ▖▗▘▙▚▛▜▝▞▟ الأرباع: كلّ ربع مستطيل نصف×نصف.
+            case >= 0x2596 and <= 0x259F:
+            {
+                float mx = x0 + cw / 2f, my = y0 + ch / 2f, hw = cw / 2f, hh = ch / 2f;
+                void TL() => Rect(x0, y0, hw, hh);
+                void TR() => Rect(mx, y0, hw, hh);
+                void BL() => Rect(x0, my, hw, hh);
+                void BR() => Rect(mx, my, hw, hh);
+                switch (rune)
+                {
+                    case 0x2596: BL(); break;                       // ▖
+                    case 0x2597: BR(); break;                       // ▗
+                    case 0x2598: TL(); break;                       // ▘
+                    case 0x2599: TL(); BL(); BR(); break;           // ▙
+                    case 0x259A: TL(); BR(); break;                 // ▚
+                    case 0x259B: TL(); TR(); BL(); break;           // ▛
+                    case 0x259C: TL(); TR(); BR(); break;           // ▜
+                    case 0x259D: TR(); break;                       // ▝
+                    case 0x259E: TR(); BL(); break;                 // ▞
+                    case 0x259F: TR(); BL(); BR(); break;           // ▟
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>هل الخليّة (lineIndex, col) ضمن مدى التحديد؟ (إحداثيّات فهارس snapshot.Lines).</summary>
