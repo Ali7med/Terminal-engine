@@ -502,24 +502,32 @@ public partial class TerminalTabView : UserControl
     // ===== صندوق التأليف =====
 
     /// <summary>
-    /// هل الصدفة عند موجّه جاهز للأمر (لا أمر تفاعليّ يعمل)؟ إشارة: سطر المؤشّر ينتهي برمز موجّه
-    /// (<c>$ &gt; # % ❯</c>) وليست شاشةً بديلة. حين يعمل claude/الوكيل/أيّ برنامج تفاعليّ يكون المؤشّر
-    /// في مكانٍ آخر (لا رمز موجّه) ⇒ نُخفي الصندوق وتصير الشبكة هي الإدخال، فيتوافق مع تلك الأدوات.
+    /// هل الصدفة عند موجّهها الفعليّ الجاهز (لا أمر تفاعليّ يعمل)؟ شرط <b>مزدوج وصارم</b> كي لا يتذبذب:
+    /// (١) آخر سطر محتوى ينتهي برمز موجّه (<c>$ &gt; # % ❯</c>)، و(٢) وجود <b>مسار مجلد حقيقيّ</b> في
+    /// آخر ٣ أسطر (يكشفه <see cref="ExtractCwd"/>). موجّه الصدفة يحمل الاثنين؛ أمّا واجهة claude/الوكيل
+    /// الداخليّة (رمز <c>&gt;</c> بلا مسار) أو مخرجات تنتهي صدفةً برمز، فلا تحمل مساراً ⇒ يبقى الإنبت
+    /// مخفيّاً والتحكّم عند الوكيل حتّى تعود الصدفة لموجّهها فعلاً. الشاشة البديلة (vim) تُخفيه فوراً.
     /// </summary>
     private bool IsAtShellPrompt(ScreenSnapshot? snap)
     {
         if (snap == null || snap.AltScreen) return false;
-        int cl = snap.CursorLine;
-        if (cl < 0 || cl >= snap.Lines.Count) return false;
 
-        string line = LinePlainText(snap.Lines[cl]);
-        int col = Math.Clamp(snap.CursorColumn, 0, line.Length);
-        string upto = line[..col].TrimEnd();
-        if (upto.Length == 0) upto = line.TrimEnd();   // المؤشّر أوّل السطر ⇒ افحص السطر كاملاً
-        if (upto.Length == 0) return false;
+        // آخر سطر يحمل محتوى.
+        int last = -1;
+        for (int i = snap.Lines.Count - 1; i >= 0; i--)
+            if (LinePlainText(snap.Lines[i]).TrimEnd().Length > 0) { last = i; break; }
+        if (last < 0) return false;
 
-        char last = upto[^1];
-        return last is '$' or '>' or '#' or '%' or '❯';
+        string lastLine = LinePlainText(snap.Lines[last]).TrimEnd();
+        char c = lastLine[^1];
+        bool hasTerminator = c is '$' or '>' or '#' or '%' or '❯';
+        if (!hasTerminator) return false;
+
+        // مسار مجلد حقيقيّ في آخر ٣ أسطر (يميّز موجّه الصدفة عن واجهة الوكيل ومن المخرجات العابرة).
+        for (int i = last; i >= Math.Max(0, last - 2); i--)
+            if (ExtractCwd(LinePlainText(snap.Lines[i])) != null) return true;
+
+        return false;
     }
 
     /// <summary>
