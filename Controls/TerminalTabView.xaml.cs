@@ -277,7 +277,13 @@ public partial class TerminalTabView : UserControl
         var (cols, rows) = Measure();
         try
         {
-            lock (_screenLock) _coreScreen = new global::Terminal.Core.Screen.ScreenBuffer(cols, rows);
+            lock (_screenLock)
+            {
+                _coreScreen = new global::Terminal.Core.Screen.ScreenBuffer(cols, rows);
+                // ردود استعلامات الطرفيّة (DSR/DA/DECRQM) تُكتب لمدخل الـ PTY فوراً — بدونها تفقد
+                // تطبيقات TUI (كلود كود) تزامن المؤشّر وتُنزِل واجهتها لوضع مبسّط بعد مهلات الفحص.
+                _coreScreen.ResponseRequested += reply => _coreSession?.Write(reply);
+            }
             _coreSession = _sessionFactory?.Invoke() ?? new global::Terminal.Core.Pty.PtySession();
             _coreSession.DataReceived += OnCoreData;
             _coreSession.Exited += OnExited;

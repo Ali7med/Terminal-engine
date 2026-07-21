@@ -90,6 +90,16 @@ public sealed class ScreenBuffer : IVtParserSink
     public bool ApplicationCursorKeys => _applicationCursorKeys;
     public bool BracketedPaste => _bracketedPaste;
 
+    /// <summary>
+    /// Raised when the application queries the terminal (DSR/DA/DECRQM) and expects a reply
+    /// written back to the PTY. The host must subscribe and forward the string to the session's
+    /// input; without replies, TUI apps (e.g. Claude Code/Ink) lose cursor sync — stray characters
+    /// that never erase — and degrade their UI after probe timeouts.
+    /// </summary>
+    public event System.Action<string>? ResponseRequested;
+
+    private void Respond(string reply) => ResponseRequested?.Invoke(reply);
+
     /// <summary>Does the application want mouse events reported?</summary>
     public bool MouseReportingEnabled => _mouseMode != MouseTracking.Off;
 
@@ -276,7 +286,55 @@ public sealed class ScreenBuffer : IVtParserSink
             case 'h': if (privateMarker == '?') SetDecModes(p, true); break;
             case 'l': if (privateMarker == '?') SetDecModes(p, false); break;
 
-            default: break; // DA/DSR/etc. do not affect the grid
+            // ===== terminal queries — the app expects a reply on stdin =====
+
+            // DSR: CSI 5n status → OK; CSI 6n cursor position → CPR (1-based). DECXCPR (?6n) likewise.
+            case 'n' when privateMarker is '\0' or '?':
+                switch (p.Get(0, 0))
+                {
+                    case 5: Respond("\x1b[0n"); break;
+                    case 6:
+                        Respond(privateMarker == '?'
+                            ? $"\x1b[?{_cursorRow + 1};{_cursorCol + 1}R"
+                            : $"\x1b[{_cursorRow + 1};{_cursorCol + 1}R");
+                        break;
+                }
+                break;
+
+            // DA1: identify as VT220 with ANSI colour. Apps commonly send probes then DA1; the DA1
+            // reply doubles as the "end of probing" marker, so answering it avoids probe timeouts.
+            case 'c' when privateMarker == '\0' && intermediate == '\0':
+                Respond("\x1b[?62;22c");
+                break;
+
+            // DA2 (secondary): terminal type/version. Conservative VT100-ish reply (like ConPTY).
+            case 'c' when privateMarker == '>':
+                Respond("\x1b[>0;10;1c");
+                break;
+
+            // DECRQM (CSI ? Pm $ p): report private-mode state — 1 set · 2 reset · 0 unrecognized.
+            // Answering 0 for modes we don't implement (e.g. 2026 synchronized output) makes apps
+            // skip them cleanly instead of waiting on a timeout.
+            case 'p' when privateMarker == '?' && intermediate == '$':
+            {
+                int mode = p.Get(0, 0);
+                int state = mode switch
+                {
+                    25 => _cursorVisible ? 1 : 2,
+                    7 => _autoWrap ? 1 : 2,
+                    2004 => _bracketedPaste ? 1 : 2,
+                    47 or 1047 or 1049 => _altActive ? 1 : 2,
+                    1000 => _mouseMode == MouseTracking.Click ? 1 : 2,
+                    1002 => _mouseMode == MouseTracking.ButtonEvent ? 1 : 2,
+                    1003 => _mouseMode == MouseTracking.AnyEvent ? 1 : 2,
+                    1006 => _mouseSgr ? 1 : 2,
+                    _ => 0,
+                };
+                Respond($"\x1b[?{mode};{state}$y");
+                break;
+            }
+
+            default: break; // anything else doesn't affect the grid and expects no reply
         }
     }
 
