@@ -69,6 +69,6 @@ public partial class App : Application
         // فوراً إن لم يكن التطبيق مثبَّتاً عبر Velopack (تطوير) فلا شبكة حينها.
         // ملاحظة: خطّافات Velopack تُعالَج قبل هذا كلّه في Program.Main.
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,
-            new Action(() => _ = Services.UpdateService.CheckAndDownloadAsync()));
+            new Action(() => _ = Services.UpdateService.CheckAsync(silent: true)));
     }
 }

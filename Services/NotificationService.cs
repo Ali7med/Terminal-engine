@@ -45,8 +45,26 @@ public static class NotificationService
 
     // ===================== الواجهة العامّة =====================
 
-    public static void Primary(string title, string message, NotificationType type = NotificationType.Info, double seconds = 5)
-        => Dispatch(() => { var (r, p, c) = BuildPrimary(title, message, type); Add(r, p, c, TimeSpan.FromSeconds(seconds)); });
+    /// <summary>
+    /// بطاقة إشعار كاملة. <paramref name="onClick"/> اختياريّ: يجعل البطاقة قابلة للنقر (مؤشّر يد)
+    /// وينفَّذ عند النقر على أيّ موضع منها عدا زرّ الإغلاق (X) الذي يبقى إغلاقاً فقط.
+    /// </summary>
+    public static void Primary(string title, string message, NotificationType type = NotificationType.Info,
+        double seconds = 5, Action? onClick = null)
+        => Dispatch(() =>
+        {
+            var (r, p, c) = BuildPrimary(title, message, type);
+            if (onClick != null)
+            {
+                r.Cursor = Cursors.Hand;
+                r.MouseLeftButtonUp += (_, ev) =>
+                {
+                    if (ReferenceEquals(ev.OriginalSource, c)) return;   // زرّ X إغلاقٌ فقط
+                    onClick();
+                };
+            }
+            Add(r, p, c, TimeSpan.FromSeconds(seconds));
+        });
 
     public static void Secondary(string message, NotificationType type = NotificationType.Info, double seconds = 2.5)
         => Dispatch(() => { var (r, _, c) = BuildSecondary(message, type); Add(r, null, c, TimeSpan.FromSeconds(seconds)); });

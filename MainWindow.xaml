@@ -87,11 +87,24 @@
                                                    Foreground="{DynamicResource Brush.Accent}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
+                                <MenuItem x:Name="ToolCheckUpdates" Header="تحقّق من التحديثات"
+                                          Click="CheckUpdatesMenu_Click" Visibility="Collapsed">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
+                                                   Foreground="{DynamicResource Brush.Accent}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button x:Name="WhatsNewButton" Style="{StaticResource ChromeButton}"
-                            Content="&#xE946;" Click="WhatsNewButton_Click" ToolTip="ما الجديد / حول البرنامج"/>
+                    <!-- «ما الجديد» + نقطة لكنة تظهر حين يتوفّر تحديث؛ النقر حينها يفتح حوار التحديث. -->
+                    <Grid>
+                        <Button x:Name="WhatsNewButton" Style="{StaticResource ChromeButton}"
+                                Content="&#xE946;" Click="WhatsNewButton_Click" ToolTip="ما الجديد / حول البرنامج"/>
+                        <Ellipse x:Name="UpdateDot" Width="7" Height="7" Visibility="Collapsed"
+                                 Fill="{DynamicResource Brush.Accent}" IsHitTestVisible="False"
+                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,9,9,0"/>
+                    </Grid>
                     <Button x:Name="SettingsButton" Style="{StaticResource ChromeButton}"
                             Content="&#xE713;" Click="SettingsButton_Click" ToolTip="الإعدادات"/>
                     <Button x:Name="MinButton" Style="{StaticResource ChromeButton}"

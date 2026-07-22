@@ -121,6 +121,15 @@ public partial class MainWindow : Window
         Loaded += (_, _) => { RestoreSession(); ApplyBackground(); };
         // لوحة «ما الجديد» تلقائياً مرّة واحدة عند الترقية — بعد ظهور الواجهة (مغلّفة بـ try/catch داخلها).
         Loaded += (_, _) => Views.WhatsNewWindow.ShowIfNew(this, _settings, _settingsStore);
+        // شارة التحديث: تظهر عند اكتشاف نسخة أحدث وتبقى حتّى يُطبّق التحديث. وبند الفحص
+        // اليدويّ لا يظهر إلّا في نسخة مثبّتة عبر Velopack — فلا أثر للتحديث في التطوير.
+        Loaded += (_, _) =>
+        {
+            if (Services.UpdateService.IsInstalled)
+                ToolCheckUpdates.Visibility = Visibility.Visible;
+            Services.UpdateService.UpdateAvailable += _ => UpdateDot.Visibility = Visibility.Visible;
+            if (Services.UpdateService.PendingVersion != null) UpdateDot.Visibility = Visibility.Visible;
+        };
         SizeChanged += (_, _) => ApplyRounding();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
     }
@@ -937,9 +946,21 @@ public partial class MainWindow : Window
         if (!_settingsOpen) SyncSettingsUi();   // يعكس تغييرات التكبير (Ctrl +/-) في المنزلق
         ToggleSettings(!_settingsOpen);
     }
-    /// <summary>فتح لوحة «ما الجديد / حول» يدوياً (حاجب) من شريط العنوان.</summary>
+    /// <summary>
+    /// زرّ شريط العنوان: حين تظهر نقطة التحديث يفتح حوار التحديث (ما ينتظره المستخدم حينئذ)،
+    /// وإلّا يفتح لوحة «ما الجديد / حول» كالمعتاد.
+    /// </summary>
     private void WhatsNewButton_Click(object sender, RoutedEventArgs e)
-        => Views.WhatsNewWindow.ShowManual(this);
+    {
+        if (UpdateDot.Visibility == Visibility.Visible)
+            _ = Services.UpdateService.DownloadAndApplyAsync(this);
+        else
+            Views.WhatsNewWindow.ShowManual(this);
+    }
+
+    /// <summary>فحص يدويّ من قائمة الأدوات — ناطق: يجيب في كلّ الحالات (جديد / أحدث نسخة / فشل).</summary>
+    private async void CheckUpdatesMenu_Click(object sender, RoutedEventArgs e)
+        => await Services.UpdateService.CheckAsync(silent: false);
 
     /// <summary>يفتح قائمة أدوات النظام المنسدلة تحت زرّ الأدوات (قابلة للتوسّع بأدوات مستقبليّة).</summary>
     private void ToolsButton_Click(object sender, RoutedEventArgs e)
@@ -1053,6 +1074,7 @@ public partial class MainWindow : Window
         WhatsNewButton.ToolTip = Loc.T("tip.whatsnew");
         ServerMonitorButton.ToolTip = Loc.T("tools.menu");
         ToolServerMonitor.Header = Loc.T("tools.serverMonitor");
+        ToolCheckUpdates.Header = Loc.T("update.check");
         ToolsMenu.FlowDirection = Loc.Flow;
         SidebarToggleButton.ToolTip = Loc.T("tip.toggleSidebar");
         ThemesOverlayTitle.Text = Loc.T("settings.allThemes");
