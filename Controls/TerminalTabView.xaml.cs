@@ -74,6 +74,9 @@ public partial class TerminalTabView : UserControl
     /// <summary>آخر أمر نُفِّذ في هذه الجلسة (يُعاد تنفيذه عند استرجاع الجلسة)، أو null.</summary>
     public string? LastCommand => _sessionCommands.Count > 0 ? _sessionCommands[^1] : null;
 
+    /// <summary>مجلد العمل الفعليّ الحاليّ (يتبع <c>cd</c> الحيّ)، للاستعمال من قائمة سياق التبويب.</summary>
+    public string WorkingDirectory => CurrentWorkDir();
+
     // ===== الإكمال التلقائيّ الشبحيّ (T-205): تتبّع تقريبيّ لسطر الإدخال الحاليّ =====
     // التيرمنال خام (الصدفة تملك تحرير السطر)، فنتتبّع الإدخال محلّياً ونكون محافظين:
     // أيّ غموض في الحالة يمسح السطر والشبح (شبحٌ خاطئ أسوأ من لا شبح).
@@ -166,6 +169,8 @@ public partial class TerminalTabView : UserControl
         _initializing = false;
 
         HistoryButton.ToolTip = Services.Loc.T("tip.history");   // تلميح مُعرَّب (T-106)
+        CwdPickerButton.ToolTip = Services.Loc.T("tip.cwdPicker");
+        CwdPickerHint.Text = Services.Loc.T("cwd.search");
 
         _fontSize = Math.Clamp(fontSize, MinFontSize, MaxFontSize);
         Renderer.TerminalFontSize = _fontSize;
@@ -474,8 +479,34 @@ public partial class TerminalTabView : UserControl
             for (int i = snap.Lines.Count - 1; i >= from && cwd == null; i--)
                 cwd = ExtractCwd(LinePlainText(snap.Lines[i]));
         }
+        TrackLiveCwd(cwd);   // الاقتراحات تتبع cd الحقيقيّ لا مجلد البدء
         cwd ??= _entry.Path.Replace('\\', '/');
         ComposerCwd.Text = ShortenPath(cwd);
+    }
+
+    /// <summary>مجلد العمل الحيّ المستخرَج من الموجّه (مسار ويندوز موجود فعلاً)، أو null قبل أوّل التقاط.</summary>
+    private string? _liveCwd;
+
+    /// <summary>
+    /// يثبّت <see cref="_liveCwd"/> من نصّ الموجّه: يحوّل مسار MSYS (<c>/c/Users/…</c>) و<c>~</c> إلى مسار
+    /// ويندوز، ولا يقبله إلّا إن كان موجوداً على القرص (فلا يفسده سطر مخرجات يشبه مساراً).
+    /// </summary>
+    private void TrackLiveCwd(string? cwd)
+    {
+        if (string.IsNullOrWhiteSpace(cwd)) return;
+        string p = cwd.Trim();
+        try
+        {
+            if (p == "~" || p.StartsWith("~/"))
+                p = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + p[1..];
+            // /c/Users/… (git-bash) ⇒ C:\Users\…
+            else if (p.Length > 2 && p[0] == '/' && char.IsLetter(p[1]) && (p.Length == 2 || p[2] == '/'))
+                p = p[1] + ":" + (p.Length > 2 ? p[2..] : "/");
+
+            p = p.Replace('/', '\\');
+            if (System.IO.Directory.Exists(p)) _liveCwd = p;
+        }
+        catch { /* مسار غير صالح — نبقي السابق */ }
     }
 
     /// <summary>يستخرج مجلد العمل من نصّ الموجّه (cmd: ...&gt; · pwsh: PS ...&gt; · bash: توكِن مسار).</summary>
@@ -606,6 +637,7 @@ public partial class TerminalTabView : UserControl
         {
             ComposerBar.Visibility = Visibility.Collapsed;
             HideSuggestions();
+            CloseCwdPicker();
             Renderer.SuppressCursor = false;
             // التحكّم ينتقل للتطبيق التفاعليّ (claude/vim/الوكيل): نُركّز الشبكة كي تصل كلّ ضغطة مفتاح
             // إليه مباشرةً (حرف-بحرف) بلا نقرة يدويّة — إلّا إن كان التركيز في البحث/المحرّر. مؤجَّل
@@ -624,22 +656,14 @@ public partial class TerminalTabView : UserControl
 
     // ===== محرّك الاقتراحات (الإكمال التلقائيّ داخل الصندوق) =====
 
-    /// <summary>عنصر اقتراح في قائمة الصندوق: نصّ الأمر + أيقونة + وسم نوع (تاريخ/أمر/ملفّ).</summary>
+    /// <summary>عنصر اقتراح في قائمة الصندوق: نصّ الأمر + أيقونة + وصف + وسم نوع (أمر/مجلد/فرع…).</summary>
     public sealed class ComposerSuggestion
     {
         public string Text { get; init; } = "";
         public string Icon { get; init; } = "";
         public string Kind { get; init; } = "";
+        public string Desc { get; init; } = "";
     }
-
-    /// <summary>أوامر شائعة تُقترَح حسب عائلة الصدفة (تكمِّل التاريخ حين يكون فارغاً/قصيراً).</summary>
-    private static readonly string[] CommonUnix =
-        { "ls", "cd ", "cat ", "grep ", "git status", "git add .", "git commit -m \"\"", "git push",
-          "git pull", "git log --oneline", "npm run dev", "npm install", "npm run build", "code .",
-          "mkdir ", "rm -rf ", "cp ", "mv ", "clear", "pwd", "chmod +x " };
-    private static readonly string[] CommonPwsh =
-        { "ls", "cd ", "Get-Content ", "Select-String ", "git status", "git add .", "git push",
-          "git pull", "npm run dev", "npm install", "code .", "clear", "pwd", "Remove-Item -Recurse -Force " };
 
     /// <summary>يعيد بناء قائمة الاقتراحات والشبح من نصّ الصندوق الحاليّ.</summary>
     private void Composer_TextChanged(object sender, TextChangedEventArgs e)
@@ -666,7 +690,7 @@ public partial class TerminalTabView : UserControl
 
         SuggestList.ItemsSource = matches;
         SuggestList.SelectedIndex = 0;
-        SuggestPopup.IsOpen = true;
+        SuggestPanel.Visibility = Visibility.Visible;
 
         SetGhost(matches[0].Text, text);   // الشبح = ذيل أعلى اقتراح (إن كان بادئةً للنصّ)
     }
@@ -715,81 +739,487 @@ public partial class TerminalTabView : UserControl
         catch { /* التخطيط لم يجهز بعد — سيُعاد الضبط عند التغيير التالي */ }
     }
 
+    /// <summary>الحدّ الأقصى لعناصر قائمة الاقتراحات.</summary>
+    private const int MaxSuggestions = 12;
+
+    /// <summary>عائلة صدفة هذا التبويب (تحدّد كتالوج الأوامر الافتراضيّة).</summary>
+    private Services.CommandCatalog.Family ShellFamily => Services.CommandCatalog.FamilyOf(_entry.Shell);
+
     /// <summary>
-    /// يبني اقتراحات مرتّبة من: تاريخ الجلسة، ثمّ السجلّ العامّ، ثمّ ملفات المجلد، ثمّ الأوامر الشائعة.
-    /// البادئة تسبق التطابق الجزئيّ، وبلا تكرار، بحدٍّ أقصى معقول.
+    /// يبني الاقتراحات <b>حسب دلالة الأمر لا حسب الذاكرة فقط</b>:
+    /// <list type="bullet">
+    /// <item>الكلمة الأولى ⇒ أوامر الكتالوج (حسب الصدفة) + تاريخ الجلسة/السجلّ.</item>
+    /// <item>بعد الأمر ⇒ ما يقبله الأمر فعلاً: <c>cd</c> ⇒ مجلدات فقط · <c>cat/vim</c> ⇒ ملفات ·
+    /// <c>git checkout</c> ⇒ فروع · <c>npm run</c> ⇒ سكربتات package.json · <c>kill</c> ⇒ عمليّات ·
+    /// وسيط يبدأ بـ <c>-</c> ⇒ خيارات الأمر · أمر مركَّب بلا فرعيّ ⇒ أوامره الفرعيّة.</item>
+    /// </list>
+    /// الاقتراحات الدلاليّة تتصدّر دائماً، والتاريخ يأتي بعدها (لا يزاحمها).
     /// </summary>
     private List<ComposerSuggestion> BuildSuggestions(string text)
     {
+        var result = new List<ComposerSuggestion>(MaxSuggestions);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var prefix = new List<ComposerSuggestion>();
-        var contains = new List<ComposerSuggestion>();
 
-        void Consider(string cmd, string icon, string kind)
+        void Add(string cmd, string icon, string kind, string desc = "")
         {
-            cmd = cmd.Trim();
-            if (cmd.Length == 0 || cmd.Equals(text, StringComparison.OrdinalIgnoreCase)) return;
+            if (result.Count >= MaxSuggestions) return;
+            if (cmd.Length == 0 || cmd.Equals(text, StringComparison.Ordinal)) return;
             if (!seen.Add(cmd)) return;
-            if (cmd.StartsWith(text, StringComparison.OrdinalIgnoreCase))
-                prefix.Add(new ComposerSuggestion { Text = cmd, Icon = icon, Kind = kind });
-            else if (cmd.Contains(text, StringComparison.OrdinalIgnoreCase))
-                contains.Add(new ComposerSuggestion { Text = cmd, Icon = icon, Kind = kind });
+            result.Add(new ComposerSuggestion { Text = cmd, Icon = icon, Kind = kind, Desc = desc });
         }
 
-        // 1) تاريخ الجلسة (الأحدث أوّلاً).
-        for (int i = _sessionCommands.Count - 1; i >= 0; i--) Consider(_sessionCommands[i], "🕘", "session");
-        // 2) السجلّ العامّ.
-        try { foreach (var c in _history.Recent(200)) Consider(c, "🕘", "history"); } catch { }
-        // 3) ملفات/مجلدات المجلد الحاليّ (تكمِّل الكلمة الأخيرة — مسارات).
-        foreach (var f in CwdCompletions(text)) Consider(f, "📄", "file");
-        // 4) أوامر شائعة حسب الصدفة.
-        foreach (var c in (IsPwsh ? CommonPwsh : CommonUnix)) Consider(c, "⌘", "command");
-
-        var result = new List<ComposerSuggestion>(prefix.Count + contains.Count);
-        result.AddRange(prefix);
-        result.AddRange(contains);
-        if (result.Count > 12) result.RemoveRange(12, result.Count - 12);
-        return result;
-    }
-
-    /// <summary>هل الصدفة من عائلة PowerShell؟ (لاختيار قائمة الأوامر الشائعة).</summary>
-    private bool IsPwsh => _entry.Shell.Contains("powershell", StringComparison.OrdinalIgnoreCase)
-                        || _entry.Shell.Contains("pwsh", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// إكمال الكلمة الأخيرة من المسار: يقرأ محتوى مجلد العمل (باث المشروع) ويعيد أوامر مكتملة بأسماء
-    /// الملفات/المجلدات المطابقة. best-effort — يتجاهل الأخطاء ولا يتتبّع cd (يستعمل مجلد البدء).
-    /// </summary>
-    private IEnumerable<string> CwdCompletions(string text)
-    {
-        string dir = _entry.Path;
-        if (string.IsNullOrWhiteSpace(dir) || !System.IO.Directory.Exists(dir)) yield break;
-
+        var fam = ShellFamily;
         int sp = text.LastIndexOf(' ');
         string head = sp >= 0 ? text[..(sp + 1)] : "";
         string frag = sp >= 0 ? text[(sp + 1)..] : text;
-        if (frag.Length == 0) yield break;
 
-        string[] entries;
-        try { entries = System.IO.Directory.GetFileSystemEntries(dir); } catch { yield break; }
-
-        int n = 0;
-        foreach (var full in entries)
+        if (sp < 0)
         {
-            string name = System.IO.Path.GetFileName(full);
-            if (name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+            // ===== موضع الأمر: كتالوج الأوامر أوّلاً (البادئة تسبق التطابق الجزئيّ) =====
+            var partial = new List<ComposerSuggestion>();
+            foreach (var spec in Services.CommandCatalog.All(fam))
             {
-                bool isDir = System.IO.Directory.Exists(full);
-                yield return head + name + (isDir ? "/" : "");
-                if (++n >= 20) yield break;
+                bool starts = spec.Name.StartsWith(frag, StringComparison.OrdinalIgnoreCase);
+                if (!starts && !spec.Name.Contains(frag, StringComparison.OrdinalIgnoreCase)) continue;
+                // الأمر الذي يأخذ وسائط يُقترَح بمسافة لاحقة كي تتوالى اقتراحات وسائطه فوراً.
+                string t = spec.Arg == Services.ArgKind.None && spec.Subs == null ? spec.Name : spec.Name + " ";
+                if (starts) Add(t, "⌘", Services.Loc.T("sug.command"), spec.Desc.Text);
+                else partial.Add(new ComposerSuggestion
+                    { Text = t, Icon = "⌘", Kind = Services.Loc.T("sug.command"), Desc = spec.Desc.Text });
+            }
+            AddHistory(Add, text);
+            foreach (var p in partial) Add(p.Text, p.Icon, p.Kind, p.Desc);
+            return result;
+        }
+
+        // ===== موضع الوسيط: نستنتج الأمر (مع تخطّي الأغلفة مثل sudo/time) والأمر الفرعيّ =====
+        var toks = head.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        int ci = 0;
+        while (ci < toks.Length - 1 && IsWrapper(toks[ci])) ci++;
+        string cmdName = toks[ci];
+        var cmdSpec = Services.CommandCatalog.Find(fam, cmdName);
+        string? sub = null;
+        for (int i = ci + 1; i < toks.Length; i++)
+            if (!toks[i].StartsWith("-") && !toks[i].StartsWith("/")) { sub = toks[i]; break; }
+
+        // خيارات الأمر حين يبدأ الوسيط بشرطة.
+        if (frag.StartsWith("-") && cmdSpec?.Flags is { Length: > 0 } flags)
+        {
+            foreach (var f in flags)
+                if (f.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                    Add(head + f, "⚙", Services.Loc.T("sug.flag"));
+        }
+
+        // أوامر فرعيّة (git · npm · docker …) ما دام لم يُكتَب فرعيّ بعد.
+        if (sub == null && cmdSpec?.Subs is { Length: > 0 } subs)
+            foreach (var s in subs)
+                if (s.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                    Add(head + s + " ", "▸", Services.Loc.T("sug.subcommand"), cmdSpec.Desc.Text);
+
+        // الوسيط المناسب لعمل الأمر.
+        var kind = cmdSpec?.ArgFor(sub) ?? Services.ArgKind.Any;
+        switch (kind)
+        {
+            case Services.ArgKind.Directory:
+                if (frag.Length == 0 || "..".StartsWith(frag, StringComparison.Ordinal))
+                    Add(head + "..", "📁", Services.Loc.T("sug.folder"));
+                foreach (var s in PathCompletions(head, frag, dirsOnly: true)) Add(s, "📁", Services.Loc.T("sug.folder"));
+                break;
+
+            case Services.ArgKind.File:
+            case Services.ArgKind.Any:
+                foreach (var (t, isDir) in PathEntries(head, frag, dirsOnly: false))
+                    Add(t, isDir ? "📁" : "📄",
+                        Services.Loc.T(isDir ? "sug.folder" : "sug.file"));
+                break;
+
+            case Services.ArgKind.GitRef:
+                foreach (var r in GitRefs())
+                    if (r.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                        Add(head + r, "⑂", Services.Loc.T("sug.branch"));
+                foreach (var (t, isDir) in PathEntries(head, frag, dirsOnly: false))
+                    Add(t, isDir ? "📁" : "📄", Services.Loc.T(isDir ? "sug.folder" : "sug.file"));
+                break;
+
+            case Services.ArgKind.NpmScript:
+                foreach (var (name, cmd) in NpmScripts())
+                    if (name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                        Add(head + name, "▶", Services.Loc.T("sug.script"), cmd);
+                break;
+
+            case Services.ArgKind.Command:
+                foreach (var spec in Services.CommandCatalog.All(fam))
+                    if (spec.Name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                        Add(head + spec.Name + " ", "⌘", Services.Loc.T("sug.command"), spec.Desc.Text);
+                break;
+
+            case Services.ArgKind.Process:
+                foreach (var p in RunningProcesses())
+                    if (p.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
+                        Add(head + p, "⏻", Services.Loc.T("sug.process"));
+                break;
+        }
+
+        AddHistory(Add, text);
+        return result;
+    }
+
+    /// <summary>أغلفة تُنفِّذ أمراً آخر — يُتخطّى اسمها لاستنتاج الأمر الحقيقيّ.</summary>
+    private static bool IsWrapper(string t) =>
+        t is "sudo" or "time" or "watch" or "xargs" or "env" or "nohup" or "doas";
+
+    /// <summary>يضيف مطابقات التاريخ (الجلسة ثمّ السجلّ العامّ) بعد الاقتراحات الدلاليّة.</summary>
+    private void AddHistory(Action<string, string, string, string> add, string text)
+    {
+        string kind = Services.Loc.T("sug.history");
+        for (int i = _sessionCommands.Count - 1; i >= 0; i--)
+        {
+            var c = _sessionCommands[i].Trim();
+            if (c.StartsWith(text, StringComparison.OrdinalIgnoreCase)) add(c, "🕘", kind, "");
+        }
+        try
+        {
+            foreach (var c in _history.Recent(200))
+            {
+                var t = c.Trim();
+                if (t.StartsWith(text, StringComparison.OrdinalIgnoreCase)) add(t, "🕘", kind, "");
             }
         }
+        catch { /* السجلّ غير متاح — الاقتراحات الدلاليّة تكفي */ }
+    }
+
+    // ===== مصادر الوسائط =====
+
+    /// <summary>
+    /// مجلد العمل الفعليّ: المستخرَج حيّاً من الموجّه (يتبع <c>cd</c>)، وإلّا مسار المشروع، وإلّا مجلد العمليّة.
+    /// </summary>
+    private string CurrentWorkDir()
+    {
+        if (_liveCwd != null && System.IO.Directory.Exists(_liveCwd)) return _liveCwd;
+        if (!string.IsNullOrWhiteSpace(_entry.Path) && System.IO.Directory.Exists(_entry.Path)) return _entry.Path!;
+        return Environment.CurrentDirectory;
+    }
+
+    /// <summary>إكمال مسار (مجلدات فقط) — يعيد سطر الأمر كاملاً بعد الاستبدال.</summary>
+    private IEnumerable<string> PathCompletions(string head, string frag, bool dirsOnly)
+    {
+        foreach (var (text, _) in PathEntries(head, frag, dirsOnly)) yield return text;
+    }
+
+    /// <summary>
+    /// إكمال الكلمة الأخيرة كمسار: يدعم المسارات الجزئيّة (<c>src/comp</c>)، المطلقة، و<c>~</c>؛
+    /// يبني من مجلد العمل الحيّ. يُقتبَس الاسم الذي يحوي مسافة. best-effort — يبتلع أخطاء الوصول.
+    /// </summary>
+    private IEnumerable<(string Text, bool IsDir)> PathEntries(string head, string frag, bool dirsOnly)
+    {
+        string raw = frag.Trim('"');
+        int cut = raw.LastIndexOfAny(new[] { '/', '\\' });
+        string dirPart = cut >= 0 ? raw[..(cut + 1)] : "";
+        string namePart = cut >= 0 ? raw[(cut + 1)..] : raw;
+
+        string searchDir;
+        try
+        {
+            string dp = dirPart;
+            if (dp.StartsWith("~"))
+                dp = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + dp[1..];
+            searchDir = dp.Length == 0 ? CurrentWorkDir() : System.IO.Path.GetFullPath(dp, CurrentWorkDir());
+        }
+        catch { yield break; }
+        if (!System.IO.Directory.Exists(searchDir)) yield break;
+
+        string[] dirs, files;
+        try
+        {
+            dirs = System.IO.Directory.GetDirectories(searchDir);
+            files = dirsOnly ? Array.Empty<string>() : System.IO.Directory.GetFiles(searchDir);
+        }
+        catch { yield break; }
+
+        bool wantHidden = namePart.StartsWith(".");
+        int n = 0;
+        foreach (var (full, isDir) in Ordered(dirs, files))
+        {
+            string name = System.IO.Path.GetFileName(full);
+            if (!wantHidden && name.StartsWith(".")) continue;
+            if (namePart.Length > 0 && !name.StartsWith(namePart, StringComparison.OrdinalIgnoreCase)) continue;
+
+            string val = dirPart + name + (isDir ? "/" : "");
+            if (val.Contains(' ')) val = "\"" + val + "\"";
+            yield return (head + val, isDir);
+            if (++n >= MaxSuggestions * 2) yield break;
+        }
+    }
+
+    private static IEnumerable<(string Full, bool IsDir)> Ordered(string[] dirs, string[] files)
+    {
+        foreach (var d in dirs) yield return (d, true);
+        foreach (var f in files) yield return (f, false);
+    }
+
+    // ذاكرة قصيرة الأمد للمصادر المكلفة (فروع git · سكربتات npm · العمليّات): تُقرأ عند كلّ ضغطة
+    // مفتاح، فبلا تخزين مؤقّت نلمس القرص/العمليّات ٦٠ مرّة في الثانية.
+    private const long SourceCacheMs = 4000;
+    private (long At, string Dir, List<string> Items)? _refsCache;
+    private (long At, string Dir, List<(string, string)> Items)? _scriptsCache;
+    private (long At, List<string> Items)? _procCache;
+
+    /// <summary>فروع/وسوم المستودع الحاويّ لمجلد العمل (refs/heads + packed-refs).</summary>
+    private List<string> GitRefs()
+    {
+        string cwd = CurrentWorkDir();
+        long now = Environment.TickCount64;
+        if (_refsCache is { } c && c.Dir == cwd && now - c.At < SourceCacheMs) return c.Items;
+
+        var refs = new List<string>();
+        string? gitDir = FindUp(cwd, ".git");
+        if (gitDir != null)
+        {
+            try
+            {
+                // مستودع عاديّ: .git مجلد؛ worktree/submodule: ملفّ فيه "gitdir: <path>".
+                if (System.IO.File.Exists(gitDir))
+                {
+                    var line = System.IO.File.ReadAllText(gitDir).Trim();
+                    if (line.StartsWith("gitdir:"))
+                        gitDir = System.IO.Path.GetFullPath(line[7..].Trim(),
+                                                            System.IO.Path.GetDirectoryName(gitDir)!);
+                }
+
+                string heads = System.IO.Path.Combine(gitDir, "refs", "heads");
+                if (System.IO.Directory.Exists(heads))
+                    foreach (var f in System.IO.Directory.GetFiles(heads, "*", System.IO.SearchOption.AllDirectories))
+                        refs.Add(System.IO.Path.GetRelativePath(heads, f).Replace('\\', '/'));
+
+                string packed = System.IO.Path.Combine(gitDir, "packed-refs");
+                if (System.IO.File.Exists(packed))
+                    foreach (var line in System.IO.File.ReadAllLines(packed))
+                    {
+                        int i = line.IndexOf("refs/heads/", StringComparison.Ordinal);
+                        if (i > 0) refs.Add(line[(i + 11)..].Trim());
+                    }
+            }
+            catch { /* مستودع غير مقروء — نعيد ما جمعناه */ }
+        }
+
+        var list = refs.Distinct(StringComparer.Ordinal).OrderBy(r => r, StringComparer.OrdinalIgnoreCase).ToList();
+        _refsCache = (now, cwd, list);
+        return list;
+    }
+
+    /// <summary>سكربتات أقرب package.json (الاسم + الأمر) — لاقتراحات <c>npm run</c>.</summary>
+    private List<(string Name, string Cmd)> NpmScripts()
+    {
+        string cwd = CurrentWorkDir();
+        long now = Environment.TickCount64;
+        if (_scriptsCache is { } c && c.Dir == cwd && now - c.At < SourceCacheMs) return c.Items;
+
+        var list = new List<(string, string)>();
+        string? pkg = FindUp(cwd, "package.json");
+        if (pkg != null && System.IO.File.Exists(pkg))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(pkg));
+                if (doc.RootElement.TryGetProperty("scripts", out var s)
+                    && s.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    foreach (var p in s.EnumerateObject())
+                        list.Add((p.Name, p.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                                          ? p.Value.GetString() ?? "" : ""));
+            }
+            catch { /* package.json تالف — لا سكربتات */ }
+        }
+
+        _scriptsCache = (now, cwd, list);
+        return list;
+    }
+
+    /// <summary>أسماء العمليّات الجارية (لاقتراحات kill / Stop-Process / taskkill).</summary>
+    private List<string> RunningProcesses()
+    {
+        long now = Environment.TickCount64;
+        if (_procCache is { } c && now - c.At < SourceCacheMs) return c.Items;
+
+        var list = new List<string>();
+        try
+        {
+            list = System.Diagnostics.Process.GetProcesses()
+                .Select(p => { try { return p.ProcessName; } catch { return ""; } })
+                .Where(n => n.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch { /* لا صلاحيّة لسرد العمليّات */ }
+
+        _procCache = (now, list);
+        return list;
+    }
+
+    /// <summary>يبحث عن ملفّ/مجلد بالاسم صعوداً من <paramref name="start"/> حتّى الجذر؛ null إن لم يوجد.</summary>
+    private static string? FindUp(string start, string name)
+    {
+        try
+        {
+            var dir = new System.IO.DirectoryInfo(start);
+            while (dir != null)
+            {
+                string candidate = System.IO.Path.Combine(dir.FullName, name);
+                if (System.IO.Directory.Exists(candidate) || System.IO.File.Exists(candidate)) return candidate;
+                dir = dir.Parent;
+            }
+        }
+        catch { /* مسار غير صالح */ }
+        return null;
     }
 
     private void HideSuggestions()
     {
-        SuggestPopup.IsOpen = false;
+        SuggestPanel.Visibility = Visibility.Collapsed;
         SuggestList.ItemsSource = null;
+    }
+
+    // ===== متصفّح المجلدات (زرّ الباث فوق الإنبت) =====
+
+    /// <summary>سطر في متصفّح المجلدات: مجلد فرعيّ أو مدخلة الصعود «..».</summary>
+    public sealed class CwdPickerItem
+    {
+        public string Display { get; init; } = "";
+        public string Icon { get; init; } = "";
+        /// <summary>المسار المطلق الذي يُنتقَل إليه عند الاختيار.</summary>
+        public string Path { get; init; } = "";
+        /// <summary>مجلد مخفيّ (يبدأ بنقطة) — لا يظهر إلّا عند البحث.</summary>
+        public bool Hidden { get; init; }
+        /// <summary>مدخلة الصعود «..» — تبقى ظاهرة مهما كان نصّ البحث.</summary>
+        public bool IsParent { get; init; }
+    }
+
+    // أيقونات Segoe MDL2: E74A = Up · E8B7 = Folder.
+    private const string IconUp = "";
+    private const string IconFolder = "";
+
+    /// <summary>المجلد المعروض حاليّاً في المتصفّح (يُلتقَط عند الفتح).</summary>
+    private string _pickerDir = "";
+    private List<CwdPickerItem> _pickerAll = new();
+
+    private void CwdPicker_Click(object sender, RoutedEventArgs e)
+    {
+        if (CwdPickerPanel.Visibility == Visibility.Visible) { CloseCwdPicker(); return; }
+
+        HideSuggestions();
+        ClearGhost();
+        _pickerDir = CurrentWorkDir();
+        LoadCwdPicker();
+        CwdPickerPanel.Visibility = Visibility.Visible;
+        CwdPickerSearch.Clear();
+        Dispatcher.BeginInvoke(new Action(() => CwdPickerSearch.Focus()), DispatcherPriority.Input);
+    }
+
+    /// <summary>يقرأ مجلدات <see cref="_pickerDir"/> ويعرضها (مع «..» إن كان له أب).</summary>
+    private void LoadCwdPicker()
+    {
+        var items = new List<CwdPickerItem>();
+
+        var parent = System.IO.Directory.GetParent(_pickerDir);
+        if (parent != null)
+            items.Add(new CwdPickerItem
+            {
+                Display = Services.Loc.T("cwd.parent"), Icon = IconUp,
+                Path = parent.FullName, IsParent = true,
+            });
+
+        try
+        {
+            foreach (var d in System.IO.Directory.GetDirectories(_pickerDir))
+                items.Add(new CwdPickerItem
+                {
+                    Display = System.IO.Path.GetFileName(d), Icon = IconFolder, Path = d,
+                    Hidden = System.IO.Path.GetFileName(d).StartsWith("."),
+                });
+        }
+        catch { /* لا صلاحيّة قراءة — تبقى «..» فقط */ }
+
+        _pickerAll = items;
+        ApplyCwdPickerFilter();
+    }
+
+    /// <summary>يصفّي القائمة بنصّ البحث (تطابق جزئيّ غير حسّاس للحالة)؛ «..» تبقى دائماً.</summary>
+    private void ApplyCwdPickerFilter()
+    {
+        string q = CwdPickerSearch.Text.Trim();
+        var shown = q.Length == 0
+            ? _pickerAll.Where(i => !i.Hidden).ToList()
+            : _pickerAll.Where(i => i.IsParent || i.Display.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        CwdPickerList.ItemsSource = shown;
+        CwdPickerList.SelectedIndex = shown.Count > 1 && q.Length > 0 ? 1 : 0;
+        if (CwdPickerList.SelectedItem != null) CwdPickerList.ScrollIntoView(CwdPickerList.SelectedItem);
+    }
+
+    private void CwdPickerSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        CwdPickerHint.Visibility = CwdPickerSearch.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (CwdPickerPanel.Visibility == Visibility.Visible) ApplyCwdPickerFilter();
+    }
+
+    private void CwdPickerSearch_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        int count = CwdPickerList.Items.Count;
+        switch (e.Key)
+        {
+            case Key.Down:
+                if (count > 0) { CwdPickerList.SelectedIndex = Math.Min(CwdPickerList.SelectedIndex + 1, count - 1); Reveal(); }
+                e.Handled = true;
+                break;
+            case Key.Up:
+                if (count > 0) { CwdPickerList.SelectedIndex = Math.Max(CwdPickerList.SelectedIndex - 1, 0); Reveal(); }
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                if (CwdPickerList.SelectedItem is CwdPickerItem sel) GoToDirectory(sel.Path);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                CloseCwdPicker();
+                e.Handled = true;
+                break;
+        }
+
+        void Reveal()
+        {
+            if (CwdPickerList.SelectedItem != null) CwdPickerList.ScrollIntoView(CwdPickerList.SelectedItem);
+        }
+    }
+
+    private void CwdPickerList_Click(object sender, MouseButtonEventArgs e)
+    {
+        // النقر يضبط التحديد قبل وصول الحدث للطور الصاعد، فالمحدَّد هو المنقور.
+        if (CwdPickerList.SelectedItem is CwdPickerItem item) { GoToDirectory(item.Path); e.Handled = true; }
+    }
+
+    /// <summary>خروج التركيز من اللوحة (نقرة في مكان آخر) يُغلقها.</summary>
+    private void CwdPicker_FocusChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (CwdPickerPanel.Visibility == Visibility.Visible && !(bool)e.NewValue) CloseCwdPicker();
+    }
+
+    private void CloseCwdPicker()
+    {
+        CwdPickerPanel.Visibility = Visibility.Collapsed;
+        CwdPickerList.ItemsSource = null;
+        CwdPickerSearch.Clear();
+    }
+
+    /// <summary>ينفّذ <c>cd</c> إلى المسار المختار عبر الصندوق (فيُسجَّل في التاريخ كأمر عاديّ).</summary>
+    private void GoToDirectory(string path)
+    {
+        CloseCwdPicker();
+        // git-bash/zsh يقبلان مسار ويندوز بشرطات أماميّة؛ pwsh/cmd يقبلان الخلفيّة.
+        string p = ShellFamily == Services.CommandCatalog.Family.Unix ? path.Replace('\\', '/') : path;
+        ComposerInput.Text = "cd \"" + p + "\"";
+        SubmitComposer();
+        _liveCwd = path;   // تفاؤليّ: الاقتراحات تتبع فوراً ثمّ يؤكّده الموجّه
+        ComposerInput.Focus();
     }
 
     /// <summary>يقبل اقتراحاً: يستبدل نصّ الصندوق به ويضع المؤشّر في نهايته ويُخفي القائمة.</summary>
@@ -817,7 +1247,7 @@ public partial class TerminalTabView : UserControl
         var mods = Keyboard.Modifiers;
         bool ctrl = (mods & ModifierKeys.Control) != 0;
         bool shift = (mods & ModifierKeys.Shift) != 0;
-        bool suggesting = SuggestPopup.IsOpen && SuggestList.Items.Count > 0;
+        bool suggesting = SuggestPanel.Visibility == Visibility.Visible && SuggestList.Items.Count > 0;
 
         switch (e.Key)
         {

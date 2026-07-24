@@ -56,6 +56,34 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- صفّ لوحة منسدلة (الاقتراحات ومتصفّح المجلدات): ممتدّ من الحافّة للحافّة، تمرير الفأرة
+             يُظلّله والمحدَّد باللكنة كاملةً بنصّ أبيض. قالب مخصّص لأنّ تحديد WPF الافتراضيّ أزرق نظاميّ
+             لا يتبع الثيم. النصوص الداخليّة لا تضبط Foreground صراحةً كي ترثه من الصفّ. -->
+        <Style x:Key="PanelRow" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Row" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource Brush.KeyCap}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{DynamicResource Brush.Accent}"/>
+                                <Setter TargetName="Row" Property="TextElement.Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
     <!-- سطح واحد موحّد بخلفية التيرمنال (تُصبح شفّافة عند تفعيل صورة خلفيّة لتظهر خلف التيرمنال) -->
     <Grid x:Name="RootGrid" Background="{DynamicResource Brush.TerminalBg}">
@@ -63,6 +91,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        <!-- العمود الثاني يستضيف لوحة الـAI (مطويّة افتراضاً). أبناء الشبكة القدامى بلا
+             Grid.Column فيبقون في العمود 0 — إضافة العمود لا تحرّك شيئاً حتى تُفتح اللوحة. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
 
         <!-- شريط علوي: خلفيّته تُطابق تعتيم التيرمنال (تُضبَط في SetBackgroundAlpha) فيصير الشريط
              والتيرمنال والإنبت سطحاً واحداً متّصلاً؛ يفصلهم خطّ شعرة رفيع فقط لا حدّ بارز ولا بنل. -->
@@ -87,6 +121,9 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <!-- نقطة الدخول الموحّدة لمساعد الـAI: ميزة خلف قائمة سياق لا يجدها أحد. -->
+                    <ToggleButton x:Name="AiToggleButton" Style="{StaticResource IconToggle}"
+                                  Content="✨" Click="AiToggleButton_Click"/>
                     <!-- سجلّ الأوامر (T-106): زرّ يفتح Popup بقائمة الأوامر الأخيرة -->
                     <Button x:Name="HistoryButton" Style="{StaticResource IconButton}" Content="🕘"
                             Click="HistoryButton_Click"/>
@@ -215,6 +252,117 @@
                                     Click="SearchClose_Click" ToolTip="إغلاق (Esc)"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- طبقة اللوحات المنسدلة (اقتراحات + متصفّح مجلدات). الحاوية نفسها LTR: الواجهة
+                         عربيّة (RTL) فـ HorizontalAlignment="Left" داخلها كان ينقلب إلى يمين الشاشة —
+                         اللوحتان يجب أن ترسوا يسار الإنبت بمحاذاة شيب الباث. بلا خلفيّة ⇒ لا تلتقط
+                         نقرات التيرمنال في الفراغ. -->
+                    <Grid FlowDirection="LeftToRight">
+
+                    <!-- قائمة الاقتراحات: طبقة *داخل* التطبيق (لا Popup) — Popup نافذة نظام مستقلّة تبقى
+                         طافية فوق كلّ البرامج حتّى بعد تبديل التطبيق؛ هنا هي عنصر عاديّ يعلو التيرمنال
+                         (آخر الشجرة ⇒ أعلى Z) ويختفي بطبيعته مع النافذة. تُرسى للأسفل فوق الإنبت مباشرةً
+                         فلا تزحف التيرمنال. -->
+                    <Border x:Name="SuggestPanel" Visibility="Collapsed"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                            MinWidth="360" MaxWidth="680" Margin="14,0,14,4"
+                            CornerRadius="10" Padding="0,4"
+                            Background="{DynamicResource Brush.Surface}"
+                            BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24" ShadowDepth="3" Opacity="0.5" Color="#000000"/>
+                        </Border.Effect>
+                        <ListBox x:Name="SuggestList" MaxHeight="260" BorderThickness="0" Padding="0"
+                                 Background="Transparent" Focusable="False"
+                                 Foreground="{DynamicResource Brush.Text}"
+                                 ItemContainerStyle="{StaticResource PanelRow}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 PreviewMouseLeftButtonUp="SuggestList_Click">
+                            <ListBox.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
+                            </ListBox.Resources>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11"
+                                                   VerticalAlignment="Center" Opacity="0.9"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                   FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                        <!-- وصف دور الأمر/السكربت — يوضّح *لماذا* اقتُرح -->
+                                        <TextBlock Grid.Column="2" Text="{Binding Desc}" Margin="12,0,0,0"
+                                                   FontSize="11" Opacity="0.6"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding Kind}" Margin="12,0,0,0"
+                                                   FontSize="9.5" Opacity="0.5" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <!-- متصفّح المجلدات: يفتحه زرّ الباث فوق الإنبت. طبقة داخل التطبيق (لا Popup) —
+                         بحث فوريّ + «..» للصعود + نقرة على مجلد = cd إليه. -->
+                    <Border x:Name="CwdPickerPanel" Visibility="Collapsed"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                            MinWidth="290" MaxWidth="460" Margin="14,0,0,4"
+                            CornerRadius="10" Padding="0,0,0,4"
+                            Background="{DynamicResource Brush.Surface}"
+                            BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
+                            IsKeyboardFocusWithinChanged="CwdPicker_FocusChanged">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24" ShadowDepth="3" Opacity="0.5" Color="#000000"/>
+                        </Border.Effect>
+                        <DockPanel>
+                            <!-- سطر البحث: بلا صندوق — خطّ شعرة فاصل فقط، كتصميم لوحات الأوامر -->
+                            <Border DockPanel.Dock="Top" Padding="12,9,12,8"
+                                    BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <!-- نصّ إرشاديّ يظهر ما دام الحقل فارغاً -->
+                                    <TextBlock x:Name="CwdPickerHint" IsHitTestVisible="False" FontSize="12.5"
+                                               VerticalAlignment="Center" Opacity="0.45"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBox x:Name="CwdPickerSearch" BorderThickness="0" Padding="0"
+                                             Background="Transparent" FontSize="12.5"
+                                             Foreground="{DynamicResource Brush.Text}"
+                                             CaretBrush="{DynamicResource Brush.Accent}"
+                                             VerticalContentAlignment="Center"
+                                             TextChanged="CwdPickerSearch_TextChanged"
+                                             PreviewKeyDown="CwdPickerSearch_PreviewKeyDown"/>
+                                </Grid>
+                            </Border>
+                            <ListBox x:Name="CwdPickerList" MaxHeight="300" BorderThickness="0"
+                                     Background="Transparent" Focusable="False" Padding="0,4,0,0"
+                                     Foreground="{DynamicResource Brush.Text}"
+                                     ItemContainerStyle="{StaticResource PanelRow}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     PreviewMouseLeftButtonUp="CwdPickerList_Click">
+                                <ListBox.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
+                                </ListBox.Resources>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- أيقونة خطّية (Segoe MDL2) لا إيموجي — تتلوّن مع نصّ الصفّ -->
+                                            <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="12" Width="22" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Display}" FontSize="12.5"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    </Grid>
                 </Grid>
 
                 <!-- ===== صندوق التأليف الغنيّ (نمط Warp) =====
@@ -228,62 +376,47 @@
                         Background="Transparent"
                         BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0">
                     <DockPanel>
-                        <!-- قائمة الاقتراحات: Popup طافٍ فوق الإنبت — لا يُعيد ترتيب التيرمنال (لا يزحفه).
-                             Focusable=False فيبقى التركيز في الحقل والتنقّل بالأسهم. عرضها = عرض الإنبت. -->
-                        <Popup x:Name="SuggestPopup" Placement="Top" StaysOpen="True"
-                               AllowsTransparency="True" Focusable="False"
-                               PlacementTarget="{Binding ElementName=ComposerInputArea}"
-                               PopupAnimation="Fade">
-                            <Border Margin="0,0,0,6" CornerRadius="10"
-                                    Background="{DynamicResource Brush.GlassStrong}"
-                                    BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
-                                    Padding="4"
-                                    Width="{Binding ActualWidth, ElementName=ComposerInputArea}">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.4" Color="#000000"/>
-                                </Border.Effect>
-                                <ListBox x:Name="SuggestList" MaxHeight="240" BorderThickness="0"
-                                         Background="Transparent"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                         PreviewMouseLeftButtonUp="SuggestList_Click">
-                                    <ListBox.Resources>
-                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScroll}"/>
-                                    </ListBox.Resources>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="18"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Text}"
-                                                           FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                                           Foreground="{DynamicResource Brush.Text}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="9,0,0,0"
-                                                        VerticalAlignment="Center"
-                                                        Background="{DynamicResource Brush.KeyCap}">
-                                                    <TextBlock Text="{Binding Kind}" FontSize="9.5"
-                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
-                                                </Border>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Border>
-                        </Popup>
-
                         <!-- منطقة الإدخال: سطر الباث (كامل) فوق، ثمّ سطر الموجّه + الحقل -->
                         <StackPanel x:Name="ComposerInputArea" Margin="14,8,14,11">
-                            <!-- الباث الحاليّ (مجلد العمل) على سطر مستقلّ — يظهر كاملاً بلا اقتطاع -->
-                            <TextBlock x:Name="ComposerCwd" Margin="0,0,0,3"
-                                       FontFamily="Cascadia Mono, Consolas" FontSize="11.5"
-                                       Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.85"
-                                       TextTrimming="CharacterEllipsis"/>
+                            <!-- سطر الباث = «شيب» قابل للنقر يفتح متصفّح المجلدات. حافّته اليسرى تحاذي
+                                 حافّة اللوحة (كلاهما بهامش 14) فتفتح اللوحة فوقه تماماً. -->
+                            <Button x:Name="CwdPickerButton" HorizontalAlignment="Left" Margin="0,0,0,6"
+                                    Padding="12,7" Cursor="Hand" Click="CwdPicker_Click" Focusable="False">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd" CornerRadius="7" Padding="{TemplateBinding Padding}"
+                                                            Background="Transparent"
+                                                            BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1">
+                                                        <ContentPresenter VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background"
+                                                                    Value="{DynamicResource Brush.KeyCap}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- E8B7 = Folder · E70D = ChevronDown -->
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                               Margin="0,0,7,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBlock x:Name="ComposerCwd" VerticalAlignment="Center" MaxWidth="520"
+                                               FontFamily="Cascadia Mono, Consolas" FontSize="11.5"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="8"
+                                               Margin="7,1,0,0" VerticalAlignment="Center" Opacity="0.7"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                </StackPanel>
+                            </Button>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -349,5 +482,10 @@
             <ctrl:FileEditorPanel x:Name="EditorPanel" Grid.Column="2"
                                   Visibility="Collapsed"/>
         </Grid>
+
+        <!-- لوحة مساعد الـAI: تمتدّ على الصفّين بجانب التيرمنال. مطويّة حتى يفتحها المستخدم،
+             ومملوكة لهذا التبويب — تُغلَق ويُلغى بثّها عند إغلاقه. -->
+        <ctrl:AiPanel x:Name="AiSidePanel" Grid.Column="1" Grid.RowSpan="2"
+                      Width="360" Visibility="Collapsed"/>
     </Grid>
 </UserControl>

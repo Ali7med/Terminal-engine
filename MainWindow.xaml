@@ -558,6 +558,9 @@
                                     <RadioButton x:Name="NavFont" GroupName="SettingsCat" Visibility="Collapsed"
                                                  Style="{StaticResource SettingsNavButton}" Tag="font"
                                                  Content="الخطّ" Checked="CategoryNav_Checked"/>
+                                    <RadioButton x:Name="NavAi" GroupName="SettingsCat"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="ai"
+                                                 Content="{loc:T ai.set.title}" Checked="CategoryNav_Checked"/>
                                 </StackPanel>
 
                                 <Border Grid.Column="1" Background="{DynamicResource Brush.Border}"/>
@@ -748,6 +751,75 @@
                                             </StackPanel>
                                             <TextBlock x:Name="FontJsonPathText" FontSize="10.5" Margin="2,8,2,0" FlowDirection="LeftToRight"
                                                        TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: الذكاء الاصطناعي ===== -->
+                                        <StackPanel x:Name="CatAi" Visibility="Collapsed">
+                                            <TextBlock Text="{loc:T ai.set.provider}" Style="{StaticResource SectionLabel}"/>
+                                            <ComboBox x:Name="AiProviderCombo" MaxWidth="360" MinWidth="240"
+                                                      HorizontalAlignment="Left"
+                                                      DisplayMemberPath="DisplayName" SelectedValuePath="Id"
+                                                      SelectionChanged="AiProviderCombo_SelectionChanged"/>
+
+                                            <TextBlock Text="{loc:T ai.set.model}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <Grid Width="360" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="AiModelCombo" IsEditable="True"
+                                                          LostFocus="AiModel_Changed"/>
+                                                <Button Grid.Column="1" x:Name="AiRefreshModelsBtn" Margin="8,0,0,0"
+                                                        Padding="10,5" Content="{loc:T ai.set.refreshModels}"
+                                                        Click="AiRefreshModels_Click"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T ai.set.key}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <Grid Width="360" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <PasswordBox x:Name="AiKeyBox" Padding="8,6"
+                                                             PasswordChanged="AiKeyBox_Changed"/>
+                                                <Button Grid.Column="1" x:Name="AiGetKeyBtn" Margin="8,0,0,0"
+                                                        Padding="10,5" Content="{loc:T ai.set.getKey}"
+                                                        Click="AiGetKey_Click"/>
+                                            </Grid>
+                                            <TextBlock x:Name="AiKeyStateText" FontSize="11" Margin="2,6,2,0"
+                                                       TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                                <Button x:Name="AiTestBtn" Padding="14,7"
+                                                        Style="{StaticResource AccentButton}"
+                                                        Content="{loc:T ai.set.test}" Click="AiTest_Click"/>
+                                                <TextBlock x:Name="AiTestResultText" VerticalAlignment="Center"
+                                                           Margin="10,0,0,0" FontSize="11" TextWrapping="Wrap"
+                                                           MaxWidth="240"/>
+                                            </StackPanel>
+
+                                            <TextBlock Text="{loc:T ai.set.baseUrl}" Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
+                                            <TextBox x:Name="AiBaseUrlBox" MaxWidth="360" MinWidth="240" Padding="8,6"
+                                                     HorizontalAlignment="Left" FlowDirection="LeftToRight"
+                                                     LostFocus="AiBaseUrl_Changed"/>
+
+                                            <CheckBox x:Name="AiLearningCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.learning}" Margin="2,22,2,4"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <TextBlock Text="{loc:T ai.set.learningHint}" TextWrapping="Wrap"
+                                                       MaxWidth="380" HorizontalAlignment="Left" FontSize="11"
+                                                       Margin="2,0,2,12" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <CheckBox x:Name="AiAmbientCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.ambient}" Margin="2,0,2,6"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <CheckBox x:Name="AiPreviewCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.preview}" Margin="2,0,2,6"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <CheckBox x:Name="AiQuietCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.quiet}" Margin="2,0,2,6"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>

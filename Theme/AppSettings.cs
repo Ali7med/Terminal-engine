@@ -81,6 +81,12 @@ public sealed class AppSettings
     public bool AiAssistantEnabled { get; set; } = false;
 
     /// <summary>
+    /// تفضيلات طبقة الـ AI (المزوّد، النموذج، المفاتيح المُعمّاة بـDPAPI، وضوابط السياق والتعلّم).
+    /// راجع <see cref="TerminalLauncher.Services.Ai.AiSettings"/>.
+    /// </summary>
+    public TerminalLauncher.Services.Ai.AiSettings Ai { get; set; } = new();
+
+    /// <summary>
     /// آخر نسخة عُرِضت لها لوحة «ما الجديد» تلقائياً. تقارنها <c>WhatsNewWindow.ShowIfNew</c> بـ
     /// <c>AppVersion.Current</c>: إن اختلفتا تُعرَض اللوحة مرّة واحدة ثم تُخزَّن النسخة الحالية هنا،
     /// فلا تتكرّر لكلّ إصدار. فارغة = لم تُعرَض بعد (أوّل تشغيل).

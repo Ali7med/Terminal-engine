@@ -1012,6 +1012,8 @@ public partial class MainWindow : Window
         CatBackground.Visibility = cat == "appearance" ? Visibility.Visible : Visibility.Collapsed;
         CatLanguage.Visibility   = cat == "language"   ? Visibility.Visible : Visibility.Collapsed;
         CatFont.Visibility       = cat == "language"   ? Visibility.Visible : Visibility.Collapsed;
+        CatAi.Visibility         = cat == "ai"         ? Visibility.Visible : Visibility.Collapsed;
+        if (cat == "ai") SyncAiUi();
     }
 
     // ===== اللغة =====
@@ -1742,6 +1744,15 @@ public partial class MainWindow : Window
     private Border BuildCommandEditor(ProjectCommand? cmd, Project proj, Color color)
     {
         var panel = new StackPanel();
+
+        // ليبل صغير فوق حقل (نمط SectionLabel) — يوضّح ما يُكتَب في كلّ حقل.
+        TextBlock FieldLabel(string key, double topMargin) => new()
+        {
+            Text = Loc.T(key), Style = (Style)FindResource("SectionLabel"),
+            Margin = new Thickness(2, topMargin, 2, 4),
+        };
+
+        panel.Children.Add(FieldLabel("proj.cmd.labelLbl", 0));
         var labelBox = new TextBox
         {
             Text = cmd?.Label ?? "", FontSize = 11, Margin = new Thickness(0, 0, 0, 6),
@@ -1792,7 +1803,9 @@ public partial class MainWindow : Window
         buttons.Children.Add(save);
 
         panel.Children.Add(labelBox);
+        panel.Children.Add(FieldLabel("proj.cmd.stepsLbl", 4));
         panel.Children.Add(stepsBox);
+        panel.Children.Add(FieldLabel("proj.cmd.folderLbl", 10));
         panel.Children.Add(folderGrid);
         panel.Children.Add(buttons);
 
@@ -2247,6 +2260,7 @@ public partial class MainWindow : Window
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
         view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
         view.DetachRequested += DetachViewToWindow;   // زرّ الفصل → نافذة مستقلّة
+        view.AttachAi(_settings, SaveSettings, OpenAiSettings);   // لوحة الـAI (تُبنى كسولاً عند أوّل فتح)
         return view;
     }
 
@@ -2423,8 +2437,9 @@ public partial class MainWindow : Window
         Item("tabctx.detach", () => DetachTab(tab));
         menu.Items.Add(new Separator());
 
+        Item("tabctx.openExplorer", () => OpenTabInExplorer(tab));
         Item("tabctx.copyTitle", () => CopyToClipboard(HeaderTitle(tab) ?? ""));
-        Item("tabctx.copyCwd", () => CopyToClipboard((tab.Tag as CommandEntry)?.Path ?? ""));
+        Item("tabctx.copyCwd", () => CopyToClipboard(TabWorkingDir(tab)));
         menu.Items.Add(new Separator());
 
         var moveStart = Item("tabctx.moveStart", () => MoveTab(tab, -1));
@@ -2505,6 +2520,39 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrEmpty(text)) return;
         try { Clipboard.SetText(text); } catch { /* الحافظة مشغولة — تجاهل بصمت */ }
+    }
+
+    /// <summary>مجلد عمل التبويب: الحيّ من الـView (يتبع cd)، وإلّا المسار المحفوظ في الأمر.</summary>
+    private static string TabWorkingDir(TabItem tab)
+    {
+        var view = (tab.Content as TerminalPaneContainer)?.ActiveView;
+        string live = view?.WorkingDirectory ?? "";
+        if (!string.IsNullOrWhiteSpace(live)) return live;
+        return (tab.Tag as CommandEntry)?.Path ?? "";
+    }
+
+    /// <summary>يفتح مجلد عمل التبويب في مستكشف ويندوز (Explorer).</summary>
+    private void OpenTabInExplorer(TabItem tab)
+    {
+        string dir = TabWorkingDir(tab);
+        if (string.IsNullOrWhiteSpace(dir) || !System.IO.Directory.Exists(dir))
+        {
+            Views.AppDialog.Alert(this, Loc.T("tabctx.openExplorer"), Loc.T("explorer.notfound"));
+            return;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = "\"" + dir + "\"",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            Views.AppDialog.Alert(this, Loc.T("tabctx.openExplorer"), ex.Message);
+        }
     }
 
     /// <summary>يعيد تسمية التبويب (يحدّث الرأس فقط — الأمر المحفوظ لا يتغيّر).</summary>
