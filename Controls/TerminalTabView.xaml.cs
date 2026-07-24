@@ -2766,20 +2766,19 @@ public partial class TerminalTabView : UserControl
         if (BlockAtAbsLine(abs) is { } b) CopyToClipboard(BlockFullText(b));
     }
 
-    /// <summary>يستدعي مساعد الـ AI لشرح الكتلة (يظهر الناتج/التلميح في مربّع رسالة).</summary>
-    private async void ExplainBlock(BlockSnapshot b)
+    /// <summary>
+    /// يشرح كتلة عبر مساعد الـAI: يفتح اللوحة الجانبيّة ويبثّ الردّ فيها. كان هذا سابقاً يعرض
+    /// نصّاً ثابتاً في مربّع رسالة؛ صار يمرّ بباني السياق فيُنقَّح ويُحدّ ويُعاين قبل الإرسال.
+    /// </summary>
+    private void ExplainBlock(BlockSnapshot b)
     {
-        var ctx = new Services.AiBlockContext
-        {
-            CommandText = BlockCommandText(b),
-            Output = BlockOutputText(b),
-            ExitCode = b.ExitCode,
-        };
-        string result;
-        try { result = await _ai.SuggestAsync(ctx); }
-        catch (Exception ex) { result = "تعذّر تشغيل مساعد الـ AI: " + ex.Message; }
-        TerminalLauncher.Views.AppDialog.Alert(Window.GetWindow(this),
-            _ai.IsEnabled ? "شرح الكتلة" : "مساعد الـ AI (اختياريّ)", result);
+        if (_aiContext is null) return;
+
+        SetAiPanelVisible(true);
+
+        string text = BlockFullText(b);
+        Services.Ai.AiContextSnippet snippet = _aiContext.FromSelection(text, CurrentShellName(), WorkingDirectory);
+        AiSidePanel.AskWithContext(Services.Loc.T("ai.ctx.askExplain"), snippet);
     }
 
     /// <summary>يفتح قائمة سياق الكتلة (Shift+زر أيمن) بأفعال النسخ والشرح للكتلة عند السطر المطلق المعطى.</summary>
@@ -2796,6 +2795,18 @@ public partial class TerminalTabView : UserControl
         menu.Items.Add(MenuItemFor("نسخ الكتلة", () => CopyToClipboard(BlockFullText(b))));
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItemFor("اشرح هذه الكتلة (AI)", () => ExplainBlock(b)));
+
+        // «اشرح المحدَّد» يظهر عند وجود تحديد فقط: الفعل نفسه موافقة على مقتطفه، والمستخدم قرأ
+        // ما حدّده — أضيق سياق ممكن وأدناه خطراً.
+        if (Renderer.HasSelection)
+            menu.Items.Add(MenuItemFor(Services.Loc.T("ai.ctx.explain"),
+                () => AiExplainSelection(Renderer.GetSelectedText())));
+
+        if (HasFailedCommand)
+        {
+            menu.Items.Add(MenuItemFor(Services.Loc.T("ai.ctx.explainFail"), () => AiHandleLastFailure(asFix: false)));
+            menu.Items.Add(MenuItemFor(Services.Loc.T("ai.ctx.fixFail"), () => AiHandleLastFailure(asFix: true)));
+        }
         menu.PlacementTarget = Renderer;
         menu.IsOpen = true;
     }

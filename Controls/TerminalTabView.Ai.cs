@@ -3,44 +3,57 @@ using System.Windows;
 using System.Windows.Controls;
 using TerminalLauncher.Services;
 using TerminalLauncher.Services.Ai;
+using TerminalLauncher.Terminal;
 using TerminalLauncher.Theme;
 
 namespace TerminalLauncher.Controls;
 
 /// <summary>
-/// ربط لوحة مساعد الـAI بالتبويب. اللوحة <b>مملوكة للتبويب</b>: تُهيَّأ عند أوّل فتح، وتُغلَق
-/// ويُلغى بثّها عند إغلاق التبويب.
+/// ربط لوحة مساعد الـAI بالتبويب وأفعال السياق. اللوحة <b>مملوكة للتبويب</b>: تُهيَّأ عند أوّل
+/// فتح، وتُغلَق ويُلغى بثّها عند إغلاقه.
 /// </summary>
 public partial class TerminalTabView
 {
     private AppSettings? _aiAppSettings;
     private AiKeyStore? _aiKeyStore;
+    private AiContextBuilder? _aiContext;
     private Action? _aiSaveSettings;
     private Action? _aiOpenSettings;
+    private Action<string>? _aiAllowToken;
     private bool _aiPanelReady;
 
     /// <summary>
-    /// يمرّر ما تحتاجه اللوحة من النافذة الرئيسة. يُستدعى عند إنشاء التبويب؛ لا يبني اللوحة بعد
-    /// (البناء كسول عند أوّل فتح كي لا يدفع كلّ تبويب ثمن ميزة قد لا يستعملها).
+    /// يمرّر ما تحتاجه اللوحة من النافذة الرئيسة. لا يبني اللوحة بعد: البناء كسول عند أوّل فتح كي
+    /// لا يدفع كلّ تبويب ثمن ميزة قد لا يستعملها.
     /// </summary>
     /// <param name="settings">الإعدادات الحيّة.</param>
     /// <param name="saveSettings">حفظ الإعدادات.</param>
     /// <param name="openAiSettings">يفتح شاشة إعدادات الـAI.</param>
-    public void AttachAi(AppSettings settings, Action saveSettings, Action openAiSettings)
+    /// <param name="redactor">مُنقّح الأسرار المشترك (يعرف مفاتيح المستخدم وقائمة «ليس سرّاً»).</param>
+    /// <param name="allowToken">يحفظ بصمة رمز أقرّ المستخدم أنّه ليس سرّاً.</param>
+    public void AttachAi(
+        AppSettings settings,
+        Action saveSettings,
+        Action openAiSettings,
+        SecretRedactor redactor,
+        Action<string> allowToken)
     {
         _aiAppSettings = settings;
         _aiSaveSettings = saveSettings;
         _aiOpenSettings = openAiSettings;
+        _aiAllowToken = allowToken;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
+        _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
     }
 
     private void AiToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        bool show = AiToggleButton.IsChecked == true;
-        if (show) EnsureAiPanel();
+        => SetAiPanelVisible(AiToggleButton.IsChecked == true);
 
+    private void SetAiPanelVisible(bool show)
+    {
+        if (show) EnsureAiPanel();
+        AiToggleButton.IsChecked = show;
         AiSidePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (show) AiSidePanel.Focus();
     }
 
     /// <summary>يهيّئ اللوحة عند أوّل فتح فقط.</summary>
@@ -50,7 +63,77 @@ public partial class TerminalTabView
 
         AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }));
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
+        AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
         _aiPanelReady = true;
+    }
+
+    // ===== أفعال السياق =====
+
+    /// <summary>
+    /// «اشرح هذا»: يرسل النصّ المحدَّد. الفعل نفسه موافقة على مقتطفه المستهدف وحده — المستخدم
+    /// حدّد النصّ فقرأه قبل أن يرسله، فلا يحتاج تفعيل «السياق المحيط».
+    /// </summary>
+    public void AiExplainSelection(string? selectedText)
+    {
+        if (_aiContext is null) return;
+
+        string text = selectedText ?? "";
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        SetAiPanelVisible(true);
+        AiContextSnippet snippet = _aiContext.FromSelection(text, CurrentShellName(), WorkingDirectory);
+        AiSidePanel.AskWithContext(Loc.T("ai.ctx.askExplain"), snippet);
+    }
+
+    /// <summary>
+    /// «اشرح/أصلح آخر أمر فاشل»: مقتطفه محدود بحدود كتلة OSC 133 لا بآخر N سطر من الشاشة.
+    /// بلا تكامل صدفة لا وجود موثوقاً لـ«آخر أمر فاشل»، فيُخبَر المستخدم بذلك بدل صمت.
+    /// </summary>
+    /// <param name="asFix">true = اطلب أمر إصلاح، false = اطلب شرحاً.</param>
+    public void AiHandleLastFailure(bool asFix)
+    {
+        if (_aiContext is null) return;
+
+        SetAiPanelVisible(true);
+
+        AiContextSnippet? snippet = _aiContext.FromLastFailedCommand(
+            _lastSnapshot, CurrentShellName(), WorkingDirectory);
+
+        if (snippet is null)
+        {
+            AiSidePanel.ShowNotice(Loc.T("ai.ctx.noFailed"));
+            return;
+        }
+
+        AiSidePanel.AskWithContext(Loc.T(asFix ? "ai.ctx.askFix" : "ai.ctx.askExplain"), snippet);
+    }
+
+    /// <summary>هل يوجد أمر فاشل الآن؟ (لتفعيل عناصر القائمة.)</summary>
+    public bool HasFailedCommand => AiContextBuilder.HasFailedCommand(_lastSnapshot);
+
+    /// <summary>
+    /// يُدرج أمراً مقترَحاً في سطر الإدخال — <b>بلا تنفيذ</b>. سطر واحد بلا محرف سطر جديد أبداً:
+    /// وجوده في اللصق يعني تنفيذاً فوريّاً، وهذه الأداة لا تنفّذ اقتراحاً تلقائيّاً في أيّ حال.
+    /// </summary>
+    public void AiInsertCommand(string? command)
+    {
+        string safe = RiskyCommandDetector.SanitizeForInsert(command);
+        if (safe.Length == 0) return;
+
+        Send(safe);
+        FocusTerminal();
+    }
+
+    /// <summary>اسم الصدفة الحاليّة إن عُرفت (يرافق السياق كي يقترح النموذج صياغة صحيحة).</summary>
+    private string? CurrentShellName()
+    {
+        object? selected = ShellCombo?.SelectedItem;
+        return selected switch
+        {
+            Models.ShellProfile profile => profile.Name,
+            null => null,
+            _ => selected.ToString(),
+        };
     }
 
     /// <summary>

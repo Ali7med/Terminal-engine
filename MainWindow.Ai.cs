@@ -18,6 +18,8 @@ namespace TerminalLauncher;
 public partial class MainWindow
 {
     private AiKeyStore? _aiKeys;
+    private SecretRedactor? _aiRedactor;
+    private global::Terminal.Storage.AiKnowledgeStore? _aiKnowledge;
     private CancellationTokenSource? _aiProbeCts;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
@@ -25,6 +27,29 @@ public partial class MainWindow
 
     /// <summary>مخزن مفاتيح الـAI (يُنشأ عند أوّل طلب).</summary>
     private AiKeyStore AiKeys => _aiKeys ??= new AiKeyStore(() => _settings.Ai, SaveSettings);
+
+    /// <summary>
+    /// قاعدة المعرفة المحلّيّة. الحجب مُمرَّر للبانِي فيصير «لا سرّ يلمس القرص» شرطاً بنيويّاً لا
+    /// تعليقاً في التوثيق.
+    /// </summary>
+    private global::Terminal.Storage.AiKnowledgeStore AiKnowledge =>
+        _aiKnowledge ??= new global::Terminal.Storage.AiKnowledgeStore(
+            new global::Terminal.Storage.AppDatabase(), AiRedactor.RedactText);
+
+    /// <summary>
+    /// المُنقّح المشترك: يعرف مفاتيح المستخدم المخزَّنة (فتُحجب لو ظهرت في خرج التيرمنال نفسه)
+    /// وقائمة «ليس سرّاً» المحفوظة.
+    /// </summary>
+    private SecretRedactor AiRedactor => _aiRedactor ??= new SecretRedactor(
+        storedKeys: () => AiKeys.AllPlainKeys(),
+        allowedHashes: () => _aiKnowledge?.AllowedTokenHashes() ?? Array.Empty<string>());
+
+    /// <summary>يحفظ بصمة رمز أقرّ المستخدم أنّه ليس سرّاً (البصمة لا الرمز).</summary>
+    private void AiAllowToken(string token)
+    {
+        try { AiKnowledge.AllowToken(token); }
+        catch (Microsoft.Data.Sqlite.SqliteException) { /* تعذّر الحفظ — يبقى الحجب فعّالاً */ }
+    }
 
     /// <summary>يملأ حقول فئة الـAI من الإعدادات المحفوظة.</summary>
     private void SyncAiUi()

@@ -2260,7 +2260,7 @@ public partial class MainWindow : Window
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
         view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
         view.DetachRequested += DetachViewToWindow;   // زرّ الفصل → نافذة مستقلّة
-        view.AttachAi(_settings, SaveSettings, OpenAiSettings);   // لوحة الـAI (تُبنى كسولاً عند أوّل فتح)
+        view.AttachAi(_settings, SaveSettings, OpenAiSettings, AiRedactor, AiAllowToken);   // لوحة الـAI (كسولة)
         return view;
     }
 

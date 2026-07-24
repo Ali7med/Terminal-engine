@@ -602,6 +602,36 @@ public static class Loc
         ["ai.err.provider"]    = ("ردّ المزوّد بخطأ.", "The provider returned an error."),
         ["ai.err.noProvider"]  = ("لم يُربط مزوّد بعد — افتح الإعدادات لإضافة مفتاح.",
                                   "No provider connected yet — open settings to add a key."),
+        // ===== معاينة ما سيُرسَل =====
+        ["ai.prev.title"]      = ("هذا ما سيُرسَل", "This is what will be sent"),
+        ["ai.prev.redacted"]   = ("حُجبت {0} عناصر — راجع قبل الإرسال",
+                                  "{0} item(s) redacted — review before sending"),
+        ["ai.prev.notSecret"]  = ("ليس سرّاً", "Not a secret"),
+        ["ai.prev.allowed"]    = ("لن يُحجب", "Won't redact"),
+        ["ai.prev.send"]       = ("أرسل", "Send"),
+        ["ai.prev.cancel"]     = ("إلغاء", "Cancel"),
+
+        // ===== أفعال السياق =====
+        ["ai.ctx.explain"]     = ("اشرح هذا", "Explain this"),
+        ["ai.ctx.explainFail"] = ("اشرح آخر خطأ", "Explain last error"),
+        ["ai.ctx.fixFail"]     = ("أصلح آخر أمر فاشل", "Fix last failed command"),
+        ["ai.ctx.toCommand"]   = ("حوّل إلى أمر", "Turn into a command"),
+        ["ai.ctx.noFailed"]    = ("لا يوجد أمر فاشل بعد — يحتاج تكامل الصدفة (OSC 133).",
+                                  "No failed command yet — needs shell integration (OSC 133)."),
+        ["ai.ctx.askExplain"]  = ("اشرح ما حدث هنا وكيف أصلحه.",
+                                  "Explain what happened here and how to fix it."),
+        ["ai.ctx.askFix"]      = ("اقترح أمراً واحداً يصلح هذا الفشل. ضعه في كتلة كود.",
+                                  "Suggest one command that fixes this failure. Put it in a code block."),
+        ["ai.ctx.insert"]      = ("أدرج في سطر الإدخال", "Insert into the prompt"),
+        ["ai.ctx.risky"]       = ("⚠ أمر خطر — راجعه قبل التنفيذ", "⚠ Risky command — review before running"),
+        ["ai.ctx.inserted"]    = ("أُدرج — اضغط Enter لتنفيذه بنفسك",
+                                  "Inserted — press Enter to run it yourself"),
+
+        // ===== رقاقة الخطأ =====
+        ["ai.chip.explain"]    = ("اشرح هذا الخطأ؟", "Explain this error?"),
+        ["ai.chip.seenBefore"] = ("رأيت هذا من قبل — الحل السابق", "Seen before — previous fix"),
+        ["ai.chip.dismiss"]    = ("إخفاء", "Dismiss"),
+
         ["ai.act.settings"]    = ("افتح الإعدادات", "Open settings"),
         ["ai.act.retry"]       = ("أعد المحاولة", "Retry"),
         ["ai.act.billing"]     = ("صفحة الفوترة", "Billing page"),
