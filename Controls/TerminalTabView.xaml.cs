@@ -1633,6 +1633,7 @@ public partial class TerminalTabView : UserControl
             if (cmd == _lastRecordedBlockCommand) return; // مسجَّل سابقاً ⇒ تجاهُل التكرار
             _lastRecordedBlockCommand = cmd;
             RecordHistory(cmd);
+            AiCaptureBlock(b, cmd);                      // قاعدة المعرفة المحلّيّة (خلف علَم التعلّم)
             return;
         }
     }

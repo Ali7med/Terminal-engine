@@ -431,6 +431,56 @@ public sealed class AiKnowledgeStore
         DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(9)),
         r.GetInt32(10) != 0, r.GetInt32(11) != 0);
 
+    /// <summary>أحدث أنماط الأخطاء (الأكثر تكراراً أوّلاً) — لعرضها في «ذاكرة التطبيق».</summary>
+    public IReadOnlyList<ErrorPattern> RecentErrors(int limit = 100)
+    {
+        var results = new List<ErrorPattern>();
+        if (limit <= 0) return results;
+
+        using SqliteConnection connection = _db.Connect();
+        using SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText =
+            """
+            SELECT fingerprint, exit_code, sample, solution, seen_count, last_seen
+            FROM ai_error_patterns
+            ORDER BY (solution IS NOT NULL) DESC, seen_count DESC, last_seen DESC
+            LIMIT $limit;
+            """;
+        cmd.Parameters.AddWithValue("$limit", limit);
+
+        using SqliteDataReader reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(new ErrorPattern(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetInt32(4),
+                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(5))));
+        }
+        return results;
+    }
+
+    /// <summary>سجلّ الاقتراحات (الأحدث أوّلاً) بنوعها وقرارها — شفافيّة حلقة التغذية الراجعة.</summary>
+    public IReadOnlyList<(string Kind, string Payload, SuggestionVerdict Verdict)> RecentSuggestions(int limit = 100)
+    {
+        var results = new List<(string, string, SuggestionVerdict)>();
+        if (limit <= 0) return results;
+
+        using SqliteConnection connection = _db.Connect();
+        using SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText =
+            "SELECT kind, payload, verdict FROM ai_suggestions ORDER BY id DESC LIMIT $limit;";
+        cmd.Parameters.AddWithValue("$limit", limit);
+
+        using SqliteDataReader reader = cmd.ExecuteReader();
+        while (reader.Read())
+            results.Add((reader.GetString(0), reader.GetString(1), (SuggestionVerdict)reader.GetInt32(2)));
+
+        return results;
+    }
+
     // ===== تحكّم المستخدم (نافذة «ذاكرة التطبيق») =====
 
     /// <summary>يثبّت قالباً أو يفكّ تثبيته (يصعد أعلى الترتيب).</summary>

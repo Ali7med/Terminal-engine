@@ -487,5 +487,8 @@
              ومملوكة لهذا التبويب — تُغلَق ويُلغى بثّها عند إغلاقه. -->
         <ctrl:AiPanel x:Name="AiSidePanel" Grid.Column="1" Grid.RowSpan="2"
                       Width="360" Visibility="Collapsed"/>
+
+        <!-- رقاقة «اشرح هذا الخطأ؟»: تعوم فوق التيرمنال بلا إزاحة تخطيط ولا سرقة تركيز. -->
+        <ctrl:AiErrorChip x:Name="AiErrorChip" Grid.Row="1" Grid.Column="0" Panel.ZIndex="50"/>
     </Grid>
 </UserControl>

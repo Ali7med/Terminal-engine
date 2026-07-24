@@ -20,7 +20,14 @@ public partial class TerminalTabView
     private Action? _aiSaveSettings;
     private Action? _aiOpenSettings;
     private Action<string>? _aiAllowToken;
+    private AiLearningService? _aiLearning;
     private bool _aiPanelReady;
+
+    /// <summary>بصمات الأخطاء التي عُرضت لها رقاقة في هذه الجلسة — منع تكرار الإزعاج.</summary>
+    private readonly System.Collections.Generic.HashSet<string> _seenErrorChips = new(StringComparer.Ordinal);
+
+    /// <summary>عدّاد التجاهلات المتتالية للرقاقة (ثلاثة ⇒ تفعيل الوضع الهادئ).</summary>
+    private int _errorChipDismissals;
 
     /// <summary>
     /// يمرّر ما تحتاجه اللوحة من النافذة الرئيسة. لا يبني اللوحة بعد: البناء كسول عند أوّل فتح كي
@@ -36,12 +43,14 @@ public partial class TerminalTabView
         Action saveSettings,
         Action openAiSettings,
         SecretRedactor redactor,
-        Action<string> allowToken)
+        Action<string> allowToken,
+        AiLearningService learning)
     {
         _aiAppSettings = settings;
         _aiSaveSettings = saveSettings;
         _aiOpenSettings = openAiSettings;
         _aiAllowToken = allowToken;
+        _aiLearning = learning;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
         _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
     }
@@ -65,6 +74,60 @@ public partial class TerminalTabView
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
         AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
         _aiPanelReady = true;
+    }
+
+    // ===== الالتقاط والاستدعاء المحلّيّ =====
+
+    /// <summary>
+    /// يسجّل كتلة أمر مكتملة في قاعدة المعرفة، ويعرض رقاقة بعد الفشل.
+    /// <para>لا يُنادى إلّا مرّة لكلّ كتلة (المستدعي يمنع التكرار بـ<c>_lastRecordedBlockCommand</c>)
+    /// — حلقة التحديث ترى الكتلة المكتملة آلاف المرّات بعدها.</para>
+    /// </summary>
+    private void AiCaptureBlock(BlockSnapshot block, string command)
+    {
+        if (_aiLearning is null) return;
+
+        bool failed = block.State == BlockState.Failed;
+        string? errorLine = failed ? AiLearningService.FirstErrorLine(BlockOutputText(block)) : null;
+
+        _aiLearning.RecordCommand(command, CurrentShellName(), WorkingDirectory, block.ExitCode, errorLine);
+
+        if (failed && errorLine is not null) ShowErrorChip(block, errorLine);
+    }
+
+    /// <summary>
+    /// رقاقة «اشرح هذا الخطأ؟» بعد أمر فاشل — تُعرض <b>مرّة لكلّ بصمة خطأ في الجلسة</b> فلا تتحوّل
+    /// إلى إزعاج متكرّر. إن كان للبصمة حلّ محفوظ سابقاً تعرضه الرقاقة أوّلاً: استدعاء محلّيّ بصفر
+    /// كلفة وبلا اتّصال.
+    /// </summary>
+    private void ShowErrorChip(BlockSnapshot block, string errorLine)
+    {
+        if (_aiAppSettings?.Ai.QuietMode == true) return;
+
+        string fingerprint = global::Terminal.Storage.CommandTemplate.ErrorFingerprint(block.ExitCode, errorLine);
+        if (!_seenErrorChips.Add(fingerprint)) return;   // بصمة عُرضت في هذه الجلسة
+
+        global::Terminal.Storage.ErrorPattern? known = _aiLearning?.RecallSolution(block.ExitCode, errorLine);
+
+        AiErrorChip.Show(
+            known?.Solution is { Length: > 0 } solution ? solution : null,
+            onExplain: () => AiHandleLastFailure(asFix: false),
+            onDismiss: OnErrorChipDismissed,
+            onInsert: command => AiInsertCommand(command));
+    }
+
+    /// <summary>
+    /// ثلاثة تجاهلات متتالية = إشارة كافية: نقترح «الوضع الهادئ» بدل انتظار أن يبحث المستخدم
+    /// عن مفتاح إطفائه في الإعدادات.
+    /// </summary>
+    private void OnErrorChipDismissed()
+    {
+        if (_aiAppSettings is null) return;
+        if (++_errorChipDismissals < 3) return;
+
+        _errorChipDismissals = 0;
+        _aiAppSettings.Ai.QuietMode = true;
+        _aiSaveSettings?.Invoke();
     }
 
     // ===== أفعال السياق =====

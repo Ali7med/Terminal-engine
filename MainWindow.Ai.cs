@@ -20,6 +20,7 @@ public partial class MainWindow
     private AiKeyStore? _aiKeys;
     private SecretRedactor? _aiRedactor;
     private global::Terminal.Storage.AiKnowledgeStore? _aiKnowledge;
+    private AiLearningService? _aiLearning;
     private CancellationTokenSource? _aiProbeCts;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
@@ -43,6 +44,13 @@ public partial class MainWindow
     private SecretRedactor AiRedactor => _aiRedactor ??= new SecretRedactor(
         storedKeys: () => AiKeys.AllPlainKeys(),
         allowedHashes: () => _aiKnowledge?.AllowedTokenHashes() ?? Array.Empty<string>());
+
+    /// <summary>
+    /// خدمة التعلّم: تلتقط على خيط خلفيّ وتستدعي محلّيّاً. مشتركة بين كلّ التبويبات — القاعدة
+    /// واحدة والكاتب واحد.
+    /// </summary>
+    private AiLearningService AiLearning => _aiLearning ??= new AiLearningService(
+        () => AiKnowledge, () => _settings.Ai.LearningEnabled);
 
     /// <summary>يحفظ بصمة رمز أقرّ المستخدم أنّه ليس سرّاً (البصمة لا الرمز).</summary>
     private void AiAllowToken(string token)
@@ -255,6 +263,22 @@ public partial class MainWindow
         finally
         {
             AiRefreshModelsBtn.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// يفتح «ذاكرة التطبيق»: ما تعلّمه التطبيق معروضاً وقابلاً للحذف والتعطيل. الشفافيّة هنا ليست
+    /// عبئاً بل شرط قبول الالتقاط أصلاً.
+    /// </summary>
+    private void AiMemoryMenu_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            Views.AppDialog.Alert(this, Loc.T("ai.mem.title"), ex.Message);
         }
     }
 

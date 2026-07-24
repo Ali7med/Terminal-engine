@@ -1,0 +1,165 @@
+<Window x:Class="TerminalLauncher.Views.AiMemoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="760" Height="560" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.Bg}"
+        TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="NumberSubstitution.Substitution" Value="European"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- الترويسة: ما هذه النافذة + ملخّص رقميّ -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold"/>
+            <TextBlock x:Name="SubtitleText" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Foreground="{DynamicResource Brush.TextMuted}"/>
+            <TextBlock x:Name="StatsText" FontSize="11" Margin="0,6,0,0"
+                       Foreground="{DynamicResource Brush.TextMuted}"/>
+        </StackPanel>
+
+        <!-- التبويبات -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <ToggleButton x:Name="TabCommands" Style="{StaticResource SegToggle}"
+                          IsChecked="True" Click="Tab_Click" Tag="commands"/>
+            <ToggleButton x:Name="TabErrors" Style="{StaticResource SegToggle}"
+                          Click="Tab_Click" Tag="errors"/>
+            <ToggleButton x:Name="TabSuggestions" Style="{StaticResource SegToggle}"
+                          Click="Tab_Click" Tag="suggestions"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="{DynamicResource Brush.Surface}"
+                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <!-- الأوامر المتكرّرة -->
+                <ListView x:Name="CommandsList" BorderThickness="0" Background="Transparent">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn x:Name="ColCommand" Width="320">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Template}" FlowDirection="LeftToRight"
+                                                   FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="ColRuns" Width="70" DisplayMemberBinding="{Binding RunCount}"/>
+                            <GridViewColumn x:Name="ColOutcome" Width="110">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Outcome}" FontSize="11"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="ColActions" Width="180">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="{Binding PinLabel}" FontSize="10" Padding="6,2"
+                                                    Tag="{Binding Hash}" Click="Pin_Click"/>
+                                            <Button Content="{Binding BanLabel}" FontSize="10" Padding="6,2"
+                                                    Margin="4,0,0,0" Tag="{Binding Hash}" Click="Ban_Click"/>
+                                            <Button Content="{Binding DeleteLabel}" FontSize="10" Padding="6,2"
+                                                    Margin="4,0,0,0" Tag="{Binding Hash}" Click="Delete_Click"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- الأخطاء وحلولها -->
+                <ListView x:Name="ErrorsList" BorderThickness="0" Background="Transparent"
+                          Visibility="Collapsed">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn x:Name="ColError" Width="380">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Sample}" FlowDirection="LeftToRight"
+                                                   FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="ColSolution" Width="250">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SolutionText}" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="ColSeen" Width="70" DisplayMemberBinding="{Binding SeenCount}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- سجلّ الاقتراحات -->
+                <ListView x:Name="SuggestionsList" BorderThickness="0" Background="Transparent"
+                          Visibility="Collapsed">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn x:Name="ColSuggestion" Width="440">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Payload}" FlowDirection="LeftToRight"
+                                                   FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="ColKind" Width="110" DisplayMemberBinding="{Binding Kind}"/>
+                            <GridViewColumn x:Name="ColVerdict" Width="120">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding VerdictText}" FontSize="11"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- حالة فارغة: تشرح ما سيتعلّمه التطبيق بدل لوحة بيضاء صامتة -->
+                <TextBlock x:Name="EmptyText" Visibility="Collapsed"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center" FontSize="12"
+                           Foreground="{DynamicResource Brush.TextMuted}"/>
+            </Grid>
+        </Border>
+
+        <!-- الأفعال العامّة -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox x:Name="LearningCheck" Grid.Column="0" VerticalAlignment="Center"
+                      Style="{StaticResource AppCheckBox}"
+                      Checked="Learning_Changed" Unchecked="Learning_Changed"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="ClearAllBtn" Style="{StaticResource DangerButton}"
+                        Padding="14,7" Click="ClearAll_Click"/>
+                <Button x:Name="CloseBtn" Margin="8,0,0,0" Padding="14,7"
+                        Click="Close_Click" IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

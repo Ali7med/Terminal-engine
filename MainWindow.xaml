@@ -87,6 +87,13 @@
                                                    Foreground="{DynamicResource Brush.Accent}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
+                                <MenuItem x:Name="ToolAiMemory" Header="{loc:T ai.mem.open}"
+                                          Click="AiMemoryMenu_Click">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="&#xE81C;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.MenuIcon}"
+                                                   Foreground="{DynamicResource Brush.Accent}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                                 <MenuItem x:Name="ToolCheckUpdates" Header="تحقّق من التحديثات"
                                           Click="CheckUpdatesMenu_Click" Visibility="Collapsed">
                                     <MenuItem.Icon>
