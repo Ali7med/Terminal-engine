@@ -21,6 +21,7 @@ public partial class MainWindow
     private SecretRedactor? _aiRedactor;
     private global::Terminal.Storage.AiKnowledgeStore? _aiKnowledge;
     private AiLearningService? _aiLearning;
+    private AiProfileBuilder? _aiProfileBuilder;
     private CancellationTokenSource? _aiProbeCts;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
@@ -51,6 +52,37 @@ public partial class MainWindow
     /// </summary>
     private AiLearningService AiLearning => _aiLearning ??= new AiLearningService(
         () => AiKnowledge, () => _settings.Ai.LearningEnabled);
+
+    /// <summary>
+    /// بانِي «ملفّ معرفة المستخدم». البناء يجري عند الخمول لا في مسار الإرسال: تلخيص متزامن قبل
+    /// كلّ رسالة يضيف تأخيراً محسوساً بلا مقابل.
+    /// </summary>
+    private AiProfileBuilder AiProfiles => _aiProfileBuilder ??= new AiProfileBuilder(() => AiKnowledge);
+
+    /// <summary>
+    /// الملفّ المعروض والمحقون معاً — <b>مصدر واحد</b>. عرضٌ من مسار موازٍ كان سينحرف عمّا يُرسَل
+    /// فعلاً، فيصير «هذا ما نعرفه عنك» ادّعاءً لا يمكن التحقّق منه.
+    /// </summary>
+    private AiProfile CurrentAiProfile => AiProfiles.Current;
+
+    /// <summary>
+    /// يعيد بناء الملفّ ويقلّم القاعدة على خيط خلفيّ. يُنادى عند الخمول (بعد إغلاق الإعدادات أو
+    /// فتح ذاكرة التطبيق) لا عند الإقلاع.
+    /// </summary>
+    private void RefreshAiProfileInBackground()
+    {
+        if (!_settings.Ai.LearningEnabled) return;
+
+        _ = System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                AiProfiles.Build();
+                AiKnowledge.Maintain();
+            }
+            catch (Exception) { /* قاعدة المعرفة مساعدة — لا تُسقط شيئاً */ }
+        });
+    }
 
     /// <summary>يحفظ بصمة رمز أقرّ المستخدم أنّه ليس سرّاً (البصمة لا الرمز).</summary>
     private void AiAllowToken(string token)
@@ -274,7 +306,8 @@ public partial class MainWindow
     {
         try
         {
-            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings);
+            RefreshAiProfileInBackground();   // اعرض أحدث ما استُنتج، لا لقطة قديمة
+            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings, () => CurrentAiProfile.Text);
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {

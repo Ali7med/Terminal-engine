@@ -21,6 +21,7 @@ public partial class TerminalTabView
     private Action? _aiOpenSettings;
     private Action<string>? _aiAllowToken;
     private AiLearningService? _aiLearning;
+    private Func<AiProfile>? _aiProfile;
     private bool _aiPanelReady;
 
     /// <summary>بصمات الأخطاء التي عُرضت لها رقاقة في هذه الجلسة — منع تكرار الإزعاج.</summary>
@@ -44,13 +45,15 @@ public partial class TerminalTabView
         Action openAiSettings,
         SecretRedactor redactor,
         Action<string> allowToken,
-        AiLearningService learning)
+        AiLearningService learning,
+        Func<AiProfile> profile)
     {
         _aiAppSettings = settings;
         _aiSaveSettings = saveSettings;
         _aiOpenSettings = openAiSettings;
         _aiAllowToken = allowToken;
         _aiLearning = learning;
+        _aiProfile = profile;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
         _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
     }
@@ -70,7 +73,7 @@ public partial class TerminalTabView
     {
         if (_aiPanelReady || _aiAppSettings is null || _aiKeyStore is null) return;
 
-        AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }));
+        AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }), _aiProfile);
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
         AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
         _aiPanelReady = true;

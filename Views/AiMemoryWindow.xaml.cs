@@ -38,13 +38,16 @@ public partial class AiMemoryWindow : Window
     private readonly AiKnowledgeStore _store;
     private readonly AppSettings _settings;
     private readonly Action _saveSettings;
+    private readonly Func<string> _profileText;
     private bool _syncing;
 
-    private AiMemoryWindow(AiKnowledgeStore store, AppSettings settings, Action saveSettings)
+    private AiMemoryWindow(
+        AiKnowledgeStore store, AppSettings settings, Action saveSettings, Func<string> profileText)
     {
         _store = store;
         _settings = settings;
         _saveSettings = saveSettings;
+        _profileText = profileText;
 
         InitializeComponent();
         ApplyLanguage();
@@ -55,9 +58,14 @@ public partial class AiMemoryWindow : Window
     }
 
     /// <summary>يفتح النافذة فوق مالكها.</summary>
-    public static void ShowFor(Window? owner, AiKnowledgeStore store, AppSettings settings, Action saveSettings)
+    /// <param name="profileText">
+    /// يعيد ملفّ معرفة المستخدم <b>كما يُرسَل حرفياً</b> — من نفس مسار البانِي المخبَّأ، لا من
+    /// محاكاة موازية تنحرف عمّا يصل المزوّد فعلاً.
+    /// </param>
+    public static void ShowFor(
+        Window? owner, AiKnowledgeStore store, AppSettings settings, Action saveSettings, Func<string> profileText)
     {
-        var window = new AiMemoryWindow(store, settings, saveSettings) { Owner = owner };
+        var window = new AiMemoryWindow(store, settings, saveSettings, profileText) { Owner = owner };
         window.ShowDialog();
     }
 
@@ -71,6 +79,7 @@ public partial class AiMemoryWindow : Window
         TabCommands.Content = Loc.T("ai.mem.tabCommands");
         TabErrors.Content = Loc.T("ai.mem.tabErrors");
         TabSuggestions.Content = Loc.T("ai.mem.tabSuggestions");
+        TabProfile.Content = Loc.T("ai.mem.tabProfile");
 
         ColCommand.Header = Loc.T("ai.mem.colCommand");
         ColRuns.Header = Loc.T("ai.mem.colRuns");
@@ -102,6 +111,9 @@ public partial class AiMemoryWindow : Window
         CommandsList.ItemsSource = commands.Select(ToRow).ToList();
         ErrorsList.ItemsSource = SafeRead(ReadErrors, new List<ErrorRow>());
         SuggestionsList.ItemsSource = SafeRead(ReadSuggestions, new List<SuggestionRow>());
+
+        string profile = SafeRead(_profileText, "");
+        ProfileBox.Text = profile.Length > 0 ? profile : Loc.T("ai.mem.profileEmpty");
 
         double? acceptance = SafeRead(() => _store.AcceptanceRate(), null);
         long bytes = SafeRead(() => _store.FileSize(), 0L);
@@ -167,6 +179,13 @@ public partial class AiMemoryWindow : Window
 
     private void UpdateEmptyState()
     {
+        // قسم الملفّ التعريفيّ يعرض نصّه دائماً (ولو رسالة «لا بيانات بعد») فلا حالة فارغة له.
+        if (TabProfile.IsChecked == true)
+        {
+            EmptyText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         int count = ActiveList() switch
         {
             var list when list == CommandsList => CommandsList.Items.Count,
@@ -190,10 +209,12 @@ public partial class AiMemoryWindow : Window
         TabCommands.IsChecked = tag == "commands";
         TabErrors.IsChecked = tag == "errors";
         TabSuggestions.IsChecked = tag == "suggestions";
+        TabProfile.IsChecked = tag == "profile";
 
         CommandsList.Visibility = tag == "commands" ? Visibility.Visible : Visibility.Collapsed;
         ErrorsList.Visibility = tag == "errors" ? Visibility.Visible : Visibility.Collapsed;
         SuggestionsList.Visibility = tag == "suggestions" ? Visibility.Visible : Visibility.Collapsed;
+        ProfileBox.Visibility = tag == "profile" ? Visibility.Visible : Visibility.Collapsed;
 
         UpdateEmptyState();
     }
