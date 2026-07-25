@@ -31,6 +31,7 @@ public partial class AiPanel : UserControl
     private Action? _openSettings;
     private Action? _persistSettings;
     private Func<AiProfile>? _profile;
+    private Action<string>? _saveConversation;
     private AiErrorAction _pendingAction = AiErrorAction.None;
     private string _lastUserText = "";
 
@@ -56,12 +57,14 @@ public partial class AiPanel : UserControl
     /// <param name="persistSettings">يحفظ الإعدادات بعد تعديلها من اللوحة.</param>
     /// <param name="profile">يعيد ملفّ معرفة المستخدم لحقنه في البادئة الثابتة (null = بلا حقن).</param>
     public void Configure(
-        AiSettings settings, AiKeyStore keys, Action persistSettings, Func<AiProfile>? profile = null)
+        AiSettings settings, AiKeyStore keys, Action persistSettings,
+        Func<AiProfile>? profile = null, Action<string>? saveConversation = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _keys = keys ?? throw new ArgumentNullException(nameof(keys));
         _persistSettings = persistSettings;
         _profile = profile;
+        _saveConversation = saveConversation;
         _openSettings = () => SettingsRequested?.Invoke();
 
         _session?.Dispose();
@@ -69,6 +72,7 @@ public partial class AiPanel : UserControl
         _session.Updated += OnReplyUpdated;
         _session.Failed += ShowError;
         _session.Completed += UpdateTokenCounter;
+        _session.Completed += PersistConversation;
 
         RefreshOrigin();
         ShowFirstRunCardIfNeeded();
@@ -328,6 +332,16 @@ public partial class AiPanel : UserControl
         TokenText.Visibility = Visibility.Visible;
     }
 
+    /// <summary>
+    /// يمرّر نصّ المحادثة إلى مخزن الحفظ عند اكتمال ردّ. المخزن نفسه يقرّر إن كان الحفظ مفعَّلاً
+    /// (opt-in) ويطبّق التنقيح — اللوحة لا تعرف الملفّات ولا تكتب شيئاً بنفسها.
+    /// </summary>
+    private void PersistConversation()
+    {
+        string transcript = _session?.Transcript() ?? "";
+        if (transcript.Length > 0) _saveConversation?.Invoke(transcript);
+    }
+
     // ===== الإرسال =====
 
     private void Input_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -425,21 +439,74 @@ public partial class AiPanel : UserControl
         MessageHost.Children.Add(view);
     }
 
-    private static void UpdateSegmentView(FrameworkElement view, string text)
+    private void UpdateSegmentView(FrameworkElement view, string text)
     {
         // النصّ الفعليّ يقع في TextBlock مُوسَّم؛ الكتل تلفّه داخل Border.
-        if (view is TextBlock direct) { direct.Text = text; return; }
+        if (view is TextBlock direct) { FillMarkdown(direct, text); return; }
         if (view is Border border && border.Tag is TextBlock inner) inner.Text = text;
     }
 
-    private TextBlock BuildTextBlock(string text) => new()
+    /// <summary>
+    /// يبني مقطع نصّ مصيَّراً بـMarkdown مضمّن (عريض/مائل/كود مضمّن/عناوين/قوائم). الكتل المسيَّجة
+    /// يتولّاها المُقطِّع قبل هذا، فما يصل هنا نصّ عاديّ فقط.
+    /// </summary>
+    private TextBlock BuildTextBlock(string text)
     {
-        Text = text,
-        TextWrapping = TextWrapping.Wrap,
-        Margin = new Thickness(0, 2, 0, 6),
-        FontSize = 13,
-        Foreground = (Brush)FindResource("Brush.Text"),
-    };
+        var block = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 6),
+            FontSize = 13,
+            Foreground = (Brush)FindResource("Brush.Text"),
+        };
+        FillMarkdown(block, text);
+        return block;
+    }
+
+    /// <summary>
+    /// يملأ TextBlock بـInlines من Markdown المضمّن. يُعاد بناؤها كاملةً عند كلّ تحديث لأنّ
+    /// المقطع الأخير وحده هو المتغيّر أثناء البثّ — إعادة بناء عناصره الصغيرة أرخص بكثير من إعادة
+    /// بناء شجرة المقاطع كلّها.
+    /// </summary>
+    private void FillMarkdown(TextBlock block, string text)
+    {
+        block.Inlines.Clear();
+        var mono = new FontFamily("Cascadia Mono, Consolas");
+        bool firstLine = true;
+
+        foreach (MarkdownLine line in InlineMarkdown.Parse(text))
+        {
+            if (!firstLine) block.Inlines.Add(new System.Windows.Documents.LineBreak());
+            firstLine = false;
+
+            if (line.BulletDepth > 0)
+                block.Inlines.Add(new System.Windows.Documents.Run(new string(' ', line.BulletDepth * 2) + "• "));
+
+            foreach (InlineSpan span in line.Spans)
+            {
+                System.Windows.Documents.Inline inline = span.Kind switch
+                {
+                    InlineKind.Bold => new System.Windows.Documents.Bold(new System.Windows.Documents.Run(span.Text)),
+                    InlineKind.Italic => new System.Windows.Documents.Italic(new System.Windows.Documents.Run(span.Text)),
+                    InlineKind.Code => new System.Windows.Documents.Run(span.Text)
+                    {
+                        FontFamily = mono,
+                        FlowDirection = FlowDirection.LeftToRight,
+                        Background = (Brush)FindResource("Brush.Surface2"),
+                    },
+                    _ => new System.Windows.Documents.Run(span.Text),
+                };
+
+                if (line.HeadingLevel > 0)
+                {
+                    inline.FontWeight = FontWeights.SemiBold;
+                    inline.FontSize = line.HeadingLevel <= 2 ? 15 : 14;
+                }
+
+                block.Inlines.Add(inline);
+            }
+        }
+    }
 
     /// <summary>
     /// كتلة كود: خطّ أحاديّ، خلفيّة مميّزة، زرّ نسخ، و<b>اتّجاه LTR مفروض</b> — الكود لا يُقلَب

@@ -114,6 +114,17 @@ public static class AiProviderCatalog
     public static AiProviderDescriptor? Find(string? id)
         => string.IsNullOrEmpty(id) ? null : Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// يبني مدخلة «مزوّد مخصّص» من عنوان يحدّده المستخدم. أيّ خدمة متوافقة مع OpenAI (وكيل محلّيّ،
+    /// نموذج مُستضاف ذاتيّاً، منصّة غير مدرجة) بلا انتظار إضافتها إلى الكتالوج المدمج.
+    /// </summary>
+    public static AiProviderDescriptor Custom(string? baseUrl, string? defaultModel) => new(
+        CustomId, "مزوّد مخصّص", AiProviderKind.OpenAiCompat,
+        string.IsNullOrWhiteSpace(baseUrl) ? "https://" : baseUrl!.Trim(),
+        defaultModel?.Trim() ?? "",
+        "",
+        new AiCapabilities { ContextWindow = 0 });
+
     /// <summary>عنوان خدمة Ollama المحلّيّة المستعمَل في فحص التوفّر عند الطلب.</summary>
     public const string OllamaProbeUrl = "http://localhost:11434/api/tags";
 }

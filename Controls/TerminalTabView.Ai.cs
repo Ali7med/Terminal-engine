@@ -22,6 +22,7 @@ public partial class TerminalTabView
     private Action<string>? _aiAllowToken;
     private Action? _aiOpenShellIntegration;
     private Func<CatalogSuggestion?>? _aiPollCatalog;
+    private Action<string>? _aiSaveConversation;
     private Action<CatalogSuggestion, string>? _aiAcceptCatalog;
     private AiLearningService? _aiLearning;
     private Func<AiProfile>? _aiProfile;
@@ -52,7 +53,8 @@ public partial class TerminalTabView
         Func<AiProfile> profile,
         Action openShellIntegration,
         Func<CatalogSuggestion?> pollCatalog,
-        Action<CatalogSuggestion, string> acceptCatalog)
+        Action<CatalogSuggestion, string> acceptCatalog,
+        Action<string> saveConversation)
     {
         _aiAppSettings = settings;
         _aiSaveSettings = saveSettings;
@@ -63,6 +65,7 @@ public partial class TerminalTabView
         _aiOpenShellIntegration = openShellIntegration;
         _aiPollCatalog = pollCatalog;
         _aiAcceptCatalog = acceptCatalog;
+        _aiSaveConversation = saveConversation;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
         _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
     }
@@ -82,7 +85,7 @@ public partial class TerminalTabView
     {
         if (_aiPanelReady || _aiAppSettings is null || _aiKeyStore is null) return;
 
-        AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }), _aiProfile);
+        AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }), _aiProfile, _aiSaveConversation);
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
         AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
         _aiPanelReady = true;

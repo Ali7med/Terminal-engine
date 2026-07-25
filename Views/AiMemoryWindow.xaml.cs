@@ -39,15 +39,18 @@ public partial class AiMemoryWindow : Window
     private readonly AppSettings _settings;
     private readonly Action _saveSettings;
     private readonly Func<string> _profileText;
+    private readonly Action? _onClearExtra;
     private bool _syncing;
 
     private AiMemoryWindow(
-        AiKnowledgeStore store, AppSettings settings, Action saveSettings, Func<string> profileText)
+        AiKnowledgeStore store, AppSettings settings, Action saveSettings,
+        Func<string> profileText, Action? onClearExtra)
     {
         _store = store;
         _settings = settings;
         _saveSettings = saveSettings;
         _profileText = profileText;
+        _onClearExtra = onClearExtra;
 
         InitializeComponent();
         ApplyLanguage();
@@ -62,10 +65,12 @@ public partial class AiMemoryWindow : Window
     /// يعيد ملفّ معرفة المستخدم <b>كما يُرسَل حرفياً</b> — من نفس مسار البانِي المخبَّأ، لا من
     /// محاكاة موازية تنحرف عمّا يصل المزوّد فعلاً.
     /// </param>
+    /// <param name="onClearExtra">تنظيف إضافيّ عند «مسح كل شيء» (المحادثات المحفوظة).</param>
     public static void ShowFor(
-        Window? owner, AiKnowledgeStore store, AppSettings settings, Action saveSettings, Func<string> profileText)
+        Window? owner, AiKnowledgeStore store, AppSettings settings, Action saveSettings,
+        Func<string> profileText, Action? onClearExtra = null)
     {
-        var window = new AiMemoryWindow(store, settings, saveSettings, profileText) { Owner = owner };
+        var window = new AiMemoryWindow(store, settings, saveSettings, profileText, onClearExtra) { Owner = owner };
         window.ShowDialog();
     }
 
@@ -265,6 +270,7 @@ public partial class AiMemoryWindow : Window
         if (choice != "erase") return;
 
         _store.ClearAll();
+        _onClearExtra?.Invoke();   // المحادثات المحفوظة تُمسح ضمن «مسح كل شيء»
         Reload();
     }
 

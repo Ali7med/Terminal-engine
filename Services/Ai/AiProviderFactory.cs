@@ -15,7 +15,7 @@ public static class AiProviderFactory
     {
         if (settings is null || keys is null) return null;
 
-        AiProviderDescriptor? descriptor = AiProviderCatalog.Find(settings.ProviderId);
+        AiProviderDescriptor? descriptor = DescriptorFor(settings);
         if (descriptor is null) return null;
 
         string? key = keys.Get(descriptor.Id);
@@ -28,6 +28,21 @@ public static class AiProviderFactory
             AiProviderKind.Anthropic => new AnthropicProvider(descriptor, key, baseUrl),
             _ => new OpenAiCompatProvider(descriptor, key, baseUrl),
         };
+    }
+
+    /// <summary>
+    /// المدخلة الفعّالة: مدمجة من الكتالوج، أو مبنيّة من عنوان المستخدم إن اختار «مزوّد مخصّص».
+    /// المخصّص يحتاج عنواناً صالحاً في الإعدادات، وإلّا يعيد null (لا مزوّد بلا وجهة).
+    /// </summary>
+    public static AiProviderDescriptor? DescriptorFor(AiSettings settings)
+    {
+        if (string.Equals(settings.ProviderId, AiProviderCatalog.CustomId, StringComparison.Ordinal))
+        {
+            return string.IsNullOrWhiteSpace(settings.BaseUrlOverride)
+                ? null
+                : AiProviderCatalog.Custom(settings.BaseUrlOverride, settings.Model);
+        }
+        return AiProviderCatalog.Find(settings.ProviderId);
     }
 
     /// <summary>ينشئ مزوّداً لمدخلة ومفتاح محدَّدين — لزرّ «اختبار الاتّصال» قبل الحفظ.</summary>
@@ -44,6 +59,6 @@ public static class AiProviderFactory
     public static string ResolveModel(AiSettings settings)
     {
         if (!string.IsNullOrWhiteSpace(settings.Model)) return settings.Model.Trim();
-        return AiProviderCatalog.Find(settings.ProviderId)?.DefaultModel ?? "";
+        return DescriptorFor(settings)?.DefaultModel ?? "";
     }
 }

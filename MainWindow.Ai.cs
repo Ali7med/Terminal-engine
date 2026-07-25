@@ -24,6 +24,7 @@ public partial class MainWindow
     private AiLearningService? _aiLearning;
     private AiProfileBuilder? _aiProfileBuilder;
     private CommandCatalogBridge? _aiCatalogBridge;
+    private ConversationStore? _aiConversations;
     private CancellationTokenSource? _aiProbeCts;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
@@ -67,6 +68,13 @@ public partial class MainWindow
     /// </summary>
     private CommandCatalogBridge AiCatalog => _aiCatalogBridge ??= new CommandCatalogBridge(
         () => AiKnowledge, () => _entries, () => _settings.Ai.LearningEnabled);
+
+    /// <summary>
+    /// مخزن المحادثات — opt-in. الحفظ لا يجري ما لم يفعّله المستخدم؛ والتنقيح مُمرَّر للبانِي فلا
+    /// تُكتب دردشة بلا حجب أسرارها.
+    /// </summary>
+    private ConversationStore AiConversations => _aiConversations ??= new ConversationStore(
+        AiRedactor.RedactText, () => _settings.Ai.SaveConversations);
 
     /// <summary>
     /// يفحص إن ظهر أمر متكرّر يستحقّ اقتراح حفظه في الكتالوج، ويعرضه في اللوحة. يُنادى بعد التقاط
@@ -129,7 +137,14 @@ public partial class MainWindow
         try
         {
             if (AiProviderCombo.ItemsSource is null)
-                AiProviderCombo.ItemsSource = AiProviderCatalog.All;
+            {
+                // المدمجة + مدخلة «مزوّد مخصّص» (عنوانها يحدّده المستخدم) في نهاية القائمة.
+                var items = new System.Collections.Generic.List<AiProviderDescriptor>(AiProviderCatalog.All)
+                {
+                    AiProviderCatalog.Custom("", ""),
+                };
+                AiProviderCombo.ItemsSource = items;
+            }
 
             AiSettings ai = _settings.Ai;
             AiProviderCombo.SelectedValue = ai.ProviderId;
@@ -140,6 +155,7 @@ public partial class MainWindow
             AiAmbientCheck.IsChecked = ai.AmbientContextEnabled;
             AiPreviewCheck.IsChecked = ai.AlwaysPreview;
             AiQuietCheck.IsChecked = ai.QuietMode;
+            AiSaveChatsCheck.IsChecked = ai.SaveConversations;
 
             AiKeyBox.Clear();
             UpdateAiKeyState();
@@ -254,6 +270,7 @@ public partial class MainWindow
         ai.AmbientContextEnabled = AiAmbientCheck.IsChecked == true;
         ai.AlwaysPreview = AiPreviewCheck.IsChecked == true;
         ai.QuietMode = AiQuietCheck.IsChecked == true;
+        ai.SaveConversations = AiSaveChatsCheck.IsChecked == true;
         SaveSettings();
     }
 
@@ -336,7 +353,7 @@ public partial class MainWindow
         try
         {
             RefreshAiProfileInBackground();   // اعرض أحدث ما استُنتج، لا لقطة قديمة
-            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings, () => CurrentAiProfile.Text);
+            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings, () => CurrentAiProfile.Text, () => AiConversations.Clear());
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {

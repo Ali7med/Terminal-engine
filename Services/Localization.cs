@@ -582,6 +582,9 @@ public static class Loc
         ["ai.set.ambient"]     = ("إرسال سياق التبويب مع الدردشة", "Send tab context with chat"),
         ["ai.set.preview"]     = ("راجع قبل الإرسال", "Review before sending"),
         ["ai.set.quiet"]       = ("وضع هادئ (بلا رقاقات اقتراح)", "Quiet mode (no suggestion chips)"),
+        ["ai.set.saveChats"]   = ("حفظ المحادثات على القرص", "Save conversations to disk"),
+        ["ai.set.saveChatsHint"]=("معطَّل افتراضاً. عند التفعيل تُحفظ محادثاتك محلّيّاً بعد تنقيح الأسرار، ويمكن مسحها من «ذاكرة التطبيق».",
+                                  "Off by default. When on, your chats are saved locally after redacting secrets, and can be erased from App Memory."),
 
         // ===== أخطاء المزوّدين: رسالة بشريّة + إجراء =====
         ["ai.err.auth"]        = ("المفتاح غير صالح أو منتهي.", "The API key is invalid or expired."),

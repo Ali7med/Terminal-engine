@@ -834,6 +834,12 @@
                                             <CheckBox x:Name="AiQuietCheck" Style="{StaticResource AppCheckBox}"
                                                       Content="{loc:T ai.set.quiet}" Margin="2,0,2,6"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <CheckBox x:Name="AiSaveChatsCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.saveChats}" Margin="2,0,2,6"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <TextBlock Text="{loc:T ai.set.saveChatsHint}" TextWrapping="Wrap"
+                                                       MaxWidth="380" HorizontalAlignment="Left" FontSize="11"
+                                                       Margin="2,0,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>
