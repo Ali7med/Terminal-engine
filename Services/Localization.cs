@@ -666,6 +666,32 @@ public static class Loc
         ["ai.mem.empty"]       = ("لا شيء هنا بعد. مع استعمالك للتيرمنال سيتعلّم التطبيق أوامرك المتكرّرة وأخطاءك الشائعة، فيرتّب الاقتراحات ويعرض حلولاً سبق أن قبلتها — كلّه محلّيّاً وبلا اتّصال.",
                                   "Nothing here yet. As you use the terminal the app learns your frequent commands and common errors, then ranks suggestions and recalls fixes you accepted — all locally, no connection needed."),
 
+        // ===== جسر كتالوج الأوامر =====
+        ["ai.cat.suggest"]     = ("نفّذت هذا الأمر {0} مرّة — تحفظه في الأوامر المحفوظة؟",
+                                  "You've run this {0} times — save it to your commands?"),
+        ["ai.cat.save"]        = ("احفظه", "Save it"),
+        ["ai.cat.dismiss"]     = ("لا، شكراً", "No thanks"),
+        ["ai.cat.saved"]       = ("حُفظ في الأوامر المحفوظة.", "Saved to your commands."),
+        ["ai.cat.namePrompt"]  = ("اسم الأمر المحفوظ:", "Name for the saved command:"),
+
+        // ===== معالج تكامل الصدفة (OSC 133) =====
+        ["ai.osc.title"]       = ("تفعيل تكامل الصدفة", "Enable shell integration"),
+        ["ai.osc.explain"]     = ("لتعرف الأداة أين يبدأ كلّ أمر وأين ينتهي وما رمز خروجه (فتعمل «أصلح آخر فاشل» ورقاقة الأخطاء وعمود النجاح/الفشل)، تُضاف خطافات OSC 133 إلى ملفّ بروفايل صدفتك. هذا ما سيُضاف حرفياً:",
+                                  "So the app knows where each command begins and ends and its exit code (enabling \"fix last failure\", the error chip, and the success/fail column), OSC 133 hooks are added to your shell profile. Here is exactly what will be added:"),
+        ["ai.osc.copy"]        = ("انسخه بنفسي", "Copy it myself"),
+        ["ai.osc.copied"]      = ("نُسخ إلى الحافظة — الصقه في ملفّ بروفايل صدفتك.", "Copied — paste it into your shell profile."),
+        ["ai.osc.install"]     = ("حقن تلقائيّ", "Install automatically"),
+        ["ai.osc.installed"]   = ("التكامل مثبَّت أصلاً في هذا البروفايل.", "Integration is already installed in this profile."),
+        ["ai.osc.notInstalled"]= ("غير مثبَّت بعد.", "Not installed yet."),
+        ["ai.osc.willCreate"]  = ("ملفّ البروفايل غير موجود — سيُنشأ.", "The profile file doesn't exist — it will be created."),
+        ["ai.osc.confirm"]     = ("سيُضاف الخطاف إلى نهاية ملفّ بروفايل صدفتك، مع نسخة احتياطية منه أوّلاً. محتواك الحاليّ لا يُمَسّ. متابعة؟",
+                                  "The hook will be appended to the end of your shell profile, with a backup taken first. Your existing content is untouched. Continue?"),
+        ["ai.osc.done"]        = ("✓ تمّ الحقن.", "✓ Installed."),
+        ["ai.osc.backup"]      = ("نسخة احتياطية: {0}", "Backup: {0}"),
+        ["ai.osc.restart"]     = ("افتح تبويباً جديداً (أو أعد تشغيل الصدفة) ليسري المفعول.", "Open a new tab (or restart the shell) for it to take effect."),
+        ["ai.osc.cta"]         = ("فعّل تكامل الصدفة", "Enable shell integration"),
+        ["ai.osc.unsupported"] = ("هذه الصدفة لا تدعم الحقن التلقائيّ بعد.", "This shell doesn't support automatic install yet."),
+
         // ===== رقاقة الخطأ =====
         ["ai.chip.explain"]    = ("اشرح هذا الخطأ؟", "Explain this error?"),
         ["ai.chip.seenBefore"] = ("رأيت هذا من قبل — الحل السابق", "Seen before — previous fix"),

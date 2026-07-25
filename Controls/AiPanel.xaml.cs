@@ -68,6 +68,7 @@ public partial class AiPanel : UserControl
         _session = new AiChatSession(BuildSystemPrompt());
         _session.Updated += OnReplyUpdated;
         _session.Failed += ShowError;
+        _session.Completed += UpdateTokenCounter;
 
         RefreshOrigin();
         ShowFirstRunCardIfNeeded();
@@ -136,7 +137,7 @@ public partial class AiPanel : UserControl
     /// يعرض ملاحظة إرشاديّة في المحادثة (مثل «لا يوجد أمر فاشل — يحتاج تكامل الصدفة»). تدهور
     /// رشيق: الميزة المعطَّلة تقول سببها بدل أن تختفي صامتة.
     /// </summary>
-    public void ShowNotice(string text)
+    public void ShowNotice(string text, string? ctaLabel = null, Action? onCta = null)
     {
         MessageHost.Children.Add(new TextBlock
         {
@@ -146,6 +147,97 @@ public partial class AiPanel : UserControl
             Margin = new Thickness(0, 4, 0, 6),
             Foreground = (Brush)FindResource("Brush.TextMuted"),
         });
+
+        if (ctaLabel is { Length: > 0 } && onCta is not null)
+        {
+            var button = new Button
+            {
+                Content = ctaLabel,
+                Style = (Style)FindResource("AccentButton"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(12, 5, 12, 5),
+                Margin = new Thickness(0, 0, 0, 8),
+            };
+            button.Click += (_, _) => onCta();
+            MessageHost.Children.Add(button);
+        }
+
+        ScrollToEnd();
+    }
+
+    /// <summary>
+    /// يعرض اقتراح حفظ أمر متكرّر في الكتالوج، برقاقة غير مقاطِعة فيها «احفظه» و«لا شكراً».
+    /// القبول يطلب اسماً، والرفض دائم (يتولّاه المستضيف عبر الجسر).
+    /// </summary>
+    public void ShowCatalogSuggestion(
+        Services.Ai.CatalogSuggestion suggestion,
+        Action<Services.Ai.CatalogSuggestion, string> onAccept)
+    {
+        var card = new Border
+        {
+            Background = (Brush)FindResource("Brush.Surface2"),
+            BorderBrush = (Brush)FindResource("Brush.Border"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 4, 0, 8),
+        };
+
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock
+        {
+            Text = string.Format(Loc.T("ai.cat.suggest"), suggestion.RunCount),
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 4),
+            Foreground = (Brush)FindResource("Brush.Text"),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = suggestion.SuggestedCommand,
+            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+            FontSize = 11,
+            FlowDirection = FlowDirection.LeftToRight,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("Brush.TextMuted"),
+        });
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var saveBtn = new Button
+        {
+            Content = Loc.T("ai.cat.save"),
+            Style = (Style)FindResource("AccentButton"),
+            Padding = new Thickness(12, 4, 12, 4),
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+        var dismissBtn = new Button
+        {
+            Content = Loc.T("ai.cat.dismiss"),
+            Padding = new Thickness(12, 4, 12, 4),
+        };
+
+        saveBtn.Click += (_, _) =>
+        {
+            string? name = TerminalLauncher.Views.AppDialog.Prompt(
+                System.Windows.Window.GetWindow(this),
+                Loc.T("ai.cat.save"), Loc.T("ai.cat.namePrompt"),
+                suggestion.SuggestedCommand, Loc.T("ai.cat.save"));
+
+            if (name is null) return;   // ألغى المستخدم
+
+            onAccept(suggestion, name);
+            MessageHost.Children.Remove(card);
+            ShowNotice(Loc.T("ai.cat.saved"));
+        };
+        dismissBtn.Click += (_, _) => MessageHost.Children.Remove(card);
+
+        row.Children.Add(saveBtn);
+        row.Children.Add(dismissBtn);
+        panel.Children.Add(row);
+        card.Child = panel;
+
+        MessageHost.Children.Add(card);
         ScrollToEnd();
     }
 
@@ -213,6 +305,29 @@ public partial class AiPanel : UserControl
         OriginText.Text = descriptor is null ? "" : $"{descriptor.DisplayName} · {model}";
     }
 
+    /// <summary>
+    /// يحدّث عدّاد التوكنز من آخر ردّ. يظهر فقط حين يُبلغ المزوّد عن الاستهلاك — إخفاؤه أصدق من
+    /// عرض صفرٍ يوحي بأنّ الطلب كان بلا كلفة.
+    /// </summary>
+    private void UpdateTokenCounter()
+    {
+        if (_session is null || !_session.HasUsage)
+        {
+            TokenText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int inTok = _session.LastPromptTokens;
+        int outTok = _session.LastCompletionTokens;
+        int total = _session.SessionTokens;
+
+        // ↑ إدخال · ↓ إخراج لآخر ردّ، وΣ لإجمالي الجلسة — رموز محايدة لغويّاً بأرقام لاتينيّة.
+        TokenText.Text = total > inTok + outTok
+            ? $"↑{inTok} ↓{outTok} · Σ{total}"
+            : $"↑{inTok} ↓{outTok}";
+        TokenText.Visibility = Visibility.Visible;
+    }
+
     // ===== الإرسال =====
 
     private void Input_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -261,6 +376,7 @@ public partial class AiPanel : UserControl
         MessageHost.Children.Clear();
         _replyViews.Clear();
         HideError();
+        TokenText.Visibility = Visibility.Collapsed;
         SendBtn.Content = Loc.T("ai.panel.send");
         ShowFirstRunCardIfNeeded();
     }

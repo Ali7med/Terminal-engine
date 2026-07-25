@@ -45,6 +45,11 @@ public static class CommandTemplate
         (new Regex("\"[^\"]*\"", RegexOptions.Compiled), "<str>"),
         (new Regex(@"'[^']*'", RegexOptions.Compiled), "<str>"),
 
+        // اسم ملفّ مجرّد بلا فاصل مسار (docker-compose.yml, app.js, main.py). الامتداد يبدأ بحرف
+        // كي لا تُبتلَع أرقام الإصدار (1.2.3): «امتدادها» يبدأ برقم فلا يطابق. يأتي بعد المسارات
+        // والنصوص المقتبسة كي لا يلتهم أجزاءها.
+        (new Regex(@"(?<![\w/\\.<-])[\w-]+\.[A-Za-z][A-Za-z0-9]{0,5}\b", RegexOptions.Compiled), "<file>"),
+
         // GUID.
         (new Regex(@"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled), "<id>"),

@@ -20,6 +20,9 @@ public partial class TerminalTabView
     private Action? _aiSaveSettings;
     private Action? _aiOpenSettings;
     private Action<string>? _aiAllowToken;
+    private Action? _aiOpenShellIntegration;
+    private Func<CatalogSuggestion?>? _aiPollCatalog;
+    private Action<CatalogSuggestion, string>? _aiAcceptCatalog;
     private AiLearningService? _aiLearning;
     private Func<AiProfile>? _aiProfile;
     private bool _aiPanelReady;
@@ -46,7 +49,10 @@ public partial class TerminalTabView
         SecretRedactor redactor,
         Action<string> allowToken,
         AiLearningService learning,
-        Func<AiProfile> profile)
+        Func<AiProfile> profile,
+        Action openShellIntegration,
+        Func<CatalogSuggestion?> pollCatalog,
+        Action<CatalogSuggestion, string> acceptCatalog)
     {
         _aiAppSettings = settings;
         _aiSaveSettings = saveSettings;
@@ -54,6 +60,9 @@ public partial class TerminalTabView
         _aiAllowToken = allowToken;
         _aiLearning = learning;
         _aiProfile = profile;
+        _aiOpenShellIntegration = openShellIntegration;
+        _aiPollCatalog = pollCatalog;
+        _aiAcceptCatalog = acceptCatalog;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
         _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
     }
@@ -96,6 +105,23 @@ public partial class TerminalTabView
         _aiLearning.RecordCommand(command, CurrentShellName(), WorkingDirectory, block.ExitCode, errorLine);
 
         if (failed && errorLine is not null) ShowErrorChip(block, errorLine);
+        else if (!failed) MaybeSuggestCatalog();
+    }
+
+    /// <summary>
+    /// يعرض اقتراح حفظ أمر متكرّر في الكتالوج — إن ظهر مرشّح ولم تُفتح اللوحة بإزعاج. العرض في
+    /// اللوحة (إن كانت مفتوحة) لا نافذة مقاطِعة؛ اقتراح واحد لكلّ قالب، والرفض دائم.
+    /// </summary>
+    private void MaybeSuggestCatalog()
+    {
+        if (_aiPollCatalog is null || !_aiPanelReady || AiSidePanel.Visibility != Visibility.Visible) return;
+
+        CatalogSuggestion? suggestion = _aiPollCatalog();
+        if (suggestion is null) return;
+
+        AiSidePanel.ShowCatalogSuggestion(
+            suggestion,
+            onAccept: (s, name) => _aiAcceptCatalog?.Invoke(s, name));
     }
 
     /// <summary>
@@ -167,7 +193,11 @@ public partial class TerminalTabView
 
         if (snippet is null)
         {
-            AiSidePanel.ShowNotice(Loc.T("ai.ctx.noFailed"));
+            // تدهور رشيق: الميزة تحتاج OSC 133 غير المثبَّت — نعرض سببها وزرّ تفعيله بدل صمت.
+            AiSidePanel.ShowNotice(
+                Loc.T("ai.ctx.noFailed"),
+                Loc.T("ai.osc.cta"),
+                () => _aiOpenShellIntegration?.Invoke());
             return;
         }
 
@@ -210,6 +240,9 @@ public partial class TerminalTabView
 
     /// <summary>نصّ التحذير عند إغلاق تبويب ببثّ جارٍ.</summary>
     public static string AiCloseWarning => Loc.T("ai.panel.closeWarn");
+
+    /// <summary>اسم الصدفة الحاليّة للعرض — يستعمله معالج تكامل الصدفة لاستنتاج البروفايل.</summary>
+    public string? CurrentShellDisplayName => CurrentShellName();
 
     /// <summary>يُغلق اللوحة ويُلغي أيّ بثّ — يُستدعى من مسار إغلاق التبويب.</summary>
     public void ShutDownAi()

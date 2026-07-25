@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using TerminalLauncher.Models;
 using TerminalLauncher.Services;
 using TerminalLauncher.Services.Ai;
 
@@ -22,6 +23,7 @@ public partial class MainWindow
     private global::Terminal.Storage.AiKnowledgeStore? _aiKnowledge;
     private AiLearningService? _aiLearning;
     private AiProfileBuilder? _aiProfileBuilder;
+    private CommandCatalogBridge? _aiCatalogBridge;
     private CancellationTokenSource? _aiProbeCts;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
@@ -58,6 +60,33 @@ public partial class MainWindow
     /// كلّ رسالة يضيف تأخيراً محسوساً بلا مقابل.
     /// </summary>
     private AiProfileBuilder AiProfiles => _aiProfileBuilder ??= new AiProfileBuilder(() => AiKnowledge);
+
+    /// <summary>
+    /// جسر «كتالوج الأوامر»: يطابق مرشّحي الحفظ مع الكتالوج الحاليّ بنفس المُطبِّع، فلا يُقترَح ما
+    /// يملكه المستخدم أصلاً.
+    /// </summary>
+    private CommandCatalogBridge AiCatalog => _aiCatalogBridge ??= new CommandCatalogBridge(
+        () => AiKnowledge, () => _entries, () => _settings.Ai.LearningEnabled);
+
+    /// <summary>
+    /// يفحص إن ظهر أمر متكرّر يستحقّ اقتراح حفظه في الكتالوج، ويعرضه في اللوحة. يُنادى بعد التقاط
+    /// كتلة ناجحة — العرض في اللوحة لا نافذة مقاطِعة.
+    /// </summary>
+    /// <returns>الاقتراح إن وُجد (وسُجِّل عرضه)، وإلّا null.</returns>
+    private CatalogSuggestion? PollCatalogSuggestion()
+    {
+        CatalogSuggestion? suggestion = AiCatalog.NextSuggestion();
+        if (suggestion is not null) AiCatalog.MarkShown(suggestion);
+        return suggestion;
+    }
+
+    /// <summary>يحفظ اقتراح الكتالوج في الأوامر المحفوظة (قبول المستخدم).</summary>
+    private void AcceptCatalogSuggestion(CatalogSuggestion suggestion, string name)
+    {
+        CommandEntry entry = AiCatalog.Accept(suggestion, name);
+        _entries.Add(entry);
+        _store.Save(_entries);
+    }
 
     /// <summary>
     /// الملفّ المعروض والمحقون معاً — <b>مصدر واحد</b>. عرضٌ من مسار موازٍ كان سينحرف عمّا يُرسَل
@@ -313,6 +342,31 @@ public partial class MainWindow
         {
             Views.AppDialog.Alert(this, Loc.T("ai.mem.title"), ex.Message);
         }
+    }
+
+    /// <summary>
+    /// يفتح معالج تكامل الصدفة (OSC 133). يستنتج الصدفة من التبويب النشط إن أمكن، وإلّا يبدأ
+    /// بـPowerShell (الأشيع على ويندوز).
+    /// </summary>
+    private void ShellIntegrationMenu_Click(object sender, RoutedEventArgs e)
+        => OpenShellIntegrationForActiveTab();
+
+    /// <summary>يفتح المعالج للصدفة النشطة — يُستدعى من القائمة ومن زرّ CTA في لوحة الدردشة.</summary>
+    private void OpenShellIntegrationForActiveTab()
+    {
+        Services.Ai.IntegrationShell shell =
+            Services.Ai.ShellIntegrationScripts.Detect(ActiveShellName())
+            ?? Services.Ai.IntegrationShell.PowerShell;
+
+        Views.ShellIntegrationWindow.ShowFor(this, shell);
+    }
+
+    /// <summary>اسم صدفة التبويب النشط إن عُرف — لاستنتاج البروفايل الصحيح في المعالج.</summary>
+    private string? ActiveShellName()
+    {
+        if (TerminalTabs.SelectedItem is System.Windows.Controls.TabItem { Content: Controls.TerminalPaneContainer c })
+            return c.ActiveView?.CurrentShellDisplayName;
+        return null;
     }
 
     /// <summary>يفتح الإعدادات على فئة الـAI مباشرةً (من لوحة الدردشة).</summary>

@@ -38,6 +38,10 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <!-- عدّاد التوكنز: يظهر فقط حين يُبلغ المزوّد عن الاستهلاك (لا تفعل كلّ المنصّات). -->
+                    <TextBlock x:Name="TokenText" FontSize="10" VerticalAlignment="Center"
+                               Margin="0,0,8,0" Visibility="Collapsed" FlowDirection="LeftToRight"
+                               Foreground="{DynamicResource Brush.TextMuted}"/>
                     <Button x:Name="CopyAllBtn" Style="{StaticResource IconButton}"
                             Content="⧉" Click="CopyAll_Click"/>
                     <Button x:Name="ClearBtn" Style="{StaticResource IconButton}"

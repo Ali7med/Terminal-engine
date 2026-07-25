@@ -28,6 +28,11 @@ public sealed class AiChatSession : IDisposable
     private CancellationTokenSource? _cts;
     private bool _disposed;
 
+    // عدّادات الاستهلاك. تصل مقاطعُها من خيط الشبكة وتُقرأ من خيط الواجهة، فتُحدَّث تحت القفل.
+    private int _lastPromptTokens;
+    private int _lastCompletionTokens;
+    private int _sessionTokens;
+
     /// <summary>ينشئ جلسة برسالة نظام اختياريّة (البادئة الثابتة).</summary>
     public AiChatSession(string? systemPrompt = null)
     {
@@ -46,6 +51,18 @@ public sealed class AiChatSession : IDisposable
 
     /// <summary>هل هناك ردّ قيد الاستقبال الآن؟ (يمنع إغلاق التبويب بلا تحذير.)</summary>
     public bool IsStreaming => _cts is not null;
+
+    /// <summary>توكنز إدخال آخر ردّ (0 إن لم يُبلغ المزوّد عنها).</summary>
+    public int LastPromptTokens { get { lock (_bufferLock) return _lastPromptTokens; } }
+
+    /// <summary>توكنز إخراج آخر ردّ (0 إن لم يُبلغ المزوّد عنها).</summary>
+    public int LastCompletionTokens { get { lock (_bufferLock) return _lastCompletionTokens; } }
+
+    /// <summary>إجمالي توكنز الجلسة المتراكمة (إدخال + إخراج) عبر كلّ الردود المبلَّغ عنها.</summary>
+    public int SessionTokens { get { lock (_bufferLock) return _sessionTokens; } }
+
+    /// <summary>هل أبلغ المزوّد عن استهلاك آخر ردّ؟ (لا تفعل كلّ المنصّات.)</summary>
+    public bool HasUsage => LastPromptTokens > 0 || LastCompletionTokens > 0;
 
     /// <summary>يُطلَق على خيط الواجهة عند وصول محتوى جديد.</summary>
     public event Action? Updated;
@@ -68,7 +85,12 @@ public sealed class AiChatSession : IDisposable
 
         _history.Add(AiMessage.User(userText.Trim()));
         Reply.Reset();
-        lock (_bufferLock) _incoming.Clear();
+        lock (_bufferLock)
+        {
+            _incoming.Clear();
+            _lastPromptTokens = 0;
+            _lastCompletionTokens = 0;
+        }
 
         _cts = new CancellationTokenSource();
         _flushTimer.Start();
@@ -90,7 +112,16 @@ public sealed class AiChatSession : IDisposable
         {
             await foreach (AiDelta delta in provider.ChatStreamAsync(messages, options, token).ConfigureAwait(false))
             {
-                if (delta.IsUsage || delta.Text.Length == 0) continue;
+                if (delta.IsUsage)
+                {
+                    lock (_bufferLock)
+                    {
+                        if (delta.PromptTokens is int p) _lastPromptTokens = p;
+                        if (delta.CompletionTokens is int c) _lastCompletionTokens = c;
+                    }
+                    continue;
+                }
+                if (delta.Text.Length == 0) continue;
                 lock (_bufferLock) _incoming.Append(delta.Text);
             }
 
@@ -120,6 +151,7 @@ public sealed class AiChatSession : IDisposable
 
             Flush();
             Reply.Complete();
+            lock (_bufferLock) _sessionTokens += _lastPromptTokens + _lastCompletionTokens;
             _flushTimer.Stop();
             _cts.Dispose();
             _cts = null;
@@ -170,7 +202,13 @@ public sealed class AiChatSession : IDisposable
                 _history.RemoveAt(i);
 
         Reply.Reset();
-        lock (_bufferLock) _incoming.Clear();
+        lock (_bufferLock)
+        {
+            _incoming.Clear();
+            _lastPromptTokens = 0;
+            _lastCompletionTokens = 0;
+            _sessionTokens = 0;
+        }
         Updated?.Invoke();
     }
 
