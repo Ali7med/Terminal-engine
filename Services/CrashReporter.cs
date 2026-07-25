@@ -229,6 +229,8 @@ public static class CrashReporter
     /// <summary>حوار الثيم: زرّ محايد يفتح السجلّ وزرّ لكنة للمتابعة.</summary>
     private static void ShowDialog(string message)
     {
+        // شاشة البدء Topmost: لو وقع الخطأ أثناء الإقلاع لحجبت الحوار — تُغلق أوّلاً.
+        SplashScreenHost.Close();
         string? key = AppDialog.Confirm(OwnerWindow(), Loc.T("crash.title"), message,
             (Loc.T("crash.openLog"), "openLog", DialogButtonKind.Neutral),
             (Loc.T("crash.continue"), "continue", DialogButtonKind.Accent));

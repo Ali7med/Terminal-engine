@@ -95,6 +95,8 @@ public partial class MainWindow : Window
         _profiles = _profileStore.Load();
         ShellCatalog.Initialize(_profiles.CustomProfiles, _profiles.DefaultProfileId);
 
+        SplashScreenHost.SetStatus(Loc.T("splash.data"));
+
         // التاكات (تُحمَّل قبل المشاريع كي تُحلّ الألوان) ثمّ المشاريع.
         TagService.Initialize(_tagStore.Load());
         TagService.Changed += OnTagsChanged;
@@ -104,6 +106,7 @@ public partial class MainWindow : Window
         foreach (var e in _store.Load()) _entries.Add(e);
         MigrateEntriesToProjects();      // ترحيل الأوامر القديمة إلى مشاريع (مرّة واحدة — V1)
         MigrateProjectColorsToTags();    // ترحيل لون كلّ مشروع إلى تاك (مرّة واحدة — V2)
+        SplashScreenHost.SetStatus(Loc.T("splash.ui"));
         RefreshProjectsList();           // «لوحة المشاريع» + نقاط الشريط
         BuildTagFilterBar();             // شريط فلترة التاكات
         BuildThemeCards();
@@ -118,7 +121,7 @@ public partial class MainWindow : Window
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
         Loaded += (_, _) => ApplyRounding();
-        Loaded += (_, _) => { RestoreSession(); ApplyBackground(); };
+        Loaded += (_, _) => { SplashScreenHost.SetStatus(Loc.T("splash.session")); RestoreSession(); ApplyBackground(); };
         // لوحة «ما الجديد» تلقائياً مرّة واحدة عند الترقية — بعد ظهور الواجهة (مغلّفة بـ try/catch داخلها).
         Loaded += (_, _) => Views.WhatsNewWindow.ShowIfNew(this, _settings, _settingsStore);
         // شارة التحديث: تظهر عند اكتشاف نسخة أحدث وتبقى حتّى يُطبّق التحديث. وبند الفحص
@@ -130,6 +133,9 @@ public partial class MainWindow : Window
             Services.UpdateService.UpdateAvailable += _ => UpdateDot.Visibility = Visibility.Visible;
             if (Services.UpdateService.PendingVersion != null) UpdateDot.Visibility = Visibility.Visible;
         };
+        // شاشة البدء تُغلق عند أوّل إطار مرسوم فعلاً (ContentRendered — بعد كلّ خطّافات Loaded أعلاه)
+        // فلا تظهر النافذة نصف مبنيّة، ولا تبقى الشاشة معلَّقة إن تأخّرت الاستعادة.
+        ContentRendered += (_, _) => { SplashScreenHost.Close(); Activate(); };
         SizeChanged += (_, _) => ApplyRounding();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
     }
@@ -927,17 +933,11 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
-    /// <summary>يقرأ وضع ويندوز (فاتح/داكن) من الريجستري؛ الافتراضي داكن عند التعذّر.</summary>
-    private static bool IsOsLightTheme()
-    {
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            return key?.GetValue("AppsUseLightTheme") is int v && v != 0;
-        }
-        catch { return false; }
-    }
+    /// <summary>
+    /// وضع ويندوز (فاتح/داكن). القراءة نفسها تلزم شاشةَ البدء قبل بناء هذه النافذة، فمقرّها
+    /// <see cref="BootProfile"/> وهذه إحالة إليها كي يبقى مصدر واحد لقراءة الريجستري.
+    /// </summary>
+    private static bool IsOsLightTheme() => BootProfile.IsOsLightTheme();
 
     // ===== لوحة الإعدادات =====
 
@@ -1097,6 +1097,10 @@ public partial class MainWindow : Window
         ProjEditCancelBtn.Content = Loc.T("editor.cancel");
         ProjEditSaveBtn.Content = Loc.T("editor.save");
         if (_quickProject != null && QuickDock.Visibility == Visibility.Visible) BuildQuickDock();
+
+        // يُنعش روابط {loc:T} (قسم الذكاء) باللغة الحاليّة — تُنشأ أثناء InitializeComponent قبل
+        // تحميل اللغة، وInitFromCode لا يُطلق حدثاً، فتبقى عالقة على الافتراضيّة بلا هذا السطر.
+        LocProxy.Instance.Refresh();
     }
 
     private void ToggleSettings(bool open)

@@ -53,6 +53,10 @@ public partial class App : Application
         // التي تخرج فوراً) وقبل أيّ عمل حقيقيّ، كي يُلتقط أيّ خطأ لاحق ويُسجَّل بدل الانهيار الصامت.
         Services.CrashReporter.Install();
 
+        // شاشة البدء: تظهر الآن — قبل أيّ عمل ثقيل — وتُغلق عند أوّل إطار مرسوم للنافذة الرئيسة
+        // (MainWindow.ContentRendered). تعمل على خيط مستقلّ فتبقى متحرّكة بينما يُبنى كلّ ما تحتها.
+        Services.SplashScreenHost.Show();
+
         // ConPTY يجعل dotnet/MSBuild يستخدمان المسجّل التفاعلي المتحرّك (يحرّك المؤشّر) فيظهر
         // «مقصوصاً». نُطفئه ليُخرج أسطراً عادية تُعرَض كاملةً. يُورَّث لكل جلسة.
         Environment.SetEnvironmentVariable("MSBUILDTERMINALLOGGER", "off");

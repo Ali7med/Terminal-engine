@@ -28,6 +28,7 @@ public partial class MainWindow
     private ConversationStore? _aiConversations;
     private CancellationTokenSource? _aiProbeCts;
     private IReadOnlyList<AiModelInfo> _aiModels = Array.Empty<AiModelInfo>();
+    private bool _aiSuppressModelFilter;
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
     private bool _aiSyncing;
@@ -371,8 +372,17 @@ public partial class MainWindow
         var ids = shown.Select(m => m.Id).ToList();
 
         string current = AiModelCombo.Text;
-        AiModelCombo.ItemsSource = ids;
-        AiModelCombo.Text = current;   // الجلب/الفلترة لا يغيّران اختيار المستخدم
+        _aiSuppressModelFilter = true;
+        try
+        {
+            AiModelCombo.ItemsSource = ids;
+            AiModelCombo.Items.Filter = null;
+            AiModelCombo.Text = current;   // الجلب/الفلترة لا يغيّران اختيار المستخدم
+        }
+        finally
+        {
+            _aiSuppressModelFilter = false;
+        }
 
         AiModelCountText.Text = hasPricing
             ? string.Format(Loc.T("ai.set.modelCount"), _aiModels.Count, freeCount)
@@ -380,6 +390,25 @@ public partial class MainWindow
 
         AiModelCountText.Foreground = (Brush)FindResource(
             freeOnly && freeCount == 0 ? "Brush.Danger" : "Brush.TextMuted");
+    }
+
+    /// <summary>
+    /// بحث ذكيّ في قائمة النماذج: أثناء الكتابة تُفلتَر المنسدلة إلى ما يحتوي النصّ (تطابق جزئيّ
+    /// غير حسّاس لحالة الأحرف)، فيسهل إيجاد نموذج بين مئات النماذج. لا يغيّر النصّ المكتوب.
+    /// </summary>
+    private void AiModelText_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_aiSyncing || _aiSuppressModelFilter) return;
+        if (AiModelCombo.ItemsSource is null) return;
+
+        string text = AiModelCombo.Text ?? "";
+        AiModelCombo.Items.Filter = text.Length == 0
+            ? null
+            : o => o is string s && s.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+        // افتح المنسدلة أثناء البحث ما لم يكن النصّ مطابقاً تماماً لعنصر واحد (أي اختار المستخدم).
+        if (text.Length > 0 && AiModelCombo.Items.Count > 0 && !AiModelCombo.Items.Contains(text))
+            AiModelCombo.IsDropDownOpen = true;
     }
 
     /// <summary>

@@ -18,6 +18,13 @@ public sealed class LocProxy : INotifyPropertyChanged
 
     public string this[string key] => Loc.T(key);
 
+    /// <summary>
+    /// يُجبر كلّ روابط <c>{loc:T}</c> على إعادة القراءة باللغة الحاليّة. يُنادى عند الإقلاع بعد
+    /// تحميل اللغة المحفوظة: <c>InitFromCode</c> يضبط اللغة دون إطلاق <see cref="Loc.Changed"/>،
+    /// فالروابط التي أُنشئت أثناء <c>InitializeComponent</c> (واللغة افتراضيّة) تبقى عالقة بلا هذا.
+    /// </summary>
+    public void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 

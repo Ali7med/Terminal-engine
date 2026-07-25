@@ -325,10 +325,12 @@ public partial class AiPanel : UserControl
         int outTok = _session.LastCompletionTokens;
         int total = _session.SessionTokens;
 
-        // ↑ إدخال · ↓ إخراج لآخر ردّ، وΣ لإجمالي الجلسة — رموز محايدة لغويّاً بأرقام لاتينيّة.
+        // بادئة «توكنز» + tooltip يشرح الرموز، كي لا تبدو الأرقام مبهمة: ↑ إدخال · ↓ إخراج · Σ جلسة.
+        string label = Loc.T("ai.tok.label");
         TokenText.Text = total > inTok + outTok
-            ? $"↑{inTok} ↓{outTok} · Σ{total}"
-            : $"↑{inTok} ↓{outTok}";
+            ? $"{label} ↑{inTok} ↓{outTok} · Σ{total}"
+            : $"{label} ↑{inTok} ↓{outTok}";
+        TokenText.ToolTip = Loc.T("ai.tok.tip");
         TokenText.Visibility = Visibility.Visible;
     }
 

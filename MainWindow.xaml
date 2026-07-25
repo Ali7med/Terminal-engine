@@ -782,6 +782,8 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <ComboBox x:Name="AiModelCombo" IsEditable="True"
+                                                          IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                                          TextBoxBase.TextChanged="AiModelText_Changed"
                                                           LostFocus="AiModel_Changed"/>
                                                 <Button Grid.Column="1" x:Name="AiRefreshModelsBtn" Margin="8,0,0,0"
                                                         Padding="10,5" Content="{loc:T ai.set.refreshModels}"

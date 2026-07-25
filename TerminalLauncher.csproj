@@ -27,12 +27,17 @@
     <RuntimeIdentifier Condition="'$(_IsPublishing)' == 'true'">win-x64</RuntimeIdentifier>
     <SelfContained Condition="'$(_IsPublishing)' == 'true'">true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
+    <!-- ترجمة مسبقة (R2R) للنسخة المنشورة: تختصر زمن الـJIT في أوّل إقلاع (مسار WPF
+         طويل) مقابل حجم أكبر على القرص. مقصورة على النشر فلا تُبطئ `dotnet build` أثناء التطوير. -->
+    <PublishReadyToRun Condition="'$(_IsPublishing)' == 'true'">true</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\Fonts\*.ttf" />
     <!-- نفس الأيقونة كمورد كي تقرأها النوافذ عبر pack URI (Window.Icon). -->
     <Resource Include="Assets\AppIcon\app.ico" />
+    <!-- نسخة PNG عالية الدقّة للعرض داخل الواجهة (شاشة البدء): الـico يُفكّ إلى إطار صغير فيبهت. -->
+    <Resource Include="Assets\AppIcon\icon-256.png" />
   </ItemGroup>
 
   <!-- سجلّ التغييرات مورداً مُدمَجاً: تقرأه لوحة «ما الجديد» وقت التشغيل عبر LogicalName ثابت

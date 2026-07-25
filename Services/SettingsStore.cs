@@ -71,6 +71,8 @@ public sealed class SettingsStore
         try
         {
             _store.Set(SettingsKey, JsonSerializer.Serialize(settings, Options));
+            // نسخة مشتقّة خفيفة (الثيم + اللغة) تقرأها شاشة البدء قبل فتح قاعدة البيانات.
+            BootProfile.Save(settings);
         }
         catch
         {
