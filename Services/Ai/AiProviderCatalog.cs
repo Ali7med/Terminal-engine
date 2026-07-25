@@ -36,6 +36,20 @@ public sealed record AiProviderDescriptor(
     AiCapabilities Capabilities);
 
 /// <summary>
+/// عنصر عرض في قائمة اختيار المزوّد: معرّفه واسمه المعروض فقط.
+/// <para><c>ToString</c> يعيد الاسم وحده كي تعرض الـComboBox الاسم لا تفاصيل الـrecord كاملةً —
+/// قالب الـComboBox المخصّص في هذا التطبيق يعرض صندوق الاختيار عبر <c>ToString</c>، فلا يكفي
+/// <c>DisplayMemberPath</c> وحده.</para>
+/// </summary>
+/// <param name="Id">معرّف المزوّد (يُخزَّن في الإعدادات).</param>
+/// <param name="Display">الاسم المعروض (مترجَم للمخصّص، وعلامة تجاريّة محايدة للمدمج).</param>
+public sealed record AiProviderChoice(string Id, string Display)
+{
+    /// <summary>الاسم وحده — لصندوق اختيار الـComboBox.</summary>
+    public override string ToString() => Display;
+}
+
+/// <summary>
 /// كتالوج المنصّات المدمج. إضافة منصّة جديدة متوافقة مع OpenAI = سطر واحد هنا، بلا كود جديد.
 /// <para><b>ملاحظة عن النماذج الافتراضيّة:</b> معرّفات النماذج تتغيّر بوتيرة أسرع من إصدارات هذه
 /// الأداة. المصدر الحقيقيّ هو <see cref="IAiProvider.ListModelsAsync"/> (زرّ «تحديث القائمة» في
@@ -98,7 +112,7 @@ public static class AiProviderCatalog
             new AiCapabilities { UsageInStream = true, ContextWindow = 128_000 }),
 
         // محلّيّ بالكامل: بلا مفتاح وبلا إنترنت — مسار «جرّب الآن» في أوّل تشغيل.
-        new("ollama", "Ollama (محلّي)", AiProviderKind.OpenAiCompat,
+        new("ollama", "Ollama", AiProviderKind.OpenAiCompat,
             "http://localhost:11434/v1", "llama3.2",
             "",
             new AiCapabilities { KeyOptional = true, ContextWindow = 8_000 }),
@@ -119,7 +133,7 @@ public static class AiProviderCatalog
     /// نموذج مُستضاف ذاتيّاً، منصّة غير مدرجة) بلا انتظار إضافتها إلى الكتالوج المدمج.
     /// </summary>
     public static AiProviderDescriptor Custom(string? baseUrl, string? defaultModel) => new(
-        CustomId, "مزوّد مخصّص", AiProviderKind.OpenAiCompat,
+        CustomId, TerminalLauncher.Services.Loc.T("ai.set.customProvider"), AiProviderKind.OpenAiCompat,
         string.IsNullOrWhiteSpace(baseUrl) ? "https://" : baseUrl!.Trim(),
         defaultModel?.Trim() ?? "",
         "",

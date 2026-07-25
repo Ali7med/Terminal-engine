@@ -304,7 +304,7 @@ public partial class AiPanel : UserControl
             return;
         }
 
-        AiProviderDescriptor? descriptor = AiProviderCatalog.Find(_settings.ProviderId);
+        AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings);
         string model = AiProviderFactory.ResolveModel(_settings);
         OriginText.Text = descriptor is null ? "" : $"{descriptor.DisplayName} · {model}";
     }

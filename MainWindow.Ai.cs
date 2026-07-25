@@ -136,15 +136,13 @@ public partial class MainWindow
         _aiSyncing = true;
         try
         {
-            if (AiProviderCombo.ItemsSource is null)
-            {
-                // المدمجة + مدخلة «مزوّد مخصّص» (عنوانها يحدّده المستخدم) في نهاية القائمة.
-                var items = new System.Collections.Generic.List<AiProviderDescriptor>(AiProviderCatalog.All)
-                {
-                    AiProviderCatalog.Custom("", ""),
-                };
-                AiProviderCombo.ItemsSource = items;
-            }
+            // عناصر عرض (اسم فقط) — المدمجة ثمّ «مزوّد مخصّص» مترجَماً. تُعاد كلّ مرّة كي يتبع
+            // اسم المخصّص اللغة الحاليّة.
+            var choices = new System.Collections.Generic.List<AiProviderChoice>();
+            foreach (AiProviderDescriptor d in AiProviderCatalog.All)
+                choices.Add(new AiProviderChoice(d.Id, d.DisplayName));
+            choices.Add(new AiProviderChoice(AiProviderCatalog.CustomId, Loc.T("ai.set.customProvider")));
+            AiProviderCombo.ItemsSource = choices;
 
             AiSettings ai = _settings.Ai;
             AiProviderCombo.SelectedValue = ai.ProviderId;

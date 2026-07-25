@@ -564,6 +564,7 @@ public static class Loc
         // ===== إعدادات الـ AI =====
         ["ai.set.title"]       = ("الذكاء الاصطناعي", "AI"),
         ["ai.set.provider"]    = ("المزوّد", "Provider"),
+        ["ai.set.customProvider"] = ("مزوّد مخصّص", "Custom provider"),
         ["ai.set.model"]       = ("النموذج", "Model"),
         ["ai.set.refreshModels"]=("تحديث القائمة", "Refresh list"),
         ["ai.set.key"]         = ("مفتاح الـ API", "API key"),

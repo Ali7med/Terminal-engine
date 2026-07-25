@@ -772,7 +772,7 @@
                                             <TextBlock Text="{loc:T ai.set.provider}" Style="{StaticResource SectionLabel}"/>
                                             <ComboBox x:Name="AiProviderCombo" MaxWidth="360" MinWidth="240"
                                                       HorizontalAlignment="Left"
-                                                      DisplayMemberPath="DisplayName" SelectedValuePath="Id"
+                                                      DisplayMemberPath="Display" SelectedValuePath="Id"
                                                       SelectionChanged="AiProviderCombo_SelectionChanged"/>
 
                                             <TextBlock Text="{loc:T ai.set.model}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
