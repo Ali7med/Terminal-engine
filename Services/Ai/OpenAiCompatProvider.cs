@@ -153,6 +153,14 @@ public sealed class OpenAiCompatProvider : IAiProvider
 
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct)
     {
+        IReadOnlyList<AiModelInfo> models = await ListModelsDetailedAsync(ct).ConfigureAwait(false);
+        var ids = new List<string>(models.Count);
+        foreach (AiModelInfo m in models) ids.Add(m.Id);
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<AiModelInfo>> ListModelsDetailedAsync(CancellationToken ct)
+    {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(AiHttp.ProbeTimeout);
 
@@ -179,7 +187,7 @@ public sealed class OpenAiCompatProvider : IAiProvider
             if (!response.IsSuccessStatusCode)
                 throw Classify(response, text, model: "");
 
-            var ids = new List<string>();
+            var models = new List<AiModelInfo>();
             try
             {
                 using JsonDocument doc = JsonDocument.Parse(text);
@@ -187,7 +195,7 @@ public sealed class OpenAiCompatProvider : IAiProvider
                 {
                     foreach (JsonElement item in data.EnumerateArray())
                         if (item.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.String)
-                            ids.Add(id.GetString()!);
+                            models.Add(new AiModelInfo(id.GetString()!, DetectFree(id.GetString()!, item)));
                 }
             }
             catch (JsonException)
@@ -195,9 +203,43 @@ public sealed class OpenAiCompatProvider : IAiProvider
                 // مزوّد لا يلتزم بشكل /models — ليس خطأً قاتلاً، القائمة اختياريّة أصلاً.
             }
 
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            models.Sort((a, b) => string.Compare(a.Id, b.Id, StringComparison.OrdinalIgnoreCase));
+            return models;
         }
+    }
+
+    /// <summary>
+    /// يحدّد مجّانيّة النموذج: <c>true</c> إن كان تسعيره صفراً أو معرّفه ينتهي بـ<c>:free</c>
+    /// (اصطلاح OpenRouter)، و<c>false</c> إن كان له تسعير موجب، و<c>null</c> إن لم يعطِ المزوّد
+    /// تسعيراً (معظم المنصّات) — إلّا Ollama المحلّيّ فكلّ نماذجه مجّانيّة.
+    /// </summary>
+    private bool? DetectFree(string id, JsonElement item)
+    {
+        if (id.EndsWith(":free", StringComparison.OrdinalIgnoreCase)) return true;
+
+        if (item.TryGetProperty("pricing", out JsonElement pricing) && pricing.ValueKind == JsonValueKind.Object)
+        {
+            decimal? prompt = ReadPrice(pricing, "prompt");
+            decimal? completion = ReadPrice(pricing, "completion");
+            if (prompt.HasValue && completion.HasValue)
+                return prompt.Value <= 0m && completion.Value <= 0m;
+        }
+
+        // لا تسعير: Ollama محلّيّ مجّانيّ دائماً؛ غيره غير معروف.
+        return _descriptor.Capabilities.KeyOptional ? true : null;
+    }
+
+    /// <summary>يقرأ سعراً من حقل التسعير (نصّ مثل "0" أو "0.0000001"، أو رقم).</summary>
+    private static decimal? ReadPrice(JsonElement pricing, string name)
+    {
+        if (!pricing.TryGetProperty(name, out JsonElement v)) return null;
+        return v.ValueKind switch
+        {
+            JsonValueKind.String when decimal.TryParse(v.GetString(),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal d) => d,
+            JsonValueKind.Number when v.TryGetDecimal(out decimal n) => n,
+            _ => null,
+        };
     }
 
     public async Task<AiProbeResult> TestConnectionAsync(CancellationToken ct)

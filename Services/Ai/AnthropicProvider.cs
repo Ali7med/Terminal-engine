@@ -188,6 +188,17 @@ public sealed class AnthropicProvider : IAiProvider
             ? i
             : null;
 
+    /// <summary>
+    /// Anthropic لا يوفّر نماذج مجّانيّة عبر الـAPI، فكلّها مدفوعة (<c>IsFree = false</c>).
+    /// </summary>
+    public async Task<IReadOnlyList<AiModelInfo>> ListModelsDetailedAsync(CancellationToken ct)
+    {
+        IReadOnlyList<string> ids = await ListModelsAsync(ct).ConfigureAwait(false);
+        var models = new List<AiModelInfo>(ids.Count);
+        foreach (string id in ids) models.Add(new AiModelInfo(id, IsFree: false));
+        return models;
+    }
+
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);

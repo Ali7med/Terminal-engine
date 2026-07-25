@@ -43,6 +43,11 @@ public static class Loc
     private static readonly Dictionary<string, (string Ar, string En)> Table = new()
     {
         ["app.title"]          = ("مشغّل الأوامر", "Command Launcher"),
+        // شاشة البدء: سطر المرحلة الجارية تحت العلامة (تتغيّر مع تقدّم الإقلاع).
+        ["splash.starting"]    = ("جارٍ التشغيل…", "Starting…"),
+        ["splash.data"]        = ("تحميل الأوامر والمشاريع…", "Loading commands and projects…"),
+        ["splash.ui"]          = ("تجهيز الواجهة…", "Preparing the interface…"),
+        ["splash.session"]     = ("استعادة الجلسة السابقة…", "Restoring your session…"),
         ["sidebar.saved"]      = ("الأوامر المحفوظة", "Saved commands"),
         ["sidebar.search"]     = ("بحث…", "Search…"),
         ["btn.run"]            = ("▶  تشغيل", "▶  Run"),
@@ -567,6 +572,11 @@ public static class Loc
         ["ai.set.customProvider"] = ("مزوّد مخصّص", "Custom provider"),
         ["ai.set.model"]       = ("النموذج", "Model"),
         ["ai.set.refreshModels"]=("تحديث القائمة", "Refresh list"),
+        ["ai.set.freeOnly"]    = ("المجّاني فقط", "Free only"),
+        ["ai.set.modelCount"]  = ("{0} نموذجاً · {1} مجّانيّ", "{0} models · {1} free"),
+        ["ai.set.modelCountNoPricing"] = ("{0} نموذجاً · التسعير غير متاح لدى هذا المزوّد",
+                                          "{0} models · pricing not provided by this provider"),
+        ["ai.set.noFreeModels"]= ("لا نماذج مجّانيّة لدى هذا المزوّد.", "No free models from this provider."),
         ["ai.set.key"]         = ("مفتاح الـ API", "API key"),
         ["ai.set.getKey"]      = ("احصل على مفتاح", "Get a key"),
         ["ai.set.test"]        = ("اختبار الاتّصال", "Test connection"),

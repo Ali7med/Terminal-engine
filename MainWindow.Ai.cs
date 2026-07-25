@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -26,6 +27,7 @@ public partial class MainWindow
     private CommandCatalogBridge? _aiCatalogBridge;
     private ConversationStore? _aiConversations;
     private CancellationTokenSource? _aiProbeCts;
+    private IReadOnlyList<AiModelInfo> _aiModels = Array.Empty<AiModelInfo>();
 
     /// <summary>حارس يمنع معالجات التغيير من الكتابة أثناء ملء الحقول برمجيّاً.</summary>
     private bool _aiSyncing;
@@ -154,6 +156,7 @@ public partial class MainWindow
             AiPreviewCheck.IsChecked = ai.AlwaysPreview;
             AiQuietCheck.IsChecked = ai.QuietMode;
             AiSaveChatsCheck.IsChecked = ai.SaveConversations;
+            AiModelCountText.Text = "";   // العدّاد يظهر بعد «تحديث القائمة»
 
             AiKeyBox.Clear();
             UpdateAiKeyState();
@@ -225,6 +228,8 @@ public partial class MainWindow
             AiBaseUrlBox.Text = "";
             AiKeyBox.Clear();
             AiTestResultText.Text = "";
+            _aiModels = Array.Empty<AiModelInfo>();   // نماذج المزوّد السابق لم تعد تعني الجديد
+            AiModelCountText.Text = "";
         }
         finally
         {
@@ -284,7 +289,7 @@ public partial class MainWindow
     /// </summary>
     private async void AiTest_Click(object sender, RoutedEventArgs e)
     {
-        AiProviderDescriptor? descriptor = AiProviderCatalog.Find(_settings.Ai.ProviderId);
+        AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings.Ai);
         if (descriptor is null) return;
 
         _aiProbeCts?.Cancel();
@@ -315,7 +320,7 @@ public partial class MainWindow
     /// <summary>يجلب النماذج المتاحة فعلاً من المزوّد — هي مصدر الحقيقة لا الافتراضيّ المدمج.</summary>
     private async void AiRefreshModels_Click(object sender, RoutedEventArgs e)
     {
-        AiProviderDescriptor? descriptor = AiProviderCatalog.Find(_settings.Ai.ProviderId);
+        AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings.Ai);
         if (descriptor is null) return;
 
         AiRefreshModelsBtn.IsEnabled = false;
@@ -324,11 +329,8 @@ public partial class MainWindow
             IAiProvider provider = AiProviderFactory.CreateFor(
                 descriptor, AiKeys.Get(descriptor.Id), _settings.Ai.BaseUrlOverride);
 
-            IReadOnlyList<string> models = await provider.ListModelsAsync(CancellationToken.None).ConfigureAwait(true);
-
-            string current = AiModelCombo.Text;
-            AiModelCombo.ItemsSource = models;
-            AiModelCombo.Text = current; // الجلب لا يغيّر اختيار المستخدم
+            _aiModels = await provider.ListModelsDetailedAsync(CancellationToken.None).ConfigureAwait(true);
+            ApplyModelFilter();
         }
         catch (AiException ex)
         {
@@ -340,6 +342,44 @@ public partial class MainWindow
         {
             AiRefreshModelsBtn.IsEnabled = true;
         }
+    }
+
+    /// <summary>يعيد تطبيق فلتر «المجّاني فقط» على النماذج المجلوبة، ويحدّث العدّاد.</summary>
+    private void AiFreeOnly_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_aiSyncing) return;
+        ApplyModelFilter();
+    }
+
+    /// <summary>
+    /// يملأ قائمة النماذج حسب فلتر «المجّاني فقط» ويعرض عدّاداً (الإجمالي · المجّاني). حين لا يعطي
+    /// المزوّد تسعيراً (معظم المنصّات) تُعرَض ملاحظة بدل عدّ مجّانيّ مضلّل.
+    /// </summary>
+    private void ApplyModelFilter()
+    {
+        if (_aiModels.Count == 0)
+        {
+            AiModelCountText.Text = "";
+            return;
+        }
+
+        bool freeOnly = AiFreeOnlyCheck.IsChecked == true;
+        int freeCount = _aiModels.Count(m => m.IsFree == true);
+        bool hasPricing = _aiModels.Any(m => m.IsFree.HasValue);
+
+        IEnumerable<AiModelInfo> shown = freeOnly ? _aiModels.Where(m => m.IsFree == true) : _aiModels;
+        var ids = shown.Select(m => m.Id).ToList();
+
+        string current = AiModelCombo.Text;
+        AiModelCombo.ItemsSource = ids;
+        AiModelCombo.Text = current;   // الجلب/الفلترة لا يغيّران اختيار المستخدم
+
+        AiModelCountText.Text = hasPricing
+            ? string.Format(Loc.T("ai.set.modelCount"), _aiModels.Count, freeCount)
+            : string.Format(Loc.T("ai.set.modelCountNoPricing"), _aiModels.Count);
+
+        AiModelCountText.Foreground = (Brush)FindResource(
+            freeOnly && freeCount == 0 ? "Brush.Danger" : "Brush.TextMuted");
     }
 
     /// <summary>

@@ -787,6 +787,16 @@
                                                         Padding="10,5" Content="{loc:T ai.set.refreshModels}"
                                                         Click="AiRefreshModels_Click"/>
                                             </Grid>
+                                            <StackPanel Orientation="Horizontal" Margin="2,6,2,0"
+                                                        HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <CheckBox x:Name="AiFreeOnlyCheck" Style="{StaticResource AppCheckBox}"
+                                                          VerticalAlignment="Center"
+                                                          Content="{loc:T ai.set.freeOnly}"
+                                                          Checked="AiFreeOnly_Changed" Unchecked="AiFreeOnly_Changed"/>
+                                                <TextBlock x:Name="AiModelCountText" VerticalAlignment="Center"
+                                                           Margin="10,0,0,0" FontSize="11"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </StackPanel>
 
                                             <TextBlock Text="{loc:T ai.set.key}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
                                             <Grid Width="360" HorizontalAlignment="Left" FlowDirection="LeftToRight">

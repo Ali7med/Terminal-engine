@@ -133,6 +133,16 @@ public sealed class AiException : Exception
     }
 }
 
+/// <summary>
+/// معلومات نموذج واحد كما يعيدها المزوّد: معرّفه وهل هو مجّانيّ.
+/// </summary>
+/// <param name="Id">معرّف النموذج (يُرسَل في الطلب).</param>
+/// <param name="IsFree">
+/// <c>true</c> مجّانيّ · <c>false</c> مدفوع · <c>null</c> غير معروف (المزوّد لا يعطي تسعيراً).
+/// معظم المنصّات لا تُصدِّر تسعيراً في <c>/models</c>؛ OpenRouter يفعل، وOllama محلّيّ فمجّانيّ دائماً.
+/// </param>
+public sealed record AiModelInfo(string Id, bool? IsFree);
+
 /// <summary>خيارات نداء واحد.</summary>
 public sealed class AiChatOptions
 {

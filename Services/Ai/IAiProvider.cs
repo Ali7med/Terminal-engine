@@ -28,6 +28,12 @@ public interface IAiProvider
     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct);
 
     /// <summary>
+    /// يجلب النماذج مع معلومة المجّانيّة إن توفّرت (OpenRouter يعطي تسعيراً؛ غيره غالباً لا).
+    /// يعيد قائمة فارغة إن لم يدعم المزوّد ذلك.
+    /// </summary>
+    Task<IReadOnlyList<AiModelInfo>> ListModelsDetailedAsync(CancellationToken ct);
+
+    /// <summary>
     /// نداء رخيص يتحقّق من الوصول والمصادقة معاً. لمزوّد بلا مفتاح (Ollama) يعني «هل الخدمة تعمل».
     /// لا يرمي أبداً — يعيد نتيجة مُصنَّفة كي تعرضها الإعدادات فوراً.
     /// </summary>
