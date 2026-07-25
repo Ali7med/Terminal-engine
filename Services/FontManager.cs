@@ -17,10 +17,20 @@ public sealed class FontSettings
     /// <summary>الخطّ أحاديّ العرض (التيرمنال + النصوص التقنيّة). فارغ = Cascadia/Consolas.</summary>
     public string MonoFont { get; set; } = "";
 
-    public double UiSize { get; set; } = 13;
-    public double MenuSize { get; set; } = 14;
-    public double TableSize { get; set; } = 12.5;
-    public double TitleSize { get; set; } = 16;
+    // الافتراضيّات مضبوطة على «مريح ومقروء» لا على «مضغوط»: شاشات اليوم أكبر، والقراءة الطويلة
+    // أهمّ من حشر صفوف إضافيّة. من أراد الأصغر فالمنزلقات في الإعدادات.
+    public double UiSize { get; set; } = 14;
+    public double MenuSize { get; set; } = 15;
+    public double TableSize { get; set; } = 13.5;
+    public double TitleSize { get; set; } = 17;
+
+    /// <summary>
+    /// حجم النصّ الثانويّ (التلميحات والشارات والمسارات). <b>0 = تلقائيّ</b>: يُشتقّ من
+    /// <see cref="UiSize"/> ناقص نقطتين فيبقى التسلسل الهرميّ محفوظاً مع منزلق واحد. أيّ قيمة أكبر
+    /// من الصفر تفكّ الاشتقاق وتُثبّت الحجم كما ضبطه المستخدم (من لا يقرأ النصّ الصغير يرفعه وحده).
+    /// الصفر هو الافتراضيّ فتبقى ملفّات config.json القديمة على سلوكها السابق حرفيّاً.
+    /// </summary>
+    public double SmallSize { get; set; } = 0;
 
     /// <summary>استدارة حواف الكروت ونوافذ المشروع (نصف قطر الزاوية بالبكسل). 0 = زوايا حادّة.</summary>
     public double CornerRadius { get; set; } = 14;
@@ -131,9 +141,10 @@ public static class FontManager
         res["Size.Ui"]    = Clamp(s.UiSize);
         res["Size.Menu"]  = menu;
         res["Size.Table"] = Clamp(s.TableSize);
-        // النصّ الثانويّ (العناوين الفرعيّة/الشارات) يتبع حجم نصّ الواجهة ناقص قليلاً، فتتناسق القوائم
-        // وتكبر بالكامل من منزلق واحد مع الحفاظ على التسلسل الهرميّ.
-        res["Size.Small"] = Clamp(s.UiSize - 2);
+        // النصّ الثانويّ (العناوين الفرعيّة/الشارات): يتبع حجم نصّ الواجهة ناقصاً قليلاً ما دام على
+        // التلقائيّ (0)، فتتناسق القوائم وتكبر بالكامل من منزلق واحد مع الحفاظ على التسلسل الهرميّ؛
+        // وإن ضبطه المستخدم صراحةً احتُرمت قيمته.
+        res["Size.Small"] = Clamp(s.SmallSize > 0 ? s.SmallSize : s.UiSize - 2);
         res["Size.Title"] = Clamp(s.TitleSize);
         // أيقونات القائمة تتبع حجم المنيو (مطابقة للعنوان)، ونصّ الاختصار أصغر بقدر بسيط.
         res["Size.MenuIcon"]    = menu;

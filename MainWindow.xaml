@@ -4,9 +4,9 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         xmlns:loc="clr-namespace:TerminalLauncher.Services"
-        Title="مشغّل الأوامر" Height="700" Width="1120"
+        Title="مشغّل الأوامر" Height="860" Width="1400"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
-        MinHeight="480" MinWidth="820"
+        MinHeight="560" MinWidth="980"
         FlowDirection="RightToLeft"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" Background="{DynamicResource Brush.Bg}"
@@ -705,15 +705,40 @@
 
                                             <TextBlock Text="{loc:T settings.uiFamily}" FontSize="11.5"
                                                        Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,4"/>
-                                            <TextBox x:Name="FontUiFamilyBox" MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
-                                                     VerticalContentAlignment="Center" Padding="8,6" FlowDirection="LeftToRight"
-                                                     KeyDown="FontUiFamily_KeyDown" LostFocus="FontUiFamily_LostFocus"/>
+                                            <!-- قائمة الخطوط المثبّتة مع معاينة كلّ اسم بخطّه نفسه؛ وقابلة للكتابة فيبقى
+                                                 إدخال اسم يدويّ (أو إفراغه = الافتراضيّ) ممكناً كما كان. تُملأ عند أوّل فتح لا عند
+                                                 الإقلاع — تعداد خطوط النظام أثقل من أن يُحمّل على زمن بدء التطبيق. -->
+                                            <ComboBox x:Name="FontUiFamilyBox" IsEditable="True" IsTextSearchEnabled="True"
+                                                      MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
+                                                      MaxDropDownHeight="320" FlowDirection="LeftToRight"
+                                                      DropDownOpened="FontFamilyPicker_DropDownOpened"
+                                                      SelectionChanged="FontUiFamily_SelectionChanged"
+                                                      KeyDown="FontUiFamily_KeyDown" LostFocus="FontUiFamily_LostFocus">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="14"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
 
                                             <TextBlock Text="{loc:T settings.monoFamily}" FontSize="11.5"
                                                        Foreground="{DynamicResource Brush.TextMuted}" Margin="2,12,2,4"/>
-                                            <TextBox x:Name="FontMonoFamilyBox" MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
-                                                     VerticalContentAlignment="Center" Padding="8,6" FlowDirection="LeftToRight"
-                                                     KeyDown="FontMonoFamily_KeyDown" LostFocus="FontMonoFamily_LostFocus"/>
+                                            <ComboBox x:Name="FontMonoFamilyBox" IsEditable="True" IsTextSearchEnabled="True"
+                                                      MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
+                                                      MaxDropDownHeight="320" FlowDirection="LeftToRight"
+                                                      DropDownOpened="FontFamilyPicker_DropDownOpened"
+                                                      SelectionChanged="FontMonoFamily_SelectionChanged"
+                                                      KeyDown="FontMonoFamily_KeyDown" LostFocus="FontMonoFamily_LostFocus">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="14"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+
+                                            <TextBlock Text="{loc:T settings.pickFont}" TextWrapping="Wrap" MaxWidth="380"
+                                                       HorizontalAlignment="Left" FontSize="11" Margin="2,6,2,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                             <TextBlock Text="{loc:T settings.uiSize}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
@@ -745,6 +770,31 @@
                                                            VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>
 
+                                            <!-- حجم العناوين (Size.Title) — كان في config.json بلا منزلق -->
+                                            <TextBlock Text="{loc:T settings.titleSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="TitleSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="11" Maximum="30" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="TitleSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="TitleSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <!-- حجم النصّ الثانويّ (Size.Small): تلقائيّ = نصّ الواجهة − 2، أو قيمة صريحة -->
+                                            <TextBlock Text="{loc:T settings.smallSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <CheckBox x:Name="SmallAutoCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T settings.smallAuto}" Margin="2,0,2,6"
+                                                      Checked="SmallAutoCheck_Changed" Unchecked="SmallAutoCheck_Changed"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="SmallSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="8" Maximum="20" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="SmallSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="SmallSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
                                             <!-- ===== استدارة الحواف (الكروت ونوافذ المشروع) ===== -->
                                             <TextBlock Text="{loc:T settings.cornerRadius}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
@@ -769,39 +819,47 @@
 
                                         <!-- ===== فئة: الذكاء الاصطناعي ===== -->
                                         <StackPanel x:Name="CatAi" Visibility="Collapsed">
+
+                                            <!-- ========== الاتّصال ========== -->
+                                            <TextBlock Text="{loc:T ai.set.grpConnection}" Style="{StaticResource Caption}"
+                                                       Margin="2,0,2,10"/>
+
                                             <TextBlock Text="{loc:T ai.set.provider}" Style="{StaticResource SectionLabel}"/>
-                                            <ComboBox x:Name="AiProviderCombo" MaxWidth="360" MinWidth="240"
-                                                      HorizontalAlignment="Left"
+                                            <ComboBox x:Name="AiProviderCombo" Width="420" HorizontalAlignment="Left"
                                                       DisplayMemberPath="Display" SelectedValuePath="Id"
                                                       SelectionChanged="AiProviderCombo_SelectionChanged"/>
 
-                                            <TextBlock Text="{loc:T ai.set.model}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
-                                            <Grid Width="360" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                            <TextBlock Text="{loc:T ai.set.model}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
+                                                <!-- قابل للكتابة: بحث فوريّ بين مئات النماذج، ويقبل معرّفاً يدويّاً لا تعيده القائمة -->
                                                 <ComboBox x:Name="AiModelCombo" IsEditable="True"
                                                           IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                                          MaxDropDownHeight="300"
                                                           TextBoxBase.TextChanged="AiModelText_Changed"
+                                                          DropDownOpened="AiModelCombo_DropDownOpened"
+                                                          SelectionChanged="AiModelCombo_SelectionChanged"
                                                           LostFocus="AiModel_Changed"/>
                                                 <Button Grid.Column="1" x:Name="AiRefreshModelsBtn" Margin="8,0,0,0"
-                                                        Padding="10,5" Content="{loc:T ai.set.refreshModels}"
+                                                        Padding="12,5" Content="{loc:T ai.set.refreshModels}"
                                                         Click="AiRefreshModels_Click"/>
                                             </Grid>
-                                            <StackPanel Orientation="Horizontal" Margin="2,6,2,0"
+                                            <StackPanel Orientation="Horizontal" Margin="2,8,2,0"
                                                         HorizontalAlignment="Left" FlowDirection="LeftToRight">
                                                 <CheckBox x:Name="AiFreeOnlyCheck" Style="{StaticResource AppCheckBox}"
                                                           VerticalAlignment="Center"
                                                           Content="{loc:T ai.set.freeOnly}"
                                                           Checked="AiFreeOnly_Changed" Unchecked="AiFreeOnly_Changed"/>
                                                 <TextBlock x:Name="AiModelCountText" VerticalAlignment="Center"
-                                                           Margin="10,0,0,0" FontSize="11"
+                                                           Margin="12,0,0,0" FontSize="11"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </StackPanel>
 
-                                            <TextBlock Text="{loc:T ai.set.key}" Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
-                                            <Grid Width="360" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                            <TextBlock Text="{loc:T ai.set.key}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -809,48 +867,118 @@
                                                 <PasswordBox x:Name="AiKeyBox" Padding="8,6"
                                                              PasswordChanged="AiKeyBox_Changed"/>
                                                 <Button Grid.Column="1" x:Name="AiGetKeyBtn" Margin="8,0,0,0"
-                                                        Padding="10,5" Content="{loc:T ai.set.getKey}"
+                                                        Padding="12,5" Content="{loc:T ai.set.getKey}"
                                                         Click="AiGetKey_Click"/>
                                             </Grid>
-                                            <TextBlock x:Name="AiKeyStateText" FontSize="11" Margin="2,6,2,0"
-                                                       TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Left"
+                                            <TextBlock x:Name="AiKeyStateText" FontSize="11" Margin="2,8,2,0"
+                                                       TextWrapping="Wrap" Width="420" HorizontalAlignment="Left"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
 
-                                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                                <Button x:Name="AiTestBtn" Padding="14,7"
-                                                        Style="{StaticResource AccentButton}"
-                                                        Content="{loc:T ai.set.test}" Click="AiTest_Click"/>
-                                                <TextBlock x:Name="AiTestResultText" VerticalAlignment="Center"
-                                                           Margin="10,0,0,0" FontSize="11" TextWrapping="Wrap"
-                                                           MaxWidth="240"/>
-                                            </StackPanel>
-
-                                            <TextBlock Text="{loc:T ai.set.baseUrl}" Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
-                                            <TextBox x:Name="AiBaseUrlBox" MaxWidth="360" MinWidth="240" Padding="8,6"
+                                            <TextBlock Text="{loc:T ai.set.baseUrl}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <TextBox x:Name="AiBaseUrlBox" Width="420" Padding="8,6"
                                                      HorizontalAlignment="Left" FlowDirection="LeftToRight"
                                                      LostFocus="AiBaseUrl_Changed"/>
 
+                                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
+                                                        HorizontalAlignment="Left">
+                                                <Button x:Name="AiTestBtn" Padding="16,7"
+                                                        Style="{StaticResource AccentButton}"
+                                                        Content="{loc:T ai.set.test}" Click="AiTest_Click"/>
+                                                <TextBlock x:Name="AiTestResultText" VerticalAlignment="Center"
+                                                           Margin="12,0,0,0" FontSize="11" TextWrapping="Wrap"
+                                                           MaxWidth="280"/>
+                                            </StackPanel>
+
+                                            <Border Height="1" Width="420" HorizontalAlignment="Left" Margin="2,26,2,20"
+                                                    Background="{DynamicResource Brush.Hairline}"/>
+
+                                            <!-- ========== سلوك المساعد ========== -->
+                                            <TextBlock Text="{loc:T ai.set.grpBehavior}" Style="{StaticResource Caption}"
+                                                       Margin="2,0,2,10"/>
+
+                                            <TextBlock Text="{loc:T ai.set.temperature}" Style="{StaticResource SectionLabel}"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiTempSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="0" Maximum="1.5" IsSnapToTickEnabled="True" TickFrequency="0.05"
+                                                        ValueChanged="AiTemp_Changed"/>
+                                                <TextBlock x:Name="AiTempValue" Grid.Column="1" MinWidth="38" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+                                            <TextBlock Text="{loc:T ai.set.temperatureHint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,6,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <TextBlock Text="{loc:T ai.set.maxTokens}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiMaxTokensSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="0" Maximum="8000" IsSnapToTickEnabled="True" TickFrequency="250"
+                                                        ValueChanged="AiMaxTokens_Changed"/>
+                                                <TextBlock x:Name="AiMaxTokensValue" Grid.Column="1" MinWidth="56" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T ai.set.ctxLimit}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiCtxLimitSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="2000" Maximum="32000" IsSnapToTickEnabled="True" TickFrequency="1000"
+                                                        ValueChanged="AiCtxLimit_Changed"/>
+                                                <TextBlock x:Name="AiCtxLimitValue" Grid.Column="1" MinWidth="56" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+                                            <TextBlock Text="{loc:T ai.set.ctxLimitHint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,6,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <TextBlock Text="{loc:T ai.set.customPrompt}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <TextBox x:Name="AiPromptBox" Style="{StaticResource MultilineTextBox}"
+                                                     Width="420" MinLines="3" MaxLines="6" Padding="8,6"
+                                                     HorizontalAlignment="Left"
+                                                     LostFocus="AiPrompt_Changed"/>
+                                            <TextBlock Text="{loc:T ai.set.customPromptHint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,6,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <CheckBox x:Name="AiAutoRunCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T ai.set.autoRun}" Margin="2,18,2,4"
+                                                      Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
+                                            <TextBlock Text="{loc:T ai.set.autoRunHint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,0,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <Border Height="1" Width="420" HorizontalAlignment="Left" Margin="2,26,2,20"
+                                                    Background="{DynamicResource Brush.Hairline}"/>
+
+                                            <!-- ========== الخصوصيّة والتعلّم ========== -->
+                                            <TextBlock Text="{loc:T ai.set.grpPrivacy}" Style="{StaticResource Caption}"
+                                                       Margin="2,0,2,10"/>
+
                                             <CheckBox x:Name="AiLearningCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="{loc:T ai.set.learning}" Margin="2,22,2,4"
+                                                      Content="{loc:T ai.set.learning}" Margin="2,0,2,4"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <TextBlock Text="{loc:T ai.set.learningHint}" TextWrapping="Wrap"
-                                                       MaxWidth="380" HorizontalAlignment="Left" FontSize="11"
-                                                       Margin="2,0,2,12" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,0,2,14" Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                             <CheckBox x:Name="AiAmbientCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="{loc:T ai.set.ambient}" Margin="2,0,2,6"
+                                                      Content="{loc:T ai.set.ambient}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <CheckBox x:Name="AiPreviewCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="{loc:T ai.set.preview}" Margin="2,0,2,6"
+                                                      Content="{loc:T ai.set.preview}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <CheckBox x:Name="AiQuietCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="{loc:T ai.set.quiet}" Margin="2,0,2,6"
+                                                      Content="{loc:T ai.set.quiet}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <CheckBox x:Name="AiSaveChatsCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="{loc:T ai.set.saveChats}" Margin="2,0,2,6"
+                                                      Content="{loc:T ai.set.saveChats}" Margin="2,0,2,4"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <TextBlock Text="{loc:T ai.set.saveChatsHint}" TextWrapping="Wrap"
-                                                       MaxWidth="380" HorizontalAlignment="Left" FontSize="11"
+                                                       Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,0,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
                                     </StackPanel>

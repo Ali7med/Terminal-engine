@@ -324,8 +324,14 @@ public sealed class OpenAiCompatProvider : IAiProvider
             w.WriteString("model", options.Model);
             w.WriteBoolean("stream", stream);
 
-            if (options.MaxTokens is int max) w.WriteNumber("max_tokens", max);
-            if (options.Temperature is double temp) w.WriteNumber("temperature", temp);
+            // نماذج الاستدلال ترفض ضبط العيّنة: أيّ temperature غير 1 يردّ 400، وmax_tokens
+            // استُبدل عندها بـ max_completion_tokens. صار temperature يُرسَل مع كلّ نداء (له منزلق
+            // في الإعدادات) فلزم استثناؤها هنا، وإلّا صار اختيار o1/o3/gpt-5 عطلاً كاملاً.
+            bool reasoning = IsReasoningModel(options.Model);
+
+            if (options.MaxTokens is int max)
+                w.WriteNumber(reasoning ? "max_completion_tokens" : "max_tokens", max);
+            if (!reasoning && options.Temperature is double temp) w.WriteNumber("temperature", temp);
 
             // الاستهلاك ضمن البثّ غير مدعوم في كلّ المنصّات — نطلبه فقط لمن يعلنه.
             if (stream && _descriptor.Capabilities.UsageInStream)
@@ -343,6 +349,30 @@ public sealed class OpenAiCompatProvider : IAiProvider
         }
         return Encoding.UTF8.GetString(buffer.ToArray());
     }
+
+    /// <summary>
+    /// هل المعرّف لعائلة نماذج الاستدلال (o1/o3/o4/gpt-5)؟ يُقرأ من المعرّف لا من قائمة قدرات:
+    /// النماذج تُجلَب حيّة من المزوّد، فجدولٌ ثابت كان سيتخلّف عن كلّ إصدار جديد. البادئة تُقارَن
+    /// بعد آخر «/» كي يشمل الشكل المسبوق باسم المزوّد (<c>openai/o3-mini</c> عند الوسطاء).
+    /// </summary>
+    private static bool IsReasoningModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return false;
+
+        ReadOnlySpan<char> id = model.AsSpan(model.LastIndexOf('/') + 1).Trim();
+
+        foreach (string family in ReasoningFamilies)
+        {
+            if (!id.StartsWith(family, StringComparison.OrdinalIgnoreCase)) continue;
+            // البادئة وحدها لا تكفي: «o1» يجب ألّا تلتقط نموذجاً اسمه «o1x». الفاصل أو النهاية فقط.
+            if (id.Length == family.Length) return true;
+            char next = id[family.Length];
+            if (next is '-' or '.' or '_' or ':') return true;
+        }
+        return false;
+    }
+
+    private static readonly string[] ReasoningFamilies = ["o1", "o3", "o4", "gpt-5"];
 
     /// <summary>
     /// يكتب الرسائل. لمن لا يدعم دور «system» يُدمَج نصّ النظام في مقدّمة أوّل رسالة مستخدم

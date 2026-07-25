@@ -84,6 +84,59 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- مقطع في مبدّل الوضع (أمر/ذكاء): حبّة صغيرة تُملأ باللكنة حين تكون هي الوضع النشط. -->
+        <Style x:Key="ComposerSeg" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="9,3"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="6" Padding="{TemplateBinding Padding}"
+                                Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource Brush.RowHover}"/>
+                            </Trigger>
+                            <!-- بعد المرور عمداً: الوضع النشط يجب أن يظلّ ظاهراً تحت المؤشّر -->
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource Brush.Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.OnAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- زرّ نصّيّ بلا كروم (مثل «لا تُظهر ثانيةً») -->
+        <Style x:Key="ComposerLink" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <!-- سطح واحد موحّد بخلفية التيرمنال (تُصبح شفّافة عند تفعيل صورة خلفيّة لتظهر خلف التيرمنال) -->
     <Grid x:Name="RootGrid" Background="{DynamicResource Brush.TerminalBg}">
@@ -265,7 +318,7 @@
                          فلا تزحف التيرمنال. -->
                     <Border x:Name="SuggestPanel" Visibility="Collapsed"
                             VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                            MinWidth="360" MaxWidth="680" Margin="14,0,14,4"
+                            MinWidth="360" MaxWidth="680" Margin="16,0,16,4"
                             CornerRadius="10" Padding="0,4"
                             Background="{DynamicResource Brush.Surface}"
                             BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1">
@@ -311,7 +364,7 @@
                          بحث فوريّ + «..» للصعود + نقرة على مجلد = cd إليه. -->
                     <Border x:Name="CwdPickerPanel" Visibility="Collapsed"
                             VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                            MinWidth="290" MaxWidth="460" Margin="14,0,0,4"
+                            MinWidth="290" MaxWidth="460" Margin="16,0,0,4"
                             CornerRadius="10" Padding="0,0,0,4"
                             Background="{DynamicResource Brush.Surface}"
                             BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="1"
@@ -376,11 +429,49 @@
                         Background="Transparent"
                         BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,1,0,0">
                     <DockPanel>
-                        <!-- منطقة الإدخال: سطر الباث (كامل) فوق، ثمّ سطر الموجّه + الحقل -->
-                        <StackPanel x:Name="ComposerInputArea" Margin="14,8,14,11">
-                            <!-- سطر الباث = «شيب» قابل للنقر يفتح متصفّح المجلدات. حافّته اليسرى تحاذي
-                                 حافّة اللوحة (كلاهما بهامش 14) فتفتح اللوحة فوقه تماماً. -->
-                            <Button x:Name="CwdPickerButton" HorizontalAlignment="Left" Margin="0,0,0,6"
+                        <!-- بطاقة ترحيب «جلسة تيرمنال جديدة»: اختصارات الصندوق أوّل ما يُفتح تبويب،
+                             وتُصرَف نهائيّاً بزرّ «لا تُظهر ثانيةً». -->
+                        <Border x:Name="WelcomeCard" DockPanel.Dock="Top" Visibility="Collapsed"
+                                Padding="16,12,16,13" Background="Transparent"
+                                BorderBrush="{DynamicResource Brush.Hairline}" BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+                                        <!-- E946 = Info -->
+                                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                                   Foreground="{DynamicResource Brush.Accent}"/>
+                                        <TextBlock x:Name="WelcomeTitle" FontSize="{DynamicResource Size.Menu}" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="WelcomeRows"/>
+                                </StackPanel>
+                                <Button x:Name="WelcomeDismissBtn" Grid.Column="1"
+                                        VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                        Style="{StaticResource ComposerLink}" Click="WelcomeDismiss_Click">
+                                    <TextBlock x:Name="WelcomeDismissText" FontSize="{DynamicResource Size.Ui}"/>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- شريط نتيجة الذكاء: الجواب يأتي حيث سُئل — فوق الصندوق مباشرةً، بلا
+                             فتح لوحة الدردشة ونقلِ التركيز إليها. -->
+                        <ctrl:AiInlineResult x:Name="AiInline" DockPanel.Dock="Top"/>
+
+                        <!-- منطقة الإدخال: صفّ الباث والمبدّل فوق، ثمّ صفّ الموجّه + الحقل -->
+                        <StackPanel x:Name="ComposerInputArea" Margin="16,12,16,16">
+                            <!-- صفّ علويّ: «شيب» الباث يساراً (يفتح متصفّح المجلدات، وحافّته تحاذي
+                                 حافّة اللوحة فتفتح فوقه تماماً) ومبدّل الوضع يميناً. -->
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                            <Button x:Name="CwdPickerButton" HorizontalAlignment="Left" Margin="0"
                                     Padding="12,7" Cursor="Hand" Click="CwdPicker_Click" Focusable="False">
                                 <Button.Style>
                                     <Style TargetType="Button">
@@ -405,27 +496,59 @@
                                 </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <!-- E8B7 = Folder · E70D = ChevronDown -->
-                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                                                Margin="0,0,7,0" VerticalAlignment="Center"
                                                Foreground="{DynamicResource Brush.TextMuted}"/>
                                     <TextBlock x:Name="ComposerCwd" VerticalAlignment="Center" MaxWidth="520"
                                                FontFamily="Cascadia Mono, Consolas" FontSize="11.5"
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="8"
+                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="9"
                                                Margin="7,1,0,0" VerticalAlignment="Center" Opacity="0.7"
                                                Foreground="{DynamicResource Brush.TextMuted}"/>
                                 </StackPanel>
                             </Button>
+
+                            <!-- مبدّل الوضع: أمر ⇄ ذكاء. نقطة الدخول الظاهرة للمساعد — بلا مبدّل
+                                 بجانب الكتابة تبقى الميزة خلف قائمة لا يفتحها أحد. -->
+                            <Border Grid.Column="1" x:Name="ComposerModeSwitch"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    CornerRadius="8" Padding="2"
+                                    Background="{DynamicResource Brush.KeyCap}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="ComposerModeCmdBtn" Style="{StaticResource ComposerSeg}"
+                                                  Click="ComposerModeCmd_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="❯" FontFamily="Cascadia Mono, Consolas"
+                                                       FontSize="{DynamicResource Size.Ui}" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="ComposerModeCmdText" Margin="6,0,0,0"
+                                                       FontSize="{DynamicResource Size.Ui}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <ToggleButton x:Name="ComposerModeAiBtn" Style="{StaticResource ComposerSeg}"
+                                                  Click="ComposerModeAi_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="✨" FontSize="{DynamicResource Size.Ui}" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="ComposerModeAiText" Margin="6,0,0,0"
+                                                       FontSize="{DynamicResource Size.Ui}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                </StackPanel>
+                            </Border>
+                            </Grid>
+
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="❯" VerticalAlignment="Center"
-                                       Margin="0,0,10,0" FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="14" FontWeight="Bold"
+                            <!-- رمز الموجّه: ❯ في وضع الأمر، ✨ في وضع الذكاء — إشارة الوضع الأوضح
+                                 لأنّها حيث تنظر عند الكتابة. -->
+                            <TextBlock Grid.Column="0" x:Name="ComposerGlyph" Text="❯"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0" FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="15" FontWeight="Bold"
                                        Foreground="{DynamicResource Brush.Accent}"/>
                             <!-- طبقة الشبح: ذيل الإكمال (لون أفتح مكتوم) + حبّة tab — تُوضَع أفقيّاً عند
                                  نهاية النصّ المكتوب عبر GetRectFromCharacterIndex فتتحاذى تماماً. -->
@@ -437,24 +560,31 @@
                                 <StackPanel x:Name="ComposerGhostPanel" Orientation="Horizontal"
                                             Canvas.Top="0" Visibility="Collapsed">
                                     <TextBlock x:Name="ComposerGhost"
-                                               FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
+                                               FontFamily="Cascadia Mono, Consolas" FontSize="14.5"
                                                Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.5"/>
                                     <Border x:Name="ComposerTabChip" Margin="8,0,0,0" Padding="6,0"
                                             Height="17" VerticalAlignment="Center" CornerRadius="4"
                                             Background="{DynamicResource Brush.KeyCap}">
                                         <TextBlock Text="tab" FontFamily="Cascadia Mono, Consolas"
-                                                   FontSize="10.5" VerticalAlignment="Center"
+                                                   FontSize="{DynamicResource Size.Small}" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource Brush.TextMuted}"/>
                                     </Border>
                                 </StackPanel>
                             </Canvas>
+                            <!-- نصّ إرشاديّ: يختفي فور الكتابة، ويتبدّل مع الوضع (أمر/ذكاء) -->
+                            <TextBlock Grid.Column="1" x:Name="ComposerPlaceholder"
+                                       IsHitTestVisible="False" VerticalAlignment="Center"
+                                       FontFamily="Cascadia Mono, Consolas" FontSize="14.5"
+                                       Opacity="0.42" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
                             <TextBox Grid.Column="1" x:Name="ComposerInput"
                                      Background="Transparent" BorderThickness="0" Padding="0"
+                                     MinHeight="34"
                                      Foreground="{DynamicResource Brush.Text}"
                                      CaretBrush="Transparent"
-                                     FontFamily="Cascadia Mono, Consolas" FontSize="13.5"
+                                     FontFamily="Cascadia Mono, Consolas" FontSize="14.5"
                                      AcceptsReturn="True" AcceptsTab="False" MaxLength="0"
-                                     TextWrapping="Wrap" MaxLines="8"
+                                     TextWrapping="Wrap" MaxLines="10"
                                      VerticalScrollBarVisibility="Auto"
                                      TextChanged="Composer_TextChanged"
                                      SelectionChanged="Composer_SelectionChanged"
@@ -462,8 +592,8 @@
                                      GotKeyboardFocus="Composer_GotFocus"
                                      PreviewKeyDown="Composer_PreviewKeyDown"/>
                             <TextBlock Grid.Column="2" x:Name="ComposerHint" Text="↵"
-                                       VerticalAlignment="Center" Margin="10,0,0,0"
-                                       FontSize="11" Opacity="0.4"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"
+                                       FontSize="{DynamicResource Size.Ui}" Opacity="0.4"
                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                         </Grid>
                         </StackPanel>

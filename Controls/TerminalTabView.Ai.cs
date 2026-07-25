@@ -68,6 +68,8 @@ public partial class TerminalTabView
         _aiSaveConversation = saveConversation;
         _aiKeyStore = new AiKeyStore(() => settings.Ai, saveSettings);
         _aiContext = new AiContextBuilder(redactor, () => settings.Ai.ContextCharLimit);
+
+        InitComposerAi();
     }
 
     private void AiToggleButton_Click(object sender, RoutedEventArgs e)
@@ -88,6 +90,9 @@ public partial class TerminalTabView
         AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }), _aiProfile, _aiSaveConversation);
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
         AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
+        AiSidePanel.ReplyCompleted += OnInlineReplyCompleted;
+        AiSidePanel.ReplyFailed += OnInlineReplyFailed;
+        AiInline.OpenChatRequested += () => SetAiPanelVisible(true);
         _aiPanelReady = true;
     }
 
@@ -251,5 +256,324 @@ public partial class TerminalTabView
     public void ShutDownAi()
     {
         if (_aiPanelReady) AiSidePanel.ShutDown();
+
+        // فكّ الاشتراك في الأحداث الساكنة: هي ثابتة طوال عمر التطبيق، والتبويب لا — بقاؤها
+        // مشتركةً يُبقي التبويب المُغلَق حيّاً في الذاكرة. يُنادى من CloseSession فيغطّي كلّ
+        // مسارات الإغلاق (إغلاق تاب · إغلاق ما بعده · إغلاق التطبيق).
+        if (_composerAiReady)
+        {
+            Loc.Changed -= ApplyComposerAiLanguage;
+            WelcomeDismissedGlobally -= HideWelcomeCard;
+            _composerAiReady = false;
+        }
+    }
+
+    // ===== وضع الذكاء داخل صندوق الأوامر =====
+
+    /// <summary>هل صار المبدّل جاهزاً؟ (يمنع الاشتراك المزدوج في حدث اللغة.)</summary>
+    private bool _composerAiReady;
+
+    /// <summary>
+    /// وضع <b>هذا التبويب</b>. المبدّل ورمز الموجّه والنصّ الإرشاديّ عناصرُ هذا التبويب وحده، فربط
+    /// السلوك بإعدادٍ مشترك كان يجعل تبويباً يُرسل إلى المساعد بينما مبدّله ما زال يقول «أمر» —
+    /// أي يبتلع أمر صدفة ويحوّله سؤالاً. الإعداد المحفوظ يبقى مصدر الوضع الابتدائيّ لا أكثر.
+    /// </summary>
+    private bool _composerAiMode;
+
+    /// <summary>هل الصندوق في وضع الذكاء الآن؟</summary>
+    private bool ComposerAiMode => _composerAiMode;
+
+    /// <summary>
+    /// يهيّئ مبدّل الوضع وبطاقة الترحيب. يُنادى من <see cref="AttachAi"/>: قبله لا إعدادات معروفة،
+    /// فكانت النصوص ستُكتب بلغة الافتراض لا بلغة المستخدم.
+    /// </summary>
+    private void InitComposerAi()
+    {
+        if (_composerAiReady) return;
+        _composerAiReady = true;
+
+        ApplyComposerAiLanguage();
+        SetComposerAiMode(_aiAppSettings?.Ai.ComposerAiMode == true, persist: false);
+        Loc.Changed += ApplyComposerAiLanguage;
+        WelcomeDismissedGlobally += HideWelcomeCard;
+        ShowWelcomeCardIfNeeded();
+    }
+
+    /// <summary>نصوص المبدّل والنصّ الإرشاديّ وبطاقة الترحيب — تتبع اللغة حيّاً.</summary>
+    private void ApplyComposerAiLanguage()
+    {
+        ComposerModeCmdText.Text = Loc.T("ai.cmp.modeCommand");
+        ComposerModeAiText.Text = Loc.T("ai.cmp.modeAi");
+        ComposerModeSwitch.ToolTip = Loc.T("ai.cmp.switchTip");
+        WelcomeTitle.Text = Loc.T("ai.welcome.title");
+        WelcomeDismissText.Text = Loc.T("ai.welcome.dismiss");
+        UpdateComposerPlaceholder(ComposerInput.Text);
+
+        // بطاقة مصروفة = صفوف لا يراها أحد؛ إعادة بنائها مع كلّ تغيّر لغة في كلّ تبويب عملٌ ضائع.
+        if (WelcomeCard.Visibility == Visibility.Visible) BuildWelcomeRows();
+    }
+
+    /// <summary>
+    /// يبدّل وضع الصندوق ويعكسه في الرمز والنصّ الإرشاديّ والمبدّل. <paramref name="persist"/>
+    /// معطَّل عند التهيئة كي لا تُكتب الإعدادات لمجرّد قراءتها.
+    /// </summary>
+    private void SetComposerAiMode(bool ai, bool persist = true)
+    {
+        _composerAiMode = ai;
+
+        // الإعداد المحفوظ = الوضع الابتدائيّ للتبويبات القادمة، لا مفتاح مشترك يقلب المفتوحة منها.
+        if (persist && _aiAppSettings is not null && _aiAppSettings.Ai.ComposerAiMode != ai)
+        {
+            _aiAppSettings.Ai.ComposerAiMode = ai;
+            _aiSaveSettings?.Invoke();
+        }
+
+        ComposerModeCmdBtn.IsChecked = !ai;
+        ComposerModeAiBtn.IsChecked = ai;
+        ComposerGlyph.Text = ai ? "✨" : "❯";
+        UpdateComposerPlaceholder(ComposerInput.Text);
+
+        // وضع الذكاء لا اقتراحات أوامر فيه — إخفاؤها فوراً كي لا تبقى قائمة أوامر معلّقة فوق سؤال.
+        if (ai) { HideSuggestions(); ClearGhost(); }
+    }
+
+    /// <summary>النصّ الإرشاديّ يظهر ما دام الصندوق فارغاً، ونصّه يتبع الوضع.</summary>
+    private void UpdateComposerPlaceholder(string text)
+    {
+        if (ComposerPlaceholder is null) return;
+        ComposerPlaceholder.Text = Loc.T(ComposerAiMode ? "ai.cmp.hintAi" : "ai.cmp.hintCommand");
+        ComposerPlaceholder.Visibility = text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ComposerModeCmd_Click(object sender, RoutedEventArgs e)
+    {
+        SetComposerAiMode(false);
+        ComposerInput.Focus();
+    }
+
+    private void ComposerModeAi_Click(object sender, RoutedEventArgs e)
+    {
+        SetComposerAiMode(true);
+        ComposerInput.Focus();
+    }
+
+    /// <summary>
+    /// يُرسل ما في الصندوق إلى المساعد بدل الصدفة، مرفقاً بسياق هذا التبويب: الصدفة ومجلد العمل
+    /// وآخر الأوامر. <b>مخرجات الشاشة لا تُرسَل</b> ما لم يفعّل المستخدم «إرسال سياق التبويب» —
+    /// «يعرف أين أنت» لا يستلزم تصدير ما على شاشتك.
+    /// </summary>
+    private void SubmitComposerToAi(string text)
+    {
+        string question = text.Trim();
+        if (question.Length == 0)
+        {
+            ComposerInput.Clear();
+            ClearGhost();
+            HideSuggestions();
+            return;
+        }
+
+        // الحارس قبل التفريغ لا بعده: خروجٌ مبكّر بعد Clear كان يمحو سؤالاً لم يُرسَل، بلا رسالة
+        // ولا طريقة لاسترجاعه.
+        if (_aiContext is null || _aiAppSettings is null) return;
+
+        ComposerInput.Clear();
+        ClearGhost();
+        HideSuggestions();
+
+        // الجلسة تُبنى وتُسجّل فيها المحادثة — بلا فتح اللوحة. من سأل من التيرمنال
+        // يتوقّع الجواب في التيرمنال، لا أن يُنقَل إلى شاشة أخرى.
+        EnsureAiPanel();
+
+        AiContextSnippet snippet = _aiAppSettings.Ai.AmbientContextEnabled
+            ? _aiContext.FromAmbient(_lastSnapshot, CurrentShellName(), WorkingDirectory)
+            : _aiContext.FromEnvironment(CurrentShellName(), WorkingDirectory, RecentCommandsForAi());
+
+        // المعاينة وحدها تفرض فتح اللوحة: الموافقة على ما سيُرسَل لا تصحّ في لوحة مخفيّة.
+        if (snippet.ForcePreview || _aiAppSettings.Ai.AlwaysPreview) SetAiPanelVisible(true);
+
+        _awaitingInlineReply = true;
+        AiInline.ShowThinking(question);
+        AiSidePanel.AskWithContext(question, snippet);
+    }
+
+    /// <summary>هل ننتظر ردّاً بدأ من صندوق الأوامر؟ (ردود اللوحة نفسها لا تخصّ الشريط.)</summary>
+    private bool _awaitingInlineReply;
+
+    /// <summary>
+    /// يعرض الردّ في الشريط ويقرّر مصير الأمر المستخرَج. ثلاث حالات لا يُنفّذ فيها شيء
+    /// تلقائيّاً: <b>أمر خطر</b> (مهما كان الإعداد)، أو <b>كتلة متعدّدة الأسطر</b> (سكربت لا أمر)،
+    /// أو <b>إطفاء التنفيذ التلقائيّ</b>.
+    /// </summary>
+    private void OnInlineReplyCompleted(AiReplyParts parts)
+    {
+        if (!_awaitingInlineReply) return;
+        _awaitingInlineReply = false;
+
+        AiInline.ShowAnswer(parts.Text);
+
+        (string first, bool multiLine) = FirstCommandLine(parts.Command);
+        string command = RiskyCommandDetector.SanitizeForInsert(first);
+        if (command.Length == 0) { AiInline.ShowNoCommand(); return; }
+
+        if (RiskyCommandDetector.IsRisky(command))
+        {
+            AiInline.ShowRisky(command, () => RunAiCommand(command), () => EditAiCommand(command));
+            return;
+        }
+
+        if (multiLine || _aiAppSettings?.Ai.AutoRunAiCommand != true)
+        {
+            AiInline.ShowSuggestion(command, () => RunAiCommand(command), () => EditAiCommand(command));
+            return;
+        }
+
+        RunAiCommand(command);
+        AiInline.ShowRan(command);
+    }
+
+    private void OnInlineReplyFailed(AiErrorView view)
+    {
+        if (!_awaitingInlineReply) return;
+        _awaitingInlineReply = false;
+
+        AiInline.ShowFailure(
+            view.Message,
+            view.Action == AiErrorAction.OpenSettings ? view.ActionLabel : null,
+            () => _aiOpenSettings?.Invoke());
+    }
+
+    /// <summary>
+    /// أوّل سطر أمر فعليّ من كتلة الكود (تُتخطّى الفوارغ والتعليقات)، مع علَم «الكتلة أطول
+    /// من سطر» — وهو وحده يكفي لمنع التنفيذ التلقائيّ.
+    /// </summary>
+    private static (string Line, bool MultiLine) FirstCommandLine(string block)
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        foreach (string raw in block.Split('\n'))
+        {
+            string line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith('#')) continue;
+            lines.Add(line);
+        }
+
+        return lines.Count == 0 ? ("", false) : (lines[0], lines.Count > 1);
+    }
+
+    /// <summary>
+    /// ينفّذ أمراً اقترحه المساعد في الصدفة مباشرةً. لا يمرّ بصندوق التأليف كي لا يبدّل وضعه
+    /// ولا يمسح ما كتبه المستخدم فيه بينما كان الردّ يصل.
+    /// </summary>
+    private void RunAiCommand(string command)
+    {
+        string safe = RiskyCommandDetector.SanitizeForInsert(command);
+        if (safe.Length == 0) return;
+
+        RecordHistory(safe);
+        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(safe);
+        Send(safe + _newline);
+        ClearInputTracking();
+        Renderer.ScrollOffset = 0;   // القفز للقاع كي تُرى المخرجات
+    }
+
+    /// <summary>يضع الأمر في الصندوق بوضع «أمر» ليراجعه المستخدم ويشغّله بنفسه.</summary>
+    private void EditAiCommand(string command)
+    {
+        SetComposerAiMode(false);
+        ComposerInput.Text = RiskyCommandDetector.SanitizeForInsert(command);
+        ComposerInput.CaretIndex = ComposerInput.Text.Length;
+        ComposerInput.Focus();
+    }
+
+    /// <summary>آخر ثمانية أوامر من الجلسة — تكفي ليعرف المساعد ما كنت تفعل بلا تصدير الشاشة.</summary>
+    private System.Collections.Generic.IReadOnlyList<string> RecentCommandsForAi()
+    {
+        const int max = 8;
+        int count = Math.Min(max, _sessionCommands.Count);
+        return count == 0
+            ? Array.Empty<string>()
+            : _sessionCommands.GetRange(_sessionCommands.Count - count, count);
+    }
+
+    // ===== بطاقة «جلسة تيرمنال جديدة» =====
+
+    /// <summary>
+    /// تظهر فوق الصندوق في التبويبات الجديدة حتى يصرفها المستخدم مرّة واحدة — ثمّ لا تعود أبداً.
+    /// الاختصارات مكتوبة لا مخفيّة: مبدّل الوضع بلا دليل على وجوده ميزةٌ لا يجدها أحد.
+    /// </summary>
+    private void ShowWelcomeCardIfNeeded()
+    {
+        if (_aiAppSettings is null || _aiAppSettings.Ai.WelcomeCardDismissed) return;
+        BuildWelcomeRows();
+        WelcomeCard.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// «لا تُظهر ثانيةً» قرار عامّ لا قرار تبويب: الإعداد مشترك، أمّا البطاقة فعنصر في كلّ تبويب
+    /// على حدة — فبلا بثّ تبقى معلّقة في بقيّة التبويبات المفتوحة ويصرفها المستخدم مرّةً لكلّ منها.
+    /// </summary>
+    private static event Action? WelcomeDismissedGlobally;
+
+    private void HideWelcomeCard() => WelcomeCard.Visibility = Visibility.Collapsed;
+
+    private void WelcomeDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiAppSettings is not null)
+        {
+            _aiAppSettings.Ai.WelcomeCardDismissed = true;
+            _aiSaveSettings?.Invoke();
+        }
+
+        WelcomeDismissedGlobally?.Invoke();   // يشمل هذا التبويب أيضاً — فهو مشترك في الحدث
+    }
+
+    /// <summary>يبني صفوف الاختصارات (حبّة مفتاح + وصف) — تُعاد مع كلّ تغيّر لغة.</summary>
+    private void BuildWelcomeRows()
+    {
+        if (WelcomeRows is null) return;
+
+        WelcomeRows.Children.Clear();
+        WelcomeRows.Children.Add(WelcomeRow("Ctrl+I", Loc.T("ai.welcome.aiMode")));
+        WelcomeRows.Children.Add(WelcomeRow("↑ ↓", Loc.T("ai.welcome.history")));
+        WelcomeRows.Children.Add(WelcomeRow("Tab", Loc.T("ai.welcome.complete")));
+        WelcomeRows.Children.Add(WelcomeRow("Ctrl+F", Loc.T("ai.welcome.search")));
+    }
+
+    private static UIElement WelcomeRow(string keys, string description)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 7) };
+
+        var cap = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 2, 8, 3),
+            MinWidth = 58,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        cap.SetResourceReference(Border.BackgroundProperty, "Brush.KeyCap");
+
+        // أحجام النصّ من موارد التطبيق لا أرقاماً ثابتة — فتتبع منزلق «حجم نصّ الواجهة» حيّاً.
+        var keyText = new TextBlock
+        {
+            Text = keys,
+            TextAlignment = TextAlignment.Center,
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas"),
+        };
+        keyText.SetResourceReference(TextBlock.FontSizeProperty, "Size.Small");
+        keyText.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Text");
+        cap.Child = keyText;
+
+        var desc = new TextBlock
+        {
+            Text = description,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        desc.SetResourceReference(TextBlock.FontSizeProperty, "Size.Ui");
+        desc.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextMuted");
+
+        row.Children.Add(cap);
+        row.Children.Add(desc);
+        return row;
     }
 }

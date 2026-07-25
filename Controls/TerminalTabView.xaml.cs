@@ -20,7 +20,7 @@ public partial class TerminalTabView : UserControl
 {
     private const double MinFontSize = 8;
     private const double MaxFontSize = 32;
-    private const double DefaultFontSize = 13;
+    private const double DefaultFontSize = 14;
 
     private readonly CommandEntry _entry;
     private readonly Action _persist;
@@ -175,6 +175,7 @@ public partial class TerminalTabView : UserControl
         _fontSize = Math.Clamp(fontSize, MinFontSize, MaxFontSize);
         Renderer.TerminalFontSize = _fontSize;
         Renderer.TerminalFontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas");
+        ApplyComposerFontSize();
 
         // شبكة أمان فقط: الرسم الفعليّ صار فوريّاً عبر MarkDirty/RequestFlush عند وصول البيانات.
         // يبقى المؤقّت ليلتقط أيّ تعليمٍ للاتّساخ لم يُرافقه طلبُ رسم (فلا تتجمّد الشاشة أبداً).
@@ -671,6 +672,12 @@ public partial class TerminalTabView : UserControl
         _histIndex = -1;   // الكتابة تُنهي تنقّل التاريخ
         if (ComposerInput.IsKeyboardFocusWithin) { ShowComposerCaret(true); PositionComposerCaret(); }
         string text = ComposerInput.Text;
+        UpdateComposerPlaceholder(text);
+
+        // وضع الذكاء: الطلب جملة لا أمر — لا اقتراحات ولا إكمال شبحيّ.
+        // ClearGhost لا SetGhost(null,…): الثانية تُخفي الطبقة فقط وتُبقي _ghostSuggestion — وهو
+        // ما يقرأه معالج Tab، فيلصق أمراً قديماً فوق سؤال المستخدم.
+        if (ComposerAiMode) { HideSuggestions(); ClearGhost(); return; }
 
         // متعدّد الأسطر ⇒ لا اقتراحات (نصّ مركّب) — نُخفيها ونمسح الشبح.
         if (text.Contains('\n') || text.Length == 0)
@@ -1249,6 +1256,14 @@ public partial class TerminalTabView : UserControl
         bool shift = (mods & ModifierKeys.Shift) != 0;
         bool suggesting = SuggestPanel.Visibility == Visibility.Visible && SuggestList.Items.Count > 0;
 
+        // Ctrl+I: تبديل وضع الصندوق (أمر ⇄ ذكاء) بلا مغادرة لوحة المفاتيح.
+        if (ctrl && e.Key == Key.I)
+        {
+            SetComposerAiMode(!ComposerAiMode);
+            e.Handled = true;
+            return;
+        }
+
         switch (e.Key)
         {
             // Tab / السهم الأيمن عند النهاية: يقبل الشبح (الاقتراح الأعلى) — نمط Warp.
@@ -1380,6 +1395,10 @@ public partial class TerminalTabView : UserControl
     private void SubmitComposer()
     {
         string text = ComposerInput.Text;
+
+        // وضع الذكاء: ما يُكتب سؤال للمساعد لا أمر للصدفة — يُوجّه قبل أيّ تعامل مع الـPTY.
+        if (ComposerAiMode) { SubmitComposerToAi(text); return; }
+
         ComposerInput.Clear();
         ClearGhost();
         HideSuggestions();
@@ -2840,8 +2859,30 @@ public partial class TerminalTabView : UserControl
     {
         _fontSize = size;
         Renderer.TerminalFontSize = size;
+        ApplyComposerFontSize();
         MarkDirty();          // يعيد الرسم من نموذج الشاشة
         ResizeSession();         // الأعمدة/الأسطر تتبع حجم الخط
+    }
+
+    /// <summary>
+    /// حجم نصّ صندوق التأليف يتبع حجم خطّ التيرمنال مع زيادة طفيفة: ما تكتبه وما يظهر في
+    /// الشبكة نصّ واحد، فاختلاف حجميهما يجعل الصندوق يبدو دخيلاً على التيرمنال. وبهذا يكبر
+    /// الصندوق مع Ctrl+عجلة أيضاً بدل أن يبقى صغيراً ثابتاً.
+    /// الزيادة مقصودة: سطر الإدخال هو ما تقرأه وتحرّره فعلاً، فيستحقّ وضوحاً أعلى من المخرجات.
+    /// </summary>
+    private void ApplyComposerFontSize()
+    {
+        double size = Math.Clamp(_fontSize + 3, 11, MaxFontSize);
+
+        ComposerInput.FontSize = size;
+        ComposerPlaceholder.FontSize = size;
+        ComposerGhost.FontSize = size;
+        ComposerGlyph.FontSize = size + 1;
+        ComposerCwd.FontSize = Math.Max(11, size - 2.5);
+
+        // ارتفاع أدنى يتنفّس مع الخطّ — وإلّا التصق النصّ بالحوافّ عند التكبير.
+        ComposerInput.MinHeight = Math.Round(size * 2.1);
+        ComposerCaret.Height = Math.Round(size * 1.25);
     }
 
     // ===== البحث في المخرجات (Ctrl+F) — على اللقطة =====
@@ -3096,6 +3137,7 @@ public partial class TerminalTabView : UserControl
         _refresh.Stop();
         _statusTimer.Stop();
         _blinkTimer.Stop();
+        ShutDownAi();   // يُلغي البثّ ويفكّ اشتراكات الأحداث الساكنة — وإلّا بقي التبويب في الذاكرة
         _coreSession?.Dispose();
         _coreSession = null;
         if (deleteHistory)

@@ -67,16 +67,44 @@ public partial class AiPanel : UserControl
         _saveConversation = saveConversation;
         _openSettings = () => SettingsRequested?.Invoke();
 
+        RebuildSession();
+
+        RefreshOrigin();
+        ShowFirstRunCardIfNeeded();
+    }
+
+    /// <summary>
+    /// يستبدل جلسة المحادثة بأخرى ببادئة نظام محدَّثة ويعيد ربط أحداثها — نقطة واحدة كي لا ينسى
+    /// مسارٌ ربطَ حدثٍ ربطه غيرُه.
+    /// </summary>
+    private void RebuildSession()
+    {
         _session?.Dispose();
         _session = new AiChatSession(BuildSystemPrompt());
         _session.Updated += OnReplyUpdated;
         _session.Failed += ShowError;
         _session.Completed += UpdateTokenCounter;
         _session.Completed += PersistConversation;
-
-        RefreshOrigin();
-        ShowFirstRunCardIfNeeded();
+        _session.Completed += RaiseReplyCompleted;
+        _session.Failed += RaiseReplyFailed;
     }
+
+    /// <summary>
+    /// يُطلَق عند اكتمال ردّ، حاملاً الردّ مقسوماً (نصّ + أوّل أمر). يستعمله وضع الذكاء في
+    /// صندوق الأوامر ليعرض النتيجة داخل التيرمنال بدل نقل المستخدم إلى هذه اللوحة.
+    /// </summary>
+    public event Action<AiReplyParts>? ReplyCompleted;
+
+    /// <summary>يُطلَق عند فشل ردّ — بنفس الرسالة والإجراء المعروضين داخل اللوحة.</summary>
+    public event Action<AiErrorView>? ReplyFailed;
+
+    private void RaiseReplyCompleted()
+    {
+        if (_session is null) return;
+        ReplyCompleted?.Invoke(_session.Reply.Split());
+    }
+
+    private void RaiseReplyFailed(AiErrorView view) => ReplyFailed?.Invoke(view);
 
     /// <summary>
     /// البادئة الثابتة للبرومبت: التعليمات ثمّ «ملفّ معرفة المستخدم». تُوضَع أوّلاً عمداً كي
@@ -98,8 +126,24 @@ public partial class AiPanel : UserControl
         AiProfile profile = _profile?.Invoke() ?? AiProfile.Empty;
         if (profile.HasContent) sb.Append("\n\n").Append(profile.Text);
 
+        // تعليمات المستخدم الخاصّة: بعد الملفّ وقبل أيّ سياق متغيّر — فتبقى البادئة كلّها ثابتة
+        // وقابلة للتخزين المؤقّت عند المزوّدين الذين يدعمونه.
+        string extra = _settings?.SystemPromptExtra?.Trim() ?? "";
+        if (extra.Length > 0) sb.Append("\n\n").Append(extra);
+
         return sb.ToString();
     }
+
+    /// <summary>
+    /// خيارات النداء مبنيّة من الإعدادات — نقطة واحدة كي لا ينحرف مسار إرسال عن آخر.
+    /// <c>MaxTokens = 0</c> يعني «اترك القرار للمزوّد» فلا يُرسَل الحقل أصلاً.
+    /// </summary>
+    private AiChatOptions ChatOptions() => new()
+    {
+        Model = AiProviderFactory.ResolveModel(_settings!),
+        Temperature = _settings!.Temperature,
+        MaxTokens = _settings.MaxTokens > 0 ? _settings.MaxTokens : null,
+    };
 
     // ===== الإرسال مع سياق =====
 
@@ -263,7 +307,7 @@ public partial class AiPanel : UserControl
         AppendUserBubble(displayText);
 
         _replyViews.Clear();
-        _session.Send(provider, payload, new AiChatOptions { Model = AiProviderFactory.ResolveModel(_settings) });
+        _session.Send(provider, payload, ChatOptions());
         SendBtn.Content = Loc.T("ai.panel.stop");
         ScrollToEnd();
     }
@@ -381,14 +425,19 @@ public partial class AiPanel : UserControl
         AppendUserBubble(text);
 
         _replyViews.Clear();
-        _session.Send(provider, text, new AiChatOptions { Model = AiProviderFactory.ResolveModel(_settings) });
+        _session.Send(provider, text, ChatOptions());
         SendBtn.Content = Loc.T("ai.panel.stop");
         ScrollToEnd();
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
-        _session?.Clear();
+        // إعادة بناء الجلسة لا مسحها فحسب: بادئة النظام (ومنها «التعليمات المخصّصة») تُبنى عند
+        // الإنشاء، فمسح المحادثة هو المكان الطبيعيّ لالتقاط ما غيّره المستخدم في الإعدادات.
+        // RebuildSession وحدها لا Configure كاملةً: الأخيرة تعيد أيضاً ربط المندوبين وبناء بطاقة
+        // أوّل التشغيل — فكانت البطاقة تُبنى ثمّ تُمحى بعد سطرين ثمّ تُبنى ثالثةً.
+        if (_settings is not null) RebuildSession();
+        else _session?.Clear();
         MessageHost.Children.Clear();
         _replyViews.Clear();
         HideError();

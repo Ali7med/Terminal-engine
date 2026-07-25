@@ -35,22 +35,29 @@ public partial class AiMemoryWindow : Window
     /// <summary>صفّ اقتراح معروض.</summary>
     public sealed record SuggestionRow(string Payload, string Kind, string VerdictText);
 
+    /// <summary>صفّ محادثة محفوظة — يحمل نصّها معه ليُعرَض بلا قراءة قرص ثانية عند كلّ اختيار.</summary>
+    public sealed record ChatRow(
+        string Id, string When, string Title, string Transcript, string DeleteLabel);
+
     private readonly AiKnowledgeStore _store;
     private readonly AppSettings _settings;
     private readonly Action _saveSettings;
     private readonly Func<string> _profileText;
     private readonly Action? _onClearExtra;
+    private readonly Services.Ai.ConversationStore? _conversations;
     private bool _syncing;
 
     private AiMemoryWindow(
         AiKnowledgeStore store, AppSettings settings, Action saveSettings,
-        Func<string> profileText, Action? onClearExtra)
+        Func<string> profileText, Action? onClearExtra,
+        Services.Ai.ConversationStore? conversations)
     {
         _store = store;
         _settings = settings;
         _saveSettings = saveSettings;
         _profileText = profileText;
         _onClearExtra = onClearExtra;
+        _conversations = conversations;
 
         InitializeComponent();
         ApplyLanguage();
@@ -66,12 +73,33 @@ public partial class AiMemoryWindow : Window
     /// محاكاة موازية تنحرف عمّا يصل المزوّد فعلاً.
     /// </param>
     /// <param name="onClearExtra">تنظيف إضافيّ عند «مسح كل شيء» (المحادثات المحفوظة).</param>
+    /// <param name="conversations">مخزن المحادثات المحفوظة (null = لا تبويب محادثات).</param>
     public static void ShowFor(
         Window? owner, AiKnowledgeStore store, AppSettings settings, Action saveSettings,
-        Func<string> profileText, Action? onClearExtra = null)
+        Func<string> profileText, Action? onClearExtra = null,
+        Services.Ai.ConversationStore? conversations = null)
     {
-        var window = new AiMemoryWindow(store, settings, saveSettings, profileText, onClearExtra) { Owner = owner };
+        var window = new AiMemoryWindow(store, settings, saveSettings, profileText, onClearExtra, conversations)
+        { Owner = owner };
         window.ShowDialog();
+    }
+
+    /// <summary>صفوف المحادثات المحفوظة (الأحدث أوّلاً)، أو فارغ إن لا مخزن.</summary>
+    private List<ChatRow> ReadConversations()
+    {
+        if (_conversations is null) return new List<ChatRow>();
+
+        string delete = Loc.T("ai.mem.delete");
+        return SafeRead(
+            () => _conversations.All()
+                .Select(c => new ChatRow(
+                    c.Id,
+                    c.SavedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+                    c.Title,
+                    c.Transcript,
+                    delete))
+                .ToList(),
+            new List<ChatRow>());
     }
 
     private void ApplyLanguage()
@@ -96,6 +124,10 @@ public partial class AiMemoryWindow : Window
         ColSuggestion.Header = Loc.T("ai.mem.colSuggestion");
         ColKind.Header = Loc.T("ai.mem.colKind");
         ColVerdict.Header = Loc.T("ai.mem.colVerdict");
+        TabChats.Content = Loc.T("ai.mem.tabChats");
+        ColChatDate.Header = Loc.T("ai.mem.colChatDate");
+        ColChatTitle.Header = Loc.T("ai.mem.colChatTitle");
+        ColChatActions.Header = Loc.T("ai.mem.colActions");
 
         LearningCheck.Content = Loc.T("ai.set.learning");
         ClearAllBtn.Content = Loc.T("ai.mem.clearAll");
@@ -116,6 +148,7 @@ public partial class AiMemoryWindow : Window
         CommandsList.ItemsSource = commands.Select(ToRow).ToList();
         ErrorsList.ItemsSource = SafeRead(ReadErrors, new List<ErrorRow>());
         SuggestionsList.ItemsSource = SafeRead(ReadSuggestions, new List<SuggestionRow>());
+        ChatsList.ItemsSource = ReadConversations();
 
         string profile = SafeRead(_profileText, "");
         ProfileBox.Text = profile.Length > 0 ? profile : Loc.T("ai.mem.profileEmpty");
@@ -191,6 +224,16 @@ public partial class AiMemoryWindow : Window
             return;
         }
 
+        // المحادثات: الفراغ هنا له سببان مختلفان — «الحفظ معطّل» أو «مفعّل ولا محادثات بعد».
+        // عرضهما برسالة واحدة يترك المستخدم يظنّ أنّ محادثاته ضاعت.
+        if (TabChats.IsChecked == true)
+        {
+            bool saving = _settings.Ai.SaveConversations;
+            EmptyText.Text = saving ? Loc.T("ai.mem.chatsEmpty") : Loc.T("ai.mem.chatsOff");
+            EmptyText.Visibility = ChatsList.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+
         int count = ActiveList() switch
         {
             var list when list == CommandsList => CommandsList.Items.Count,
@@ -205,6 +248,7 @@ public partial class AiMemoryWindow : Window
     private ListView ActiveList()
         => TabErrors.IsChecked == true ? ErrorsList
          : TabSuggestions.IsChecked == true ? SuggestionsList
+         : TabChats.IsChecked == true ? ChatsList
          : CommandsList;
 
     private void Tab_Click(object sender, RoutedEventArgs e)
@@ -215,13 +259,30 @@ public partial class AiMemoryWindow : Window
         TabErrors.IsChecked = tag == "errors";
         TabSuggestions.IsChecked = tag == "suggestions";
         TabProfile.IsChecked = tag == "profile";
+        TabChats.IsChecked = tag == "chats";
 
         CommandsList.Visibility = tag == "commands" ? Visibility.Visible : Visibility.Collapsed;
         ErrorsList.Visibility = tag == "errors" ? Visibility.Visible : Visibility.Collapsed;
         SuggestionsList.Visibility = tag == "suggestions" ? Visibility.Visible : Visibility.Collapsed;
         ProfileBox.Visibility = tag == "profile" ? Visibility.Visible : Visibility.Collapsed;
+        ChatsPane.Visibility = tag == "chats" ? Visibility.Visible : Visibility.Collapsed;
 
         UpdateEmptyState();
+    }
+
+    /// <summary>اختيار محادثة يعرض نصّها المُنقّح كما حُفِظ على القرص — لا إعادة صياغة له.</summary>
+    private void Chats_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ChatBox.Text = ChatsList.SelectedItem is ChatRow row ? row.Transcript : "";
+    }
+
+    private void ChatDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string id } || _conversations is null) return;
+
+        _conversations.Delete(id);
+        ChatBox.Text = "";
+        Reload();
     }
 
     private void Pin_Click(object sender, RoutedEventArgs e) => Toggle(sender, pin: true);

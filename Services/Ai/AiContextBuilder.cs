@@ -98,6 +98,22 @@ public sealed class AiContextBuilder
         return Build(AiContextKind.Ambient, text, shell, cwd, exitCode: null, command: null);
     }
 
+    /// <summary>
+    /// سياق «المكان» وحده: الصدفة ومجلد العمل وآخر الأوامر — <b>بلا مخرجات الشاشة</b>. هذا ما
+    /// يُرفَق بطلبات وضع الذكاء في صندوق الأوامر افتراضاً: يكفي كي يعرف المساعد أين هو وبمَ تعمل،
+    /// ولا يُصدِّر ما يعرضه التيرمنال. الأوامر تمرّ بالمُنقّح كغيرها — سطر أمر قد يحمل رمزاً.
+    /// </summary>
+    public AiContextSnippet FromEnvironment(string? shell, string? cwd, IReadOnlyList<string>? recentCommands)
+    {
+        var sb = new StringBuilder();
+        if (recentCommands is { Count: > 0 })
+        {
+            sb.Append("recent commands:\n");
+            foreach (string command in recentCommands) sb.Append("  ").Append(command).Append('\n');
+        }
+        return Build(AiContextKind.Ambient, sb.ToString().TrimEnd(), shell, cwd, exitCode: null, command: null);
+    }
+
     /// <summary>هل توجد كتلة فاشلة يمكن الشرح عنها الآن؟ (لتفعيل/تعطيل الأزرار.)</summary>
     public static bool HasFailedCommand(ScreenSnapshot? snapshot) => LastFailedBlock(snapshot) is not null;
 

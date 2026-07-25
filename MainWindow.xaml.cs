@@ -223,6 +223,15 @@ public partial class MainWindow : Window
         MenuSizeValue.Text = FontManager.Current.MenuSize.ToString("0.#");
         TableSizeSlider.Value = FontManager.Current.TableSize;
         TableSizeValue.Text = FontManager.Current.TableSize.ToString("0.#");
+        TitleSizeSlider.Value = FontManager.Current.TitleSize;
+        TitleSizeValue.Text = FontManager.Current.TitleSize.ToString("0.#");
+        // النصّ الثانويّ: 0 = تلقائيّ، فيُعرض المنزلق على القيمة المشتقّة معطّلاً (يرى المستخدم ما سيحصل عليه).
+        bool smallAuto = FontManager.Current.SmallSize <= 0;
+        double smallShown = smallAuto ? Math.Max(8, FontManager.Current.UiSize - 2) : FontManager.Current.SmallSize;
+        SmallAutoCheck.IsChecked = smallAuto;
+        SmallSizeSlider.IsEnabled = !smallAuto;
+        SmallSizeSlider.Value = smallShown;
+        SmallSizeValue.Text = smallShown.ToString("0.#");
         RadiusSlider.Value = FontManager.Current.CornerRadius;
         RadiusValue.Text = FontManager.Current.CornerRadius.ToString("0.#");
         FontJsonPathText.Text = FontManager.ConfigPath;
@@ -691,6 +700,77 @@ public partial class MainWindow : Window
         CommitFont(s => s.CornerRadius = e.NewValue);
     }
 
+    private void TitleSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TitleSizeValue != null) TitleSizeValue.Text = e.NewValue.ToString("0.#");
+        CommitFont(s => s.TitleSize = e.NewValue);
+    }
+
+    private void SmallSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (SmallSizeValue != null) SmallSizeValue.Text = e.NewValue.ToString("0.#");
+        // مع التلقائيّ المنزلق معطّل، وأيّ تغيّر هنا يأتي من مزامنة اللوحة لا من المستخدم.
+        if (SmallAutoCheck?.IsChecked == true) return;
+        CommitFont(s => s.SmallSize = e.NewValue);
+    }
+
+    /// <summary>«تلقائيّ» يكتب صفراً (= اشتقاق من حجم نصّ الواجهة)، وإطفاؤه يُثبّت القيمة الظاهرة في المنزلق.</summary>
+    private void SmallAutoCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+        bool auto = SmallAutoCheck.IsChecked == true;
+        SmallSizeSlider.IsEnabled = !auto;
+        CommitFont(s => s.SmallSize = auto ? 0 : SmallSizeSlider.Value);
+        if (auto)
+        {
+            double derived = Math.Max(8, FontManager.Current.UiSize - 2);
+            _syncingUi = true;
+            SmallSizeSlider.Value = derived;
+            SmallSizeValue.Text = derived.ToString("0.#");
+            _syncingUi = false;
+        }
+    }
+
+    // ===== منتقي الخطوط المثبّتة =====
+
+    /// <summary>
+    /// يملأ قائمتي الخطوط عند أوّل فتح للمنسدلة لا عند الإقلاع: تعداد خطوط النظام
+    /// (مئات العائلات) يأخذ أجزاء من الثانية — وزمن بدء التطبيق ليس مكانه. القائمة تُبنى مرّة واحدة.
+    /// </summary>
+    private void FontFamilyPicker_DropDownOpened(object? sender, EventArgs e)
+    {
+        if (sender is not ComboBox combo || combo.ItemsSource != null) return;
+
+        _installedFonts ??= System.Windows.Media.Fonts.SystemFontFamilies
+            .Select(f => f.Source)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        // النصّ المكتوب يُمسح حين تُسنَد ItemsSource، فنُعيده بعدها (وإلّا ضاع اختيار المستخدم بمجرّد فتح القائمة).
+        string current = combo.Text;
+        bool syncing = _syncingUi;
+        _syncingUi = true;
+        combo.ItemsSource = _installedFonts;
+        combo.Text = current;
+        _syncingUi = syncing;
+    }
+
+    private List<string>? _installedFonts;
+
+    private void FontUiFamily_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingUi || FontUiFamilyBox.SelectedItem is not string family) return;
+        CommitFont(s => s.UiFont = family);
+    }
+
+    private void FontMonoFamily_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingUi || FontMonoFamilyBox.SelectedItem is not string family) return;
+        CommitFont(s => s.MonoFont = family);
+    }
+
     private void FontUiFamily_LostFocus(object sender, RoutedEventArgs e)
         => CommitFont(s => s.UiFont = FontUiFamilyBox.Text?.Trim() ?? "");
     private void FontUiFamily_KeyDown(object sender, KeyEventArgs e)
@@ -1105,6 +1185,9 @@ public partial class MainWindow : Window
 
     private void ToggleSettings(bool open)
     {
+        // الإغلاق قد يقع بلا نقل تركيز (Esc · نقرة على الحجاب)، فحقول LostFocus لا تُثبَّت وحدها.
+        if (!open) CommitAiPrompt();
+
         _settingsOpen = open;
         var duration = TimeSpan.FromMilliseconds(180);
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };

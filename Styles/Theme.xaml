@@ -70,6 +70,92 @@
         </Setter>
     </Style>
 
+    <!-- زرّ سهم المنسدلة: يُستعمَل في الوضع القابل للتحرير حيث لا يغطّي سطحُ النقر الصندوقَ كلّه
+         (وإلّا ابتلع النقرَ قبل أن يصل حقلَ الكتابة). له ContentPresenter بعكس ComboToggle. -->
+    <Style x:Key="ComboArrowToggle" TargetType="ToggleButton">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="Transparent" Padding="8,0,2,0">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- حقل الكتابة داخل ComboBox قابل للتحرير: بلا كروم — الصندوق الخارجيّ يرسم الحدّ والخلفيّة.
+         بلا هذا النمط يرث الحقلُ نمطَ TextBox الضمنيّ فيظهر صندوق داخل صندوق. -->
+    <Style x:Key="ComboEditableText" TargetType="TextBox">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource Brush.Accent}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Accent}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="IBeam"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Hidden"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- شريط تمرير نحيل لمنسدلة الـComboBox. محلّيّ لأنّ ThemedScrollBar معرَّف في App.xaml
+         *بعد* دمج هذا الملفّ، فلا يراه StaticResource من هنا. -->
+    <Style x:Key="ComboScroll" TargetType="ScrollBar">
+        <Setter Property="Width" Value="9"/>
+        <Setter Property="MinWidth" Value="9"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="Th" CornerRadius="4" Margin="2,0"
+                                                    Background="{DynamicResource Brush.Border}"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Th" Property="Background"
+                                                            Value="{DynamicResource Brush.Accent}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ComboBox: يدعم الوضعين — العرض فقط، والقابل للتحرير (IsEditable) الذي يحتاج
+         PART_EditableTextBox بهذا الاسم حرفيّاً كي يربطه WPF بالنصّ. بدونه لا يُكتب في الصندوق
+         ولا يظهر المختار أصلاً — وهو سبب «قائمة النماذج لا تختار». -->
     <Style TargetType="ComboBox">
         <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
         <Setter Property="Background" Value="{DynamicResource Brush.Surface2}"/>
@@ -82,6 +168,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid>
+                        <!-- سطح نقر يغطّي الصندوق كلّه — للوضع غير القابل للتحرير فقط؛ في الوضع
+                             القابل للتحرير يعلوه الحدُّ الملتقِط للنقر فلا يصله شيء. -->
                         <ToggleButton Style="{StaticResource ComboToggle}"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
                         <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}"
@@ -94,12 +182,19 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
+                                <ContentPresenter x:Name="SelectionBox"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                                   VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="&#xE70D;" FontFamily="Segoe MDL2 Assets"
-                                           FontSize="8" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource Brush.TextMuted}" Margin="6,0,0,0"/>
+                                <TextBox x:Name="PART_EditableTextBox" Visibility="Collapsed"
+                                         Style="{StaticResource ComboEditableText}"
+                                         IsReadOnly="{TemplateBinding IsReadOnly}"/>
+                                <ToggleButton x:Name="Arrow" Grid.Column="1"
+                                              Style="{StaticResource ComboArrowToggle}"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="8"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                </ToggleButton>
                             </Grid>
                         </Border>
                         <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
@@ -108,12 +203,31 @@
                                     Background="{DynamicResource Brush.Surface}"
                                     BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
                                     MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
-                                <ItemsPresenter/>
+                                <!-- ارتفاع محدود: قائمة نماذج المزوّد قد تبلغ مئات العناصر، وبلا
+                                     ScrollViewer تمتدّ المنسدلة خارج الشاشة (MaxDropDownHeight يُهمَل). -->
+                                <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ScrollViewer.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ComboScroll}"/>
+                                    </ScrollViewer.Resources>
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <!-- الوضع القابل للتحرير: حقل الكتابة بدل صندوق العرض، والحدّ يلتقط النقر
+                             كي يصل إلى الحقل والسهم. -->
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="SelectionBox" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="bd" Property="IsHitTestVisible" Value="True"/>
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -428,6 +542,42 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- حقل نصّ متعدّد الأسطر: كالضمنيّ لكنّ مضيف المحتوى ممتدّ لا موسَّط عموديّاً — التوسيط يجعل
+         النصّ الطويل يفيض خارج الحدّ بدل أن يمرّر داخله. -->
+    <Style x:Key="MultilineTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="AcceptsReturn" Value="True"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="VerticalContentAlignment" Value="Top"/>
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <!-- الأفقيّ معطَّل صراحةً: النصّ ملتفّ فلا حاجة إليه، وComboScroll المستعار أدناه نمطُ
+             شريطٍ رأسيّ (عرض ثابت 9 ومسار معكوس) فيظهر أفقيّاً شريحةً مقلوبة الاتّجاه. -->
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ComboScroll}"/>
+                            </ScrollViewer.Resources>
+                        </ScrollViewer>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">

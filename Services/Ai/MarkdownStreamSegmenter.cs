@@ -33,6 +33,11 @@ public sealed class AiSegment
     }
 }
 
+/// <summary>ردّ مكتمل مقسوماً إلى ما يُقرأ وما يُنفَّذ.</summary>
+/// <param name="Text">نصّ الردّ بلا كتل الكود.</param>
+/// <param name="Command">أوّل كتلة كود كما وردت (قد تكون متعدّدة الأسطر)، أو فارغة.</param>
+public readonly record struct AiReplyParts(string Text, string Command);
+
 /// <summary>
 /// ماسح تزايديّ يقسّم ردّ البثّ إلى مقاطع نصّ وكتل كود مسيَّجة (```).
 ///
@@ -126,6 +131,34 @@ public sealed class MarkdownStreamSegmenter
         }
         sb.Append(_pending);
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// يقسم الردّ إلى <b>ما يُقرأ وما يُنفَّذ</b>: النصّ بلا كتل الكود، وأوّل كتلة كود كما وردت.
+    /// يستعمله شريط النتيجة داخل التيرمنال حيث لا مساحة لعرض ردّ كامل — والأمر هناك ليس مقتطفاً
+    /// للعرض بل شيئاً سيُنفَّذ، فيجب أن يُستخرَج من بنية الردّ لا بتخمين نصّيّ.
+    /// </summary>
+    public AiReplyParts Split()
+    {
+        var text = new StringBuilder();
+        string command = "";
+
+        foreach (AiSegment segment in _segments)
+        {
+            if (segment.Kind == AiSegmentKind.Code)
+            {
+                if (command.Length == 0) command = segment.Text.ToString().Trim();
+                continue;
+            }
+
+            string part = segment.Text.ToString().Trim();
+            if (part.Length == 0) continue;
+
+            if (text.Length > 0) text.Append('\n');
+            text.Append(part);
+        }
+
+        return new AiReplyParts(text.ToString(), command);
     }
 
     private void ConsumeLine(string line)

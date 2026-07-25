@@ -63,7 +63,7 @@ public sealed class AppSettings
     public string BackgroundValue { get; set; } = "depth-cozy";
 
     /// <summary>حجم خطّ التيرمنال (يُغيَّر بـ Ctrl +/-؛ يبقى بين التشغيلات).</summary>
-    public double TerminalFontSize { get; set; } = 13;
+    public double TerminalFontSize { get; set; } = 14;
 
     /// <summary>نوع خطّ التيرمنال (أحاديّ المسافة). اسم واحد؛ يُضاف Consolas احتياطياً عند التطبيق.</summary>
     public string FontFamily { get; set; } = "Cascadia Mono";

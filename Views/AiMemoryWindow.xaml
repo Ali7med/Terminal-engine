@@ -40,6 +40,8 @@
                           Click="Tab_Click" Tag="suggestions"/>
             <ToggleButton x:Name="TabProfile" Style="{StaticResource SegToggle}"
                           Click="Tab_Click" Tag="profile"/>
+            <ToggleButton x:Name="TabChats" Style="{StaticResource SegToggle}"
+                          Click="Tab_Click" Tag="chats"/>
         </StackPanel>
 
         <Border Grid.Row="2" Background="{DynamicResource Brush.Surface}"
@@ -144,6 +146,48 @@
                          VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"
                          FontFamily="Cascadia Mono, Consolas" FontSize="11"
                          Foreground="{DynamicResource Brush.Text}"/>
+
+                <!-- المحادثات المحفوظة: القائمة فوق ونصّ المحادثة المختارة تحتها — فالقائمة وحدها
+                     تجعل قراءة محادثة تستلزم نافذة أخرى. -->
+                <Grid x:Name="ChatsPane" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="190"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <ListView x:Name="ChatsList" BorderThickness="0" Background="Transparent"
+                              SelectionChanged="Chats_SelectionChanged">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn x:Name="ColChatDate" Width="150"
+                                                DisplayMemberBinding="{Binding When}"/>
+                                <GridViewColumn x:Name="ColChatTitle" Width="430">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Title}" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="ColChatActions" Width="90">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding DeleteLabel}" FontSize="10" Padding="6,2"
+                                                    Tag="{Binding Id}" Click="ChatDelete_Click"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                    <Border Grid.Row="1" Height="1" Background="{DynamicResource Brush.Border}"/>
+                    <TextBox Grid.Row="2" x:Name="ChatBox" IsReadOnly="True"
+                             BorderThickness="0" Background="Transparent" Padding="10"
+                             TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"
+                             FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                             Foreground="{DynamicResource Brush.Text}"/>
+                </Grid>
 
                 <!-- حالة فارغة: تشرح ما سيتعلّمه التطبيق بدل لوحة بيضاء صامتة -->
                 <TextBlock x:Name="EmptyText" Visibility="Collapsed"

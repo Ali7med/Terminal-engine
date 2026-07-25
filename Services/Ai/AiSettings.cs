@@ -56,4 +56,36 @@ public sealed class AiSettings
     /// تمرّ كلّ محادثة عبر مُنقّح الأسرار قبل الكتابة.
     /// </summary>
     public bool SaveConversations { get; set; } = false;
+
+    /// <summary>
+    /// درجة العشوائيّة المُرسَلة مع كلّ نداء. الافتراضيّ منخفض عمداً: مساعد تيرمنال يُقاس بدقّة
+    /// أوامره لا بتنوّعها، وقيمة عالية تنتج صياغات أوامر مبتكَرة وخاطئة.
+    /// </summary>
+    public double Temperature { get; set; } = 0.3;
+
+    /// <summary>سقف توكنز الردّ. <c>0</c> = اترك القرار للمزوّد (لا نُرسل الحقل أصلاً).</summary>
+    public int MaxTokens { get; set; } = 0;
+
+    /// <summary>
+    /// تعليمات المستخدم الخاصّة، تُضاف إلى بادئة النظام في كلّ محادثة (مثل «استعمل pwsh دائماً»
+    /// أو «اشرح مختصراً»). فارغ = بلا إضافة.
+    /// </summary>
+    public string SystemPromptExtra { get; set; } = "";
+
+    /// <summary>
+    /// وضع الذكاء في صندوق الأوامر: الكتابة تذهب إلى المساعد بدل الصدفة. يُحفظ كي يبقى الوضع
+    /// الذي اختاره المستخدم بين الجلسات.
+    /// </summary>
+    public bool ComposerAiMode { get; set; } = false;
+
+    /// <summary>هل صُرِفت بطاقة ترحيب «جلسة تيرمنال جديدة»؟ (اختصارات أوّل تشغيل.)</summary>
+    public bool WelcomeCardDismissed { get; set; } = false;
+
+    /// <summary>
+    /// تنفيذ الأمر الذي يقترحه المساعد في وضع الذكاء تلقائيّاً بدل الاكتفاء بإدراجه.
+    /// <para><b>الأوامر الخطرة مستثناة دائماً</b> (<see cref="RiskyCommandDetector"/>): تُدرَج
+    /// وتنتظر تأكيداً صريحاً مهما كان هذا الإعداد. وكذلك أيّ كتلة متعدّدة الأسطر — سكربت كامل
+    /// ليس «أمراً مقترَحاً» يُنفَّذ بلا قراءة.</para>
+    /// </summary>
+    public bool AutoRunAiCommand { get; set; } = true;
 }

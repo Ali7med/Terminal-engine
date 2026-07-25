@@ -157,6 +157,24 @@ public partial class MainWindow
             AiPreviewCheck.IsChecked = ai.AlwaysPreview;
             AiQuietCheck.IsChecked = ai.QuietMode;
             AiSaveChatsCheck.IsChecked = ai.SaveConversations;
+            AiAutoRunCheck.IsChecked = ai.AutoRunAiCommand;
+            // التعيين يُقسَر إلى أقرب علامة (IsSnapToTickEnabled) ويُحصَر بين الحدّين، وValueChanged
+            // مكتوم أثناء المزامنة — فنقرأ القيمة الفعليّة بعد التعيين ونعيدها إلى الإعدادات، وإلّا
+            // عرض المنزلق رقماً وأرسل التطبيق آخر. والعرض يُكتب صراحةً لأنّ تعيين قيمة مطابقة لا
+            // يُطلق الحدث أصلاً.
+            AiTempSlider.Value = ai.Temperature;
+            AiMaxTokensSlider.Value = ai.MaxTokens;
+            AiCtxLimitSlider.Value = ai.ContextCharLimit;
+
+            ai.Temperature = AiTempSlider.Value;
+            ai.MaxTokens = (int)AiMaxTokensSlider.Value;
+            ai.ContextCharLimit = (int)AiCtxLimitSlider.Value;
+
+            ShowAiTemp(ai.Temperature);
+            ShowAiMaxTokens(ai.MaxTokens);
+            ShowAiCtxLimit(ai.ContextCharLimit);
+
+            AiPromptBox.Text = ai.SystemPromptExtra;
             AiModelCountText.Text = "";   // العدّاد يظهر بعد «تحديث القائمة»
 
             AiKeyBox.Clear();
@@ -275,6 +293,7 @@ public partial class MainWindow
         ai.AlwaysPreview = AiPreviewCheck.IsChecked == true;
         ai.QuietMode = AiQuietCheck.IsChecked == true;
         ai.SaveConversations = AiSaveChatsCheck.IsChecked == true;
+        ai.AutoRunAiCommand = AiAutoRunCheck.IsChecked == true;
         SaveSettings();
     }
 
@@ -412,6 +431,105 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// فتح المنسدلة يرفع فلتر البحث متى كان النصّ هو النموذج المختار فعلاً — وإلّا رأى
+    /// المستخدم قائمة من عنصر واحد وظنّ أنّ بقيّة النماذج اختفت.
+    /// </summary>
+    private void AiModelCombo_DropDownOpened(object? sender, EventArgs e)
+    {
+        if (AiModelCombo.ItemsSource is null || AiModelCombo.Items.Filter is null) return;
+
+        string text = AiModelCombo.Text ?? "";
+        if (text.Length == 0 || _aiModels.Any(m => string.Equals(m.Id, text, StringComparison.Ordinal)))
+        {
+            _aiSuppressModelFilter = true;
+            try { AiModelCombo.Items.Filter = null; }
+            finally { _aiSuppressModelFilter = false; }
+        }
+    }
+
+    /// <summary>
+    /// اختيار نموذج من القائمة يُحفَظ فوراً — انتظار خروج التركيز يجعل الاختيار يبدو مُهمَلاً
+    /// إن أغلق المستخدم الإعدادات مباشرةً بعده.
+    /// </summary>
+    private void AiModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_aiSyncing || _aiSuppressModelFilter) return;
+        if (AiModelCombo.SelectedItem is not string id) return;
+
+        _settings.Ai.Model = id;
+        SaveSettings();
+    }
+
+    // النصّ المرافق لكلّ منزلق يُكتب من دالّة مستقلّة لا من داخل المعالج وحده: تعيين قيمة تساوي
+    // الحاليّة لا يُطلق ValueChanged، فكان العدّاد يبقى فارغاً كلّما طابقت الإعدادات وضع المنزلق
+    // الابتدائيّ — وهو حال التنصيب الجديد بالضبط (MaxTokens = 0 = أدنى المنزلق).
+    private void ShowAiTemp(double value)
+        => AiTempValue.Text = value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+    private void ShowAiMaxTokens(int value)
+        => AiMaxTokensValue.Text = value == 0
+            ? Loc.T("ai.set.auto")
+            : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private void ShowAiCtxLimit(int value)
+        => AiCtxLimitValue.Text = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private void AiTemp_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        // أثناء InitializeComponent تُضبَط Minimum/Maximum فيُقسَر Value ويُطلَق هذا المعالج قبل
+        // وجود الحقول المسمّاة وقبل تعيين الإعدادات — فالحارس على العنصر نفسه لا على علَم المزامنة.
+        if (AiTempValue is null) return;
+
+        ShowAiTemp(e.NewValue);
+        if (_aiSyncing) return;
+
+        _settings.Ai.Temperature = e.NewValue;
+        SaveSettings();
+    }
+
+    private void AiMaxTokens_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AiMaxTokensValue is null) return;   // قبل اكتمال بناء الواجهة — انظر AiTemp_Changed
+
+        int value = (int)e.NewValue;
+        ShowAiMaxTokens(value);
+        if (_aiSyncing) return;
+
+        _settings.Ai.MaxTokens = value;
+        SaveSettings();
+    }
+
+    private void AiCtxLimit_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AiCtxLimitValue is null) return;   // قبل اكتمال بناء الواجهة — انظر AiTemp_Changed
+
+        int value = (int)e.NewValue;
+        ShowAiCtxLimit(value);
+        if (_aiSyncing) return;
+
+        _settings.Ai.ContextCharLimit = value;
+        SaveSettings();
+    }
+
+    private void AiPrompt_Changed(object sender, RoutedEventArgs e) => CommitAiPrompt();
+
+    /// <summary>
+    /// يثبّت «التعليمات المخصّصة». <c>LostFocus</c> وحده لا يكفي: إغلاق الإعدادات بـEsc أو بنقرة
+    /// على الحجاب قد لا ينقل التركيز خارج الحقل، فتضيع فقرةٌ كتبها المستخدم بلا أثر — لذا يُنادى
+    /// من مسار الإغلاق أيضاً. المقارنة تمنع حفظاً بلا تغيير.
+    /// </summary>
+    private void CommitAiPrompt()
+    {
+        if (_aiSyncing || AiPromptBox is null) return;
+
+        string text = AiPromptBox.Text?.Trim() ?? "";
+        if (text == _settings.Ai.SystemPromptExtra) return;
+
+        _settings.Ai.SystemPromptExtra = text;
+        SaveSettings();
+    }
+
+    /// <summary>
     /// يفتح «ذاكرة التطبيق»: ما تعلّمه التطبيق معروضاً وقابلاً للحذف والتعطيل. الشفافيّة هنا ليست
     /// عبئاً بل شرط قبول الالتقاط أصلاً.
     /// </summary>
@@ -420,7 +538,9 @@ public partial class MainWindow
         try
         {
             RefreshAiProfileInBackground();   // اعرض أحدث ما استُنتج، لا لقطة قديمة
-            Views.AiMemoryWindow.ShowFor(this, AiKnowledge, _settings, SaveSettings, () => CurrentAiProfile.Text, () => AiConversations.Clear());
+            Views.AiMemoryWindow.ShowFor(
+                this, AiKnowledge, _settings, SaveSettings, () => CurrentAiProfile.Text,
+                () => AiConversations.Clear(), AiConversations);
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {

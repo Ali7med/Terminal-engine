@@ -92,6 +92,9 @@ public static class Loc
         ["settings.menuSize"]  = ("حجم القوائم", "Menu size"),
         ["settings.tableSize"] = ("حجم الجداول", "Table size"),
         ["settings.titleSize"] = ("حجم العناوين", "Title size"),
+        ["settings.smallSize"] = ("حجم النصّ الثانويّ (التلميحات والشارات)", "Secondary text size (hints and badges)"),
+        ["settings.smallAuto"] = ("تلقائيّ (يتبع حجم نصّ الواجهة)", "Automatic (follows UI text size)"),
+        ["settings.pickFont"]  = ("اختر من الخطوط المثبَّتة أو اكتب اسماً — فارغ = الافتراضيّ", "Pick an installed font or type a name — blank = default"),
         ["settings.openJson"]  = ("فتح ملف الإعدادات (JSON)", "Open settings file (JSON)"),
         ["settings.editConfig"] = ("محرّر الإعدادات", "Config editor"),
         ["settings.applyJson"] = ("إعادة تحميل الملف", "Reload file"),
@@ -600,6 +603,50 @@ public static class Loc
         ["ai.set.saveChatsHint"]=("معطَّل افتراضاً. عند التفعيل تُحفظ محادثاتك محلّيّاً بعد تنقيح الأسرار، ويمكن مسحها من «ذاكرة التطبيق».",
                                   "Off by default. When on, your chats are saved locally after redacting secrets, and can be erased from App Memory."),
 
+        // مجموعات قسم الإعدادات
+        ["ai.set.grpConnection"]=("الاتّصال", "Connection"),
+        ["ai.set.grpBehavior"] = ("سلوك المساعد", "Assistant behavior"),
+        ["ai.set.grpPrivacy"]  = ("الخصوصيّة والتعلّم", "Privacy & learning"),
+
+        ["ai.set.temperature"] = ("درجة الإبداع", "Creativity (temperature)"),
+        ["ai.set.temperatureHint"] = ("قيمة منخفضة = أوامر أدقّ وأقلّ تنوّعاً. الموصى به لعمل التيرمنال: 0.2–0.4.",
+                                      "Lower = more precise, less varied commands. Recommended for terminal work: 0.2–0.4."),
+        ["ai.set.maxTokens"]   = ("سقف طول الردّ", "Reply length cap"),
+        ["ai.set.auto"]        = ("تلقائيّ", "Auto"),
+        ["ai.set.ctxLimit"]    = ("سقف مقتطف السياق", "Context snippet cap"),
+        ["ai.set.ctxLimitHint"]= ("أقصى عدد محارف من مخرجات التيرمنال تُرفَق مع السؤال.",
+                                  "Maximum characters of terminal output attached to a question."),
+        ["ai.set.customPrompt"]= ("تعليمات مخصّصة", "Custom instructions"),
+        ["ai.set.customPromptHint"] = ("تُضاف إلى كلّ محادثة (مثل «استعمل PowerShell دائماً» أو «اشرح باختصار»). تُطبَّق على المحادثات الجديدة — امسح المحادثة لتفعيلها فوراً.",
+                                       "Added to every conversation (e.g. \"always use PowerShell\" or \"be brief\"). Applies to new conversations — clear the chat to apply it now."),
+
+        // ===== وضع الذكاء داخل صندوق الأوامر =====
+        ["ai.cmp.modeCommand"] = ("أمر", "Command"),
+        ["ai.cmp.modeAi"]      = ("ذكاء", "AI"),
+        ["ai.cmp.hintCommand"] = ("اكتب أمراً…", "Type a command…"),
+        ["ai.cmp.hintAi"]      = ("اطلب أيّ شيء — مثلاً: أنشئ فرعاً جديداً وادفعه",
+                                  "Ask for anything — e.g. create a new branch and push it"),
+        ["ai.cmp.switchTip"]   = ("تبديل الوضع (Ctrl+I). في وضع الذكاء يذهب ما تكتبه إلى المساعد مرفقاً بمجلد العمل والصدفة وآخر الأوامر.",
+                                  "Switch mode (Ctrl+I). In AI mode what you type goes to the assistant along with the working directory, shell, and recent commands."),
+
+        // شريط نتيجة الذكاء داخل التيرمنال
+        ["ai.inline.ran"]      = ("نُفِّذ تلقائياً", "ran automatically"),
+        ["ai.inline.run"]      = ("تشغيل", "Run"),
+        ["ai.inline.edit"]     = ("تعديل", "Edit"),
+        ["ai.inline.openChat"] = ("افتح المحادثة", "Open chat"),
+
+        ["ai.set.autoRun"]     = ("نفّذ الأمر المقترَح تلقائياً", "Run the suggested command automatically"),
+        ["ai.set.autoRunHint"] = ("في وضع الذكاء داخل صندوق الأوامر. الأوامر الخطرة والكتل متعدّدة الأسطر تُستثنى دائماً: تُعرض وتنتظر تأكيدك مهما كان هذا الخيار.",
+                                  "In AI mode inside the command box. Risky commands and multi-line blocks are always excluded: they are shown and wait for your confirmation regardless of this setting."),
+
+        // ===== بطاقة ترحيب «جلسة جديدة» =====
+        ["ai.welcome.title"]   = ("جلسة تيرمنال جديدة", "New terminal session"),
+        ["ai.welcome.aiMode"]  = ("التبديل بين وضع الأمر ووضع الذكاء", "switch between command mode and AI mode"),
+        ["ai.welcome.history"] = ("استعراض أوامر الجلسة السابقة", "browse earlier commands in this session"),
+        ["ai.welcome.search"]  = ("البحث داخل المخرجات", "search inside the output"),
+        ["ai.welcome.complete"]= ("قبول الإكمال المقترَح", "accept the suggested completion"),
+        ["ai.welcome.dismiss"] = ("لا تُظهر ثانيةً", "Don't show again"),
+
         // ===== أخطاء المزوّدين: رسالة بشريّة + إجراء =====
         ["ai.err.auth"]        = ("المفتاح غير صالح أو منتهي.", "The API key is invalid or expired."),
         ["ai.err.quota"]       = ("نفد رصيد الحساب أو حصّته لدى المزوّد.",
@@ -675,6 +722,13 @@ public static class Loc
         ["ai.mem.rejected"]    = ("رُفِض", "Rejected"),
         ["ai.mem.pending"]     = ("معلّق", "Pending"),
         ["ai.mem.tabProfile"]  = ("ملفّك التعريفيّ", "Your profile"),
+        ["ai.mem.tabChats"]    = ("المحادثات", "Conversations"),
+        ["ai.mem.colChatDate"] = ("الوقت", "When"),
+        ["ai.mem.colChatTitle"]= ("المحادثة", "Conversation"),
+        ["ai.mem.chatsEmpty"]  = ("لا محادثات محفوظة بعد — الحفظ مفعَّل، وأوّل محادثة تجريها ستظهر هنا.",
+                                  "No saved conversations yet — saving is on, and your first conversation will appear here."),
+        ["ai.mem.chatsOff"]    = ("حفظ المحادثات معطَّل، فلا شيء يُكتب على القرص. فعّله من: الإعدادات ← الذكاء الاصطناعي ← «حفظ المحادثات على القرص» — وعندها تظهر محادثاتك هنا.",
+                                  "Conversation saving is off, so nothing is written to disk. Turn it on in Settings → AI → \"Save conversations to disk\" — then your conversations appear here."),
         ["ai.mem.profileEmpty"]= ("لا ملفّ بعد — يحتاج التطبيق بضعة أوامر متكرّرة قبل أن يستنتج شيئاً يستحقّ الإرسال.",
                                   "No profile yet — the app needs a few repeated commands before it has anything worth sending."),
         ["ai.mem.clearAll"]    = ("امسح كل شيء", "Erase everything"),
