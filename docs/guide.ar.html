@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل مشغّل الأوامر</title>
+<style>
+  :root {
+    --bg: #131211;
+    --surface: #1b1917;
+    --surface2: #221f1d;
+    --text: #ece8e4;
+    --muted: #a09891;
+    --hairline: #322d29;
+    --accent: #c2664b;
+    --accent-soft: #3a251d;
+    --warn: #d8a13a;
+    --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #faf7f4; --surface: #fff; --surface2: #f2ede8;
+      --text: #1e1a17; --muted: #6b625b; --hairline: #e0d8d0;
+      --accent: #a8492f; --accent-soft: #f7e8e2; --warn: #8a6100;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Tahoma", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.85;
+    font-variant-numeric: lining-nums;
+  }
+
+  /* ===== التخطيط: شريط جانبيّ لاصق + متن ===== */
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px;
+            max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  aside { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+          padding: 28px 0 40px; }
+  main { padding: 28px 0 120px; min-width: 0; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; gap: 0; }
+    aside { position: static; max-height: none; border-bottom: 1px solid var(--hairline); }
+  }
+
+  .brand { font-size: 17px; font-weight: 700; margin: 0 0 2px; }
+  .brand-sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .langswitch { display: inline-block; margin-bottom: 20px; font-size: 13px; }
+  .langswitch a { color: var(--accent); text-decoration: none; border: 1px solid var(--hairline);
+                  border-radius: 6px; padding: 4px 12px; }
+  .langswitch a:hover { background: var(--accent-soft); }
+
+  aside nav a { display: block; color: var(--muted); text-decoration: none;
+                padding: 5px 12px; border-radius: 7px; font-size: 14.5px; line-height: 1.5;
+                border-inline-start: 2px solid transparent; }
+  aside nav a:hover { color: var(--text); background: var(--surface); }
+  aside nav a.on { color: var(--accent); border-inline-start-color: var(--accent); background: var(--surface); }
+  aside nav .grp { color: var(--muted); font-size: 11.5px; letter-spacing: .06em;
+                   text-transform: uppercase; margin: 16px 0 4px; padding-inline-start: 12px; opacity: .7; }
+
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .lede { color: var(--muted); margin: 0 0 8px; }
+  h2 { font-size: 23px; margin: 64px 0 8px; padding-top: 14px; border-top: 1px solid var(--hairline);
+       scroll-margin-top: 16px; }
+  h3 { font-size: 17.5px; margin: 30px 0 6px; color: var(--accent); }
+  p { margin: 12px 0; }
+  ul, ol { margin: 12px 0; padding-inline-start: 22px; }
+  li { margin: 5px 0; }
+
+  code { font-family: var(--mono); direction: ltr; unicode-bidi: embed;
+         background: var(--surface2); border: 1px solid var(--hairline);
+         border-radius: 4px; padding: 1px 6px; font-size: .92em; }
+  pre { font-family: var(--mono); direction: ltr; text-align: left;
+        background: var(--surface); border: 1px solid var(--hairline);
+        border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.65; }
+  pre code { background: none; border: 0; padding: 0; }
+
+  figure { margin: 24px 0; }
+  figure img { width: 100%; display: block; border: 1px solid var(--hairline); border-radius: 10px; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; text-align: center; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: start; padding: 9px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 14px; }
+  td:first-child { white-space: nowrap; }
+  .wrapcell td:first-child { white-space: normal; }
+
+  .note, .warn {
+    border-inline-start: 3px solid var(--accent);
+    background: var(--surface); border-radius: 0 8px 8px 0;
+    padding: 12px 16px; margin: 20px 0;
+  }
+  .warn { border-inline-start-color: var(--warn); }
+  .note p:first-child, .warn p:first-child { margin-top: 0; }
+  .note p:last-child, .warn p:last-child { margin-bottom: 0; }
+
+  kbd { font-family: var(--mono); direction: ltr; display: inline-block;
+        background: var(--surface2); border: 1px solid var(--hairline);
+        border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: .88em; }
+
+  .seealso { font-size: 14px; color: var(--muted); margin-top: 18px; }
+  .seealso a { color: var(--accent); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; margin: 24px 0; }
+  .cards a { display: block; text-decoration: none; color: inherit; background: var(--surface);
+             border: 1px solid var(--hairline); border-radius: 10px; padding: 13px 15px; }
+  .cards a:hover { border-color: var(--accent); }
+  .cards b { display: block; color: var(--accent); font-size: 15px; margin-bottom: 2px; }
+  .cards span { color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--hairline);
+           color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside>
+  <p class="brand">دليل مشغّل الأوامر</p>
+  <p class="brand-sub">شرح كلّ شيء في التطبيق</p>
+  <div class="langswitch"><a href="guide.en.html">English</a></div>
+
+  <nav id="toc">
+    <div class="grp">البداية</div>
+    <a href="#start">نظرة على النافذة</a>
+
+    <div class="grp">العمل اليوميّ</div>
+    <a href="#terminal">التيرمنال والتبويبات</a>
+    <a href="#composer">صندوق الأوامر</a>
+    <a href="#saved">الأوامر المحفوظة والمشاريع</a>
+    <a href="#palette">لوحة الأوامر والبحث</a>
+
+    <div class="grp">اختصر على نفسك</div>
+    <a href="#aliases">الأوامر المختصرة</a>
+    <a href="#shortcuts">اختصارات لوحة المفاتيح</a>
+
+    <div class="grp">الذكاء</div>
+    <a href="#ai">مساعد الذكاء الاصطناعيّ</a>
+    <a href="#memory">ذاكرة التطبيق</a>
+
+    <div class="grp">الشكل والضبط</div>
+    <a href="#appearance">المظهر والخلفيّة</a>
+    <a href="#language">اللغة والخطوط</a>
+
+    <div class="grp">أدوات</div>
+    <a href="#servers">مراقب الخوادم</a>
+    <a href="#updates">ما الجديد والتحديث</a>
+  </nav>
+</aside>
+
+<main>
+
+<h1>دليل مشغّل الأوامر</h1>
+<p class="lede">كلّ زرّ «الدليل» في التطبيق يفتح هذه الصفحة عند قسمه — ومن هناك تتصفّح الباقي من القائمة الجانبيّة.</p>
+
+<div class="cards">
+  <a href="#terminal"><b>التيرمنال</b><span>تبويبات وانقسام وبحث في المخرجات</span></a>
+  <a href="#aliases"><b>الأوامر المختصرة</b><span>كلمة واحدة تتوسّع إلى سلسلة أوامر</span></a>
+  <a href="#ai"><b>مساعد الذكاء</b><span>يفهم أين تقف وينفّذ ما تطلبه</span></a>
+  <a href="#shortcuts"><b>الاختصارات</b><span>كلّها قابلة للتغيير</span></a>
+  <a href="#appearance"><b>المظهر</b><span>ثيمات وخلفيّات وشفافيّة</span></a>
+  <a href="#servers"><b>مراقب الخوادم</b><span>أقراص وأداء وحاويات عبر SSH</span></a>
+</div>
+
+
+<h2 id="start">١ · نظرة على النافذة</h2>
+
+<figure>
+  <img src="img/ar/aliases-list.png" alt="نافذة التطبيق ولوحة الإعدادات">
+  <figcaption>لوحة الإعدادات فوق النافذة: قائمة الفئات على جانب، ومحتوى الفئة على الآخر.</figcaption>
+</figure>
+
+<p>النافذة ثلاث مناطق:</p>
+
+<ul>
+  <li><strong>شريط العنوان</strong> — بحث سريع، وزرّ «+» لتيرمنال جديد، ومراقب الخوادم، و<strong>الدليل</strong> (الأيقونة النابضة)، و«ما الجديد»، والإعدادات.</li>
+  <li><strong>الشريط الجانبيّ</strong> — الأوامر المحفوظة والمشاريع. يُطوى ويُفتَح من زرّ القائمة في أعلاه.</li>
+  <li><strong>منطقة التيرمنال</strong> — التبويبات وأجزاؤها، وتحتها صندوق الأوامر.</li>
+</ul>
+
+<div class="note">
+  <p>لا حاجة لحفظ شيء: كلّ ما تغيّره في الإعدادات <strong>يُحفَظ تلقائيّاً</strong> ويُطبَّق فوراً.</p>
+</div>
+
+
+<h2 id="terminal">٢ · التيرمنال والتبويبات</h2>
+
+<h3>تبويب جديد وانقسام</h3>
+
+<table>
+  <tbody>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>تبويب جديد — يبدأ في <strong>مجلد التبويب النشط نفسه</strong>، يتبع آخر <code>cd</code> لا مجلد البدء.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>انقسام عموديّ — جزءان جنباً إلى جنب في التبويب نفسه.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>انقسام أفقيّ — جزءان فوق بعضهما.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>إغلاق الجزء النشط (لا التبويب كلّه إن كان منقسماً).</td></tr>
+  </tbody>
+</table>
+
+<p>
+  الانقسام يرث المجلد كذلك. وحين لا يكون هناك أيّ تيرمنال مفتوح — فلا مكان يُورَّث — يعرض «+»
+  قائمة أماكن بدء: سطح المكتب، المستندات، التنزيلات، مجلد المستخدم، الأقراص الثابتة، و«استعراض مجلد…».
+</p>
+
+<h3>قائمة التبويب (زرّ الفأرة الأيمن على عنوانه)</h3>
+
+<table>
+  <tbody>
+    <tr><td>إعادة تسمية</td><td>اسم يصف ما تفعله فيه بدل مسار طويل.</td></tr>
+    <tr><td>تكرار التبويب</td><td>تبويب جديد بالمجلد والصدفة نفسيهما.</td></tr>
+    <tr><td>فصل إلى نافذة مستقلّة</td><td>يخرج التبويب إلى نافذته — للعمل على شاشتين.</td></tr>
+    <tr><td>فتح في المستكشف</td><td>يفتح مجلد العمل في مستكشف ويندوز.</td></tr>
+    <tr><td>نسخ العنوان · نسخ مجلّد العمل</td><td>إلى الحافظة.</td></tr>
+    <tr><td>نقل للأمام · نقل للخلف</td><td>ترتيب التبويبات.</td></tr>
+    <tr><td>إغلاق · إغلاق الأخرى · إغلاق ما بعده</td><td>تنظيف سريع لصفٍّ طويل من التبويبات.</td></tr>
+  </tbody>
+</table>
+
+<h3>البحث في المخرجات</h3>
+
+<p><kbd>Ctrl</kbd>+<kbd>F</kbd> يفتح شريط بحث داخل مخرجات التيرمنال النشط — للعثور على سطر في مخرَج طويل بلا تمرير.</p>
+
+<h3>اللصق</h3>
+
+<p>
+  لصق <strong>نصّ متعدّد الأسطر</strong> يعرض تأكيداً يريك ما ستلصقه وعدد أسطره قبل أن يصل إلى الصدفة.
+  وإن كان فيه ما يشبه أمراً خطراً، يُبرَز التحذير. سببه أنّ سطراً مخفيّاً في نصّ منسوخ من الويب
+  يُنفَّذ فور لصقه بلا فرصة للمراجعة.
+</p>
+
+<h3>حجم الخطّ</h3>
+
+<p><kbd>Ctrl</kbd> + عجلة الفأرة يكبّر خطّ التيرمنال ويصغّره. وصندوق الأوامر يتبعه (بمقدار أكبر بقليل ليبقى سطر الإدخال أوضح من المخرجات).</p>
+
+
+<h2 id="composer">٣ · صندوق الأوامر</h2>
+
+<p>الصندوق أسفل التيرمنال ليس حقل نصّ عاديّاً — له وضعان ومساعدات كتابة.</p>
+
+<h3>الوضعان: أمر ⇄ ذكاء</h3>
+
+<p>
+  المبدّل بجانب سطر الكتابة (أو <kbd>Ctrl</kbd>+<kbd>I</kbd>) يقرّر إلى أين يذهب ما تكتبه:
+  إلى <strong>الصدفة</strong> كأمر، أو إلى <strong>المساعد</strong> كطلب بالعربيّة أو الإنجليزيّة.
+  الوضع <strong>لكلّ تبويب على حدة</strong> — تبديله في تبويب لا يقلب سلوك البقيّة.
+</p>
+
+<h3>الاقتراحات أثناء الكتابة</h3>
+
+<p>يقترح الصندوق ما يناسب موضعك في السطر، ويميّز نوع كلّ اقتراح:</p>
+
+<table>
+  <tbody>
+    <tr><td>أمر · أمر فرعيّ · خيار</td><td>‏<code>git</code> ثمّ <code>commit</code> ثمّ <code>--amend</code>.</td></tr>
+    <tr><td>مجلد · ملفّ</td><td>من مجلد العمل الحاليّ.</td></tr>
+    <tr><td>فرع</td><td>فروع git في المستودع الذي تقف فيه.</td></tr>
+    <tr><td>سكربت</td><td>سكربتات <code>package.json</code> وما شابه.</td></tr>
+    <tr><td>عمليّة</td><td>للأوامر التي تأخذ اسم عمليّة.</td></tr>
+    <tr><td>سجلّ</td><td>من أوامرك السابقة.</td></tr>
+  </tbody>
+</table>
+
+<p>وبجانب الصندوق: <strong>سجلّ الأوامر</strong>، و<strong>متصفّح المجلدات</strong> لعمل <code>cd</code> بالنقر بدل كتابة المسار.</p>
+
+<div class="seealso">انظر أيضاً: <a href="#aliases">الأوامر المختصرة</a> — أيّ كلمة تعرّفها هناك تعمل من هذا الصندوق مباشرةً.</div>
+
+
+<h2 id="saved">٤ · الأوامر المحفوظة والمشاريع</h2>
+
+<h3>الأوامر المحفوظة</h3>
+
+<p>
+  الشريط الجانبيّ يحتفظ بأوامرك المتكرّرة بأسمائها ووسومها. النقر يُدرج الأمر في الصندوق،
+  والبحث في أعلى الشريط يصفّي القائمة أثناء الكتابة.
+</p>
+
+<h3>المشاريع</h3>
+
+<p>
+  المشروع = مجلد + مجموعة أوامر سريعة + لون واسم. «فتح المشروع» يفتح تيرمنالاً في مجلده.
+  وداخله <strong>خطوات</strong> جاهزة تشغّلها بالنقر — و«＋ أضف الأمر الحاليّ من التيرمنال»
+  يلتقط آخر أمر كتبته ويضيفه للمشروع بلا إعادة كتابته.
+</p>
+
+<p>قائمة الفأرة اليمنى على مشروع: فتح في تبويب جديد · نسخ الاسم · نسخ الباث · فتح في المستكشف · تكرار · إعادة تسمية · لون المشروع.</p>
+
+<div class="note">
+  <p>الأمر المكرَّر لا يُضاف مرّتين: يقول لك «الأمر موجود مسبقاً» بدل أن تتراكم نسخٌ منه في القائمة.</p>
+</div>
+
+
+<h2 id="palette">٥ · لوحة الأوامر والبحث</h2>
+
+<p>
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> تفتح لوحة الأوامر: تكتب فتُصفّى النتائج من كلّ ما
+  يمكن فعله — أوامرك المحفوظة، ومشاريعك، وأفعال التطبيق. وفي أعلى اللوحة قسم <strong>«مقترَح»</strong>
+  لما يناسب سياقك الحاليّ.
+</p>
+
+<p>وفي شريط العنوان حقل بحث سريع يصل إلى الشيء نفسه بلا اختصار.</p>
+
+
+<h2 id="aliases">٦ · الأوامر المختصرة</h2>
+
+<p>
+  <strong>الاسم المختصر كلمةٌ تكتبها في صندوق الأوامر فتتحوّل إلى سلسلة أوامر.</strong>
+  بدل أن تكتب في كلّ مرّة ثلاثة أسطر متتابعة، تعرّفها مرّة واحدة تحت كلمة واحدة —
+  ويمكن أن تأخذ الكلمةُ قيمةً تتغيّر في كلّ استدعاء.
+</p>
+
+<pre><code>gpc "أوّل كوميت"
+
+  →  git add .
+  →  git commit -m "أوّل كوميت"
+  →  git push</code></pre>
+
+<h3>أين تُنشئها</h3>
+
+<p>الإعدادات (<kbd>Ctrl</kbd>+<kbd>,</kbd>) ← <strong>الأوامر المختصرة</strong> ← «اسم مستعار جديد».</p>
+
+<figure>
+  <img src="img/ar/aliases-list.png" alt="صفحة الأوامر المختصرة في الإعدادات">
+  <figcaption>صفحة الأوامر المختصرة، وزرّ «الدليل» النابض في أعلاها.</figcaption>
+</figure>
+
+<h3>حقول المحرّر</h3>
+
+<figure>
+  <img src="img/ar/alias-editor.png" alt="محرّر الاسم المختصر مع بطاقة متغيّر">
+  <figcaption>كلّ حقل مسبوق باسمه، وداخله مثالٌ رماديّ يختفي بأوّل حرف تكتبه.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>الحقل</th><th>ما هو</th></tr></thead>
+  <tbody>
+    <tr><td><strong>الكلمة</strong></td><td>ما تكتبه ليتوسّع. بلا مسافات. مثال: <code>gpc</code>.</td></tr>
+    <tr><td><strong>الوصف</strong></td><td>سطر يذكّرك بما يفعله بعد شهر. يظهر في القائمة تحت الكلمة.</td></tr>
+    <tr><td><strong>المتغيّرات</strong></td><td>القيم التي تُمرَّر عند الاستدعاء. مشروحة أدناه.</td></tr>
+    <tr><td><strong>الأوامر</strong></td><td>سطر لكلّ أمر، تُنفَّذ بالترتيب من أعلى إلى أسفل.</td></tr>
+    <tr><td><strong>الصدفة المستهدفة</strong></td><td>فارغ = كلّ الصدفات، أو <code>pwsh</code>/<code>bash</code> فلا يتوسّع إلّا فيها. مفيد لأنّ أمر bash في PowerShell خطأ صامت.</td></tr>
+    <tr><td><strong>تأكيد قبل التنفيذ</strong></td><td>يريك ما سيُنفَّذ وينتظر موافقتك.</td></tr>
+    <tr><td><strong>مفعَّل</strong></td><td>إطفاؤه يُبقي الاسم في القائمة بلا توسيع — بدل حذفه ثمّ إعادة كتابته.</td></tr>
+  </tbody>
+</table>
+
+<h3>المتغيّرات — الحقول الثلاثة</h3>
+
+<p>كلّ متغيّر بطاقةٌ فيها ثلاثة حقول. القيم تُملأ <strong>بترتيب تعريف المتغيّرات</strong>.</p>
+
+<table class="wrapcell">
+  <thead><tr><th>الحقل</th><th>ما تكتب فيه</th><th>لماذا</th></tr></thead>
+  <tbody>
+    <tr><td><strong>الاسم</strong></td><td>حروف وأرقام وشرطة سفليّة — مثل <code>msg</code></td>
+        <td>هذا ما تكتبه داخل الأوامر مسبوقاً بـ<code>$</code>. تحت البطاقة سطرٌ يريك النتيجة حيّاً: «اكتبه في الأوامر هكذا: <code>$msg</code>».</td></tr>
+    <tr><td><strong>الوصف</strong></td><td>نصّ حرّ — «رسالة الكوميت»</td>
+        <td>يذكّرك بمعناه، ويظهر في رسالة الخطأ حين ينقص. لا يؤثّر في التنفيذ.</td></tr>
+    <tr><td><strong>قيمة افتراضيّة</strong></td><td>قيمة جاهزة — «تحديث»</td>
+        <td>تُستعمَل حين تستدعي الاسم بلا قيمة. اتركها فارغة إن لا افتراضيّ معقول.</td></tr>
+    <tr><td><strong>إلزاميّ</strong></td><td>خانة اختيار</td>
+        <td>إن كان إلزاميّاً ولا قيمة ولا افتراضيّ، <strong>يتوقّف التنفيذ برسالة تسمّي المتغيّر</strong>.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>لماذا الترتيب مهمّ:</strong> القيم تُطابَق بمواقعها لا بأسمائها. بمتغيّرين
+  <code>branch</code> ثمّ <code>msg</code>، يعطي <code>gpc main "إصلاح"</code> ‏<code>branch = main</code>
+  و<code>msg = إصلاح</code>.</p>
+</div>
+
+<h3>صيغ الكتابة داخل الأوامر</h3>
+
+<table>
+  <tbody>
+    <tr><td><code>$msg</code></td><td>قيمة المتغيّر المسمّى <code>msg</code>.</td></tr>
+    <tr><td><code>${msg}</code></td><td>الشيء نفسه، والأقواس تفصل الاسم عمّا يليه: <code>${msg}_v2</code>.</td></tr>
+    <tr><td><code>$1</code> … <code>$9</code></td><td>القيمة بموضعها مهما كان اسم المتغيّر — أو بلا متغيّرات معرَّفة أصلاً.</td></tr>
+    <tr><td><code>$@</code></td><td>كلّ ما كتبته بعد الكلمة، مفصولاً بمسافات.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p><strong>ما لا يُستبدَل — عمداً:</strong> لا يُستبدَل إلّا متغيّرٌ <em>عرّفتَه أنت</em>.
+  كلّ <code>$</code> أخرى تصل إلى الصدفة كما هي: <code>$env:PATH</code> و<code>$PWD</code>
+  و<code>$(git rev-parse HEAD)</code> تبقى سليمة. استبدالها بالفراغ كان سيُفسد الأمر بصمت.</p>
+</div>
+
+<h3>الاقتباس</h3>
+
+<pre><code>gpc "إصلاح خطأ في الدخول"    →   msg = إصلاح خطأ في الدخول
+gpc إصلاح خطأ                 →   msg = إصلاح   ($2 = خطأ)</code></pre>
+
+<h3>أمثلة جاهزة</h3>
+
+<p><strong>‏nb</strong> — فرع جديد وادفعه (متغيّر <code>name</code> إلزاميّ):</p>
+<pre><code>git checkout -b $name
+git push -u origin $name</code></pre>
+
+<p><strong>‏dcu</strong> — أعد بناء حاويات المشروع (بلا متغيّرات):</p>
+<pre><code>docker compose down
+docker compose build
+docker compose up -d</code></pre>
+
+<p><strong>‏serve</strong> — خادم محلّيّ على منفذ (‏<code>port</code> افتراضيّه <code>8000</code>):</p>
+<pre><code>python -m http.server $port</code></pre>
+
+
+<h2 id="shortcuts">٧ · اختصارات لوحة المفاتيح</h2>
+
+<figure>
+  <img src="img/ar/shortcuts.png" alt="صفحة الاختصارات في الإعدادات">
+  <figcaption>انقر الاختصار ثمّ اضغط التركيبة الجديدة.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>الاختصار</th><th>الفعل</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>تبويب تيرمنال جديد</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>انقسام عموديّ</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>انقسام أفقيّ</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>إغلاق الجزء النشط</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>لوحة الأوامر</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>إظهار/إخفاء لوحة الذكاء</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>تبديل وضع الصندوق: أمر ⇄ ذكاء</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>البحث في مخرجات التيرمنال</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>فتح الإعدادات</td></tr>
+  </tbody>
+</table>
+
+<h3>كيف تغيّر اختصاراً</h3>
+
+<ol>
+  <li>انقر الاختصار المكتوب أمام الفعل — يتحوّل إلى «اضغط التركيبة…».</li>
+  <li>اضغط التركيبة التي تريدها. تُسجَّل فوراً.</li>
+  <li><kbd>Esc</kbd> يلغي الالتقاط ويبقي القديم. <kbd>Backspace</kbd> يعيد الافتراضيّ.</li>
+</ol>
+
+<div class="note">
+  <p><strong>التعارض يُرفَض بصراحة:</strong> إن كانت التركيبة مأخوذة لفعل آخر، تُرفَض برسالة
+  <em>تسمّي الفعل الذي يملكها</em> — فلا يقتل اختصارٌ جديد اختصاراً قديماً بصمت.</p>
+</div>
+
+<p>زرّ <strong>«إعادة الافتراضيّ»</strong> أسفل الصفحة يعيد كلّ الاختصارات دفعةً واحدة.</p>
+
+<div class="warn">
+  <p>التركيبة تُخزَّن نصّاً مفصولاً بـ<code>+</code>، فلا يمكن إسناد المفتاح <code>+</code> نفسه — «Ctrl++» يصير غير قابل للقراءة.</p>
+</div>
+
+
+<h2 id="ai">٨ · مساعد الذكاء الاصطناعيّ</h2>
+
+<p>
+  للمساعد مدخلان: <strong>لوحة جانبيّة</strong> (<kbd>Ctrl</kbd>+<kbd>P</kbd>) للحوار الطويل،
+  و<strong>وضع الذكاء داخل صندوق الأوامر</strong> (<kbd>Ctrl</kbd>+<kbd>I</kbd>) حين تريد أمراً واحداً
+  ينفَّذ فوراً بلا مغادرة التيرمنال.
+</p>
+
+<h3>الاتّصال</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>المزوّد</strong></td><td>OpenAI · OpenRouter · Kimi · Z.ai · مزوّد مخصّص بعنوانه.</td></tr>
+    <tr><td><strong>المفتاح</strong></td><td>يُحفَظ معمّى بمفاتيح ويندوز (DPAPI) على حسابك — لا يُرسَل إلّا إلى المزوّد الذي اخترته.</td></tr>
+    <tr><td><strong>النموذج</strong></td><td>القائمة قابلة للكتابة: اكتب أيّ جزء من الاسم فتُفلتَر. وتغييره من ترويسة اللوحة يخصّ المحادثة الجارية وحدها.</td></tr>
+  </tbody>
+</table>
+
+<h3>سلوك المساعد</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>درجة الإبداع</strong></td><td>أقلّ = إجابات أثبت وأقرب للحرفيّة. للأوامر: الأقلّ أفضل.</td></tr>
+    <tr><td><strong>سقف طول الردّ</strong></td><td>«تلقائيّ» يترك الأمر للنموذج. ارفعه إن كانت الردود تُقطَع.</td></tr>
+    <tr><td><strong>سقف مقتطف السياق</strong></td><td>كم من مخرجات الشاشة يُسمَح بإرفاقه. أقلّ = خصوصيّة أعلى وتكلفة أقلّ.</td></tr>
+    <tr><td><strong>تعليمات مخصّصة</strong></td><td>تُضاف إلى كلّ محادثة: «استعمل PowerShell دائماً»، «اشرح باختصار».</td></tr>
+    <tr><td><strong>تنفيذ تلقائيّ</strong></td><td>حين يردّ بأمر واحد، يُنفَّذ مباشرةً في التيرمنال.</td></tr>
+    <tr><td><strong>عرض اللوحة · حجم خطّ الدردشة</strong></td><td>منزلقان يسريان على المحادثة المفتوحة فوراً.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p><strong>سياج التنفيذ التلقائيّ:</strong> الأوامر الخطرة (<code>rm -rf</code>، <code>git reset --hard</code>،
+  <code>curl | sh</code>، <code>mkfs</code>…) والكتل متعدّدة الأسطر <strong>لا تُنفَّذ أبداً بلا تأكيدك</strong>،
+  مهما كان هذا الإعداد. وزرّ «أرسل ونفّذ» على كتل الكود يمرّ على الفحص نفسه — لا باب خلفيّ.</p>
+</div>
+
+<h3>ما يُرسَل مع سؤالك</h3>
+
+<p>
+  مع كلّ طلب من صندوق الأوامر يُرفَق: مجلد العمل، واسم الصدفة، وآخر ثمانية أوامر،
+  و<strong>آخر أمر فاشل</strong> (أمره ورمز خروجه وأوّل سطر خطئه). مخرجات الشاشة نفسها
+  <strong>لا تُرسَل</strong> ما لم تُفعّل «إرسال سياق التبويب». وحين يقتضي الأمر إرسال مقتطف فيه
+  ما يشبه سرّاً، تُعرَض معاينةٌ تقول كم عنصراً حُجِب، ولا يمضي شيء قبل موافقتك.
+</p>
+
+<h3>اللوحة</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>السجلّ</strong></td><td>محادثاتك المحفوظة بتواريخها؛ تفتح أيّها فترى السؤال وردّه كاملَين.</td></tr>
+    <tr><td><strong>كتل الكود</strong></td><td>«أرسل ونفّذ» يضعه في التيرمنال ويشغّله، و«أرسل فقط» يضعه في الصندوق لتراجعه أوّلاً.</td></tr>
+    <tr><td><strong>مؤشّر البحث</strong></td><td>يظهر منذ الإرسال حتّى أوّل حرف من الردّ.</td></tr>
+  </tbody>
+</table>
+
+<h3>إن لم يفهم سؤالك</h3>
+
+<p>
+  لا يخمّن. يردّ بسؤال توضيحيّ واحد بلا أمر، ويبقى الصندوق في وضع الذكاء مع سهم يدلّك على مكان
+  الجواب. تكتب الجواب فتُكمَل المحادثة في مكانها مربوطةً بسؤالها.
+</p>
+
+<div class="seealso">انظر أيضاً: <a href="#memory">ذاكرة التطبيق</a> — ما يتعلّمه التطبيق من استعمالك، وأين تقرأ محادثاتك المحفوظة.</div>
+
+
+<h2 id="memory">٩ · ذاكرة التطبيق</h2>
+
+<p>نافذة تعرض <strong>كلّ ما تعلّمه التطبيق عن استعمالك</strong> — محفوظ على جهازك وحده، ويمكنك محوه كلّه بزرّ واحد.</p>
+
+<table>
+  <tbody>
+    <tr><td><strong>أوامرك المتكرّرة</strong></td><td>قوالب أوامرك وعدد مرّات تشغيلها ونسبة نجاحها. يمكنك <strong>تثبيت</strong> قالب ليُقترَح أكثر، أو <strong>حظره</strong> ليختفي.</td></tr>
+    <tr><td><strong>الأخطاء وحلولها</strong></td><td>الأخطاء التي واجهتك والحلّ المحفوظ لكلٍّ منها وكم مرّة تكرّر.</td></tr>
+    <tr><td><strong>سجلّ الاقتراحات</strong></td><td>ما اقترحه التطبيق وقرارك فيه: قُبِل · رُفِض · معلّق.</td></tr>
+    <tr><td><strong>ملفّك التعريفيّ</strong></td><td>خلاصة عادات عملك التي تُرفَق مع طلبات المساعد. يحتاج بضعة أوامر متكرّرة قبل أن يتكوّن.</td></tr>
+    <tr><td><strong>المحادثات</strong></td><td>محادثات الذكاء المحفوظة. وإن كان الحفظ معطَّلاً يقول التبويب ذلك صراحةً ويدلّك على مفتاحه.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>«امسح كلّ شيء»</strong> يحذف القوالب وعدّاداتها والأخطاء وحلولها وسجلّ الاقتراحات. لا تراجع.</p>
+</div>
+
+
+<h2 id="appearance">١٠ · المظهر والخلفيّة</h2>
+
+<h3>الثيم</h3>
+
+<p>
+  اختر ثيماً فيُطبَّق فوراً بلا إعادة تشغيل. المعروض أوّلاً مجموعةٌ مختارة، و<strong>«عرض كلّ الثيمات»</strong>
+  يفتح البقيّة. ولكلّ ثيم وضعٌ <strong>فاتح وداكن</strong>، مع خيار <strong>«مزامنة الفاتح/الداكن مع النظام»</strong>
+  فيتبع وضع ويندوز.
+</p>
+
+<h3>لون التمييز واستدارة الحواف</h3>
+
+<p>لون التمييز يمسّ الأزرار والمؤشّرات والروابط في كلّ الواجهة. واستدارة الحواف تضبط حدّة الزوايا في البطاقات والحقول.</p>
+
+<h3>الخلفيّة</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>خلفيّة الثيم</strong></td><td>الافتراضيّ — يتبع الثيم المختار.</td></tr>
+    <tr><td><strong>قوالب</strong></td><td>خلفيّات جاهزة بتدرّجات وأعماق.</td></tr>
+    <tr><td><strong>ألوان مصمتة · تدرّجات · نقوش</strong></td><td>مجموعات مصنَّفة تختار منها.</td></tr>
+    <tr><td><strong>صورة مخصّصة</strong></td><td>صورتك أنت خلفيّةً، مع «إزالة» للعودة.</td></tr>
+    <tr><td><strong>شفافيّة التيرمنال</strong></td><td>كم تظهر الخلفيّة من خلف نصّ التيرمنال.</td></tr>
+  </tbody>
+</table>
+
+<p>وفي الإعدادات كذلك: <strong>لون كتابة التيرمنال</strong> و<strong>حجم خطّ التيرمنال</strong>.</p>
+
+
+<h2 id="language">١١ · اللغة والخطوط</h2>
+
+<h3>اللغة</h3>
+
+<p>
+  عربيّة أو إنجليزيّة، وتُطبَّق فوراً — بما في ذلك <strong>اتّجاه الواجهة</strong> (يمين↔يسار).
+  والأرقام تبقى لاتينيّة في الحالتين. <strong>وهذا الدليل يتبع لغتك</strong>: زرّ «الدليل» يفتح النسخة الموافقة.
+</p>
+
+<h3>الخطوط</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>خطّ الطرفيّة</strong></td><td>خطّ نصّ التيرمنال — يُختار من الخطوط المثبَّتة على جهازك، كلّ اسم معروض بخطّه نفسه.</td></tr>
+    <tr><td><strong>خطّ الواجهة</strong></td><td>خطّ باقي التطبيق. إفراغ الحقل يعيد الافتراضيّ.</td></tr>
+    <tr><td><strong>الخطّ أحاديّ العرض</strong></td><td>للمسارات والنصوص التقنيّة داخل الواجهة.</td></tr>
+  </tbody>
+</table>
+
+<h3>الأحجام حسب الدور</h3>
+
+<p>
+  كلّ نصّ في التطبيق ينتمي إلى <strong>دور</strong>، ولكلّ دور حجمه. هذا ما يجعل تكبير الخطّ يكبّر
+  كلّ شيء بدل أن يكبّر نصّاً ويترك جاره.
+</p>
+
+<table>
+  <tbody>
+    <tr><td><strong>نصّ الواجهة</strong></td><td>الأساس. بقيّة الأدوار تُشتقّ منه ما لم تفكّ الاشتقاق.</td></tr>
+    <tr><td><strong>القوائم</strong></td><td>المنسدلات وقوائم الفأرة اليمنى.</td></tr>
+    <tr><td><strong>الجداول</strong></td><td>صفوف القوائم الطويلة والجداول.</td></tr>
+    <tr><td><strong>العناوين</strong></td><td>عناوين النوافذ والأقسام الكبرى.</td></tr>
+    <tr><td><strong>عناوين فرعيّة</strong></td><td>العناوين الصغيرة داخل الأقسام.</td></tr>
+    <tr><td><strong>النصّ الثانويّ</strong></td><td>التلميحات والوصف تحت الحقول.</td></tr>
+    <tr><td><strong>النصّ الدقيق</strong></td><td>الشارات والعدّادات.</td></tr>
+    <tr><td><strong>النصّ التقنيّ</strong></td><td>المسارات وكتل الكود داخل الواجهة.</td></tr>
+    <tr><td><strong>النصّ الكبير</strong></td><td>أرقام وأيقونات حالات الفراغ.</td></tr>
+    <tr><td><strong>الطرفيّة</strong></td><td>نصّ التيرمنال (‏<kbd>Ctrl</kbd> + العجلة يغيّره أيضاً).</td></tr>
+    <tr><td><strong>دردشة الذكاء</strong></td><td>نصّ المحادثة في اللوحة الجانبيّة.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>منزلق واحد يكفي عادةً:</strong> ما دام مفتاح «اشتقّها من حجم نصّ الواجهة» مرفوعاً،
+  فتحريك «حجم نصّ الواجهة» وحده يكبّر التطبيق متناسقاً. أطفئه إن أردت ضبط كلّ دور بيدك.</p>
+</div>
+
+<h3>محرّر الإعدادات (JSON)</h3>
+
+<p>
+  للضبط الدقيق: <strong>«محرّر الإعدادات»</strong> يفتح ملفّ <code>config.json</code> داخل التطبيق مع
+  <strong>تنسيق</strong> و<strong>تحقّق</strong> و<strong>حفظ وتطبيق</strong>. الخطأ يُعرَض بسطره وعموده،
+  و<strong>لا يُسمَح بالحفظ وفيه خطأ صياغة</strong>. بعض إعدادات النظام (الثيم/اللغة/الخلفيّة) تحتاج
+  إعادة تشغيل، والمحرّر يقول ذلك عند الحفظ.
+</p>
+
+
+<h2 id="servers">١٢ · مراقب الخوادم</h2>
+
+<p>أداة داخل التطبيق تتّصل بخوادمك عبر SSH لتعرض حالتها وملفّاتها وحاوياتها.</p>
+
+<h3>الخوادم</h3>
+
+<p>
+  أضِف خادماً، ثمّ <strong>«اختبار الاتّصال»</strong> قبل الاعتماد عليه. القائمة تعرض آخر اتّصال لكلّ خادم،
+  ومنها: اتّصال · قطع · إعادة اتّصال · تعديل · نسخ · حذف.
+</p>
+
+<h3>التبويبات</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>لوحة القيادة</strong></td><td>نظرة عامّة: المضيف والنظام والنواة والمعالج وعدد الأنوية والعنوان ومدّة التشغيل والحِمل والذاكرة والقرص <code>/</code>، مع <strong>أعلى العمليّات</strong>.</td></tr>
+    <tr><td><strong>الأقراص</strong></td><td>الأقراص والمساحة المستهلكة.</td></tr>
+    <tr><td><strong>المجلّدات</strong></td><td>استهلاك المجلّدات في <strong>Treemap</strong> بصريّ، وشجرة، و<strong>أكبر الملفّات</strong> — لمعرفة ما ملأ القرص.</td></tr>
+    <tr><td><strong>الملفّات</strong></td><td>تصفّح ملفّات الخادم: فتح · تعديل · تنزيل · إعادة تسمية · حذف · رفع · مجلّد جديد · «الكونسول هنا».</td></tr>
+    <tr><td><strong>الحاويات</strong></td><td>حاويات Docker: بحث، وتسمية تختارها أنت للحاوية، و«فتح» يدخل <strong>مستكشف الحاوية</strong> لتصفّح ملفّاتها كأنّها جهاز.</td></tr>
+    <tr><td><strong>الإدارة</strong></td><td>أفعال إداريّة على الخادم.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p>الحذف على الخادم <strong>نهائيّ</strong> — لا سلّة محذوفات في SSH. لذلك يسأل قبل حذف أيّ ملفّ أو مجلّد.</p>
+</div>
+
+
+<h2 id="updates">١٣ · ما الجديد والتحديث</h2>
+
+<p>
+  زرّ <strong>«ما الجديد»</strong> في شريط العنوان يعرض تاريخ الإصدارات كاملاً بمميّزات كلّ نسخة.
+  ويظهر تلقائيّاً مرّة واحدة بعد كلّ تحديث.
+</p>
+
+<p>
+  وحين يتوفّر تحديث تظهر <strong>نقطة بلون التمييز</strong> على الزرّ نفسه، والنقر حينها يفتح حوار
+  التحديث بدل لوحة «ما الجديد» — لأنّه ما تنتظره في تلك اللحظة.
+</p>
+
+
+<footer>
+  <p>هذا الدليل ملفّ HTML بجانب التطبيق، يفتحه زرّ «الدليل» أينما ظهر ويتبع لغة الواجهة.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+  // تمييز القسم الجاري في القائمة الجانبيّة أثناء التمرير.
+  (function () {
+    var links = {};
+    document.querySelectorAll('#toc a').forEach(function (a) {
+      var id = a.getAttribute('href').slice(1);
+      if (id) links[id] = a;
+    });
+
+    var current = null;
+    function mark(id) {
+      if (current === id) return;
+      if (current && links[current]) links[current].classList.remove('on');
+      current = id;
+      if (links[id]) links[id].classList.add('on');
+    }
+
+    var heads = Array.prototype.slice.call(document.querySelectorAll('main h2[id]'));
+    if (!heads.length) return;
+
+    // الأقرب إلى أعلى الشاشة هو «القسم الجاري» — أبسط من مراقبة التقاطعات وأدقّ عند القفز بمرسى.
+    function update() {
+      var best = heads[0], bestTop = -Infinity;
+      for (var i = 0; i < heads.length; i++) {
+        var top = heads[i].getBoundingClientRect().top - 90;
+        if (top <= 0 && top > bestTop) { bestTop = top; best = heads[i]; }
+      }
+      mark(best.id);
+    }
+
+    var ticking = false;
+    window.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(function () { update(); ticking = false; });
+    }, { passive: true });
+
+    update();
+  })();
+</script>
+</body>
+</html>

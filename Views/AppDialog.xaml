@@ -1,4 +1,4 @@
-<Window x:Class="TerminalLauncher.Views.AppDialog"
+﻿<Window x:Class="TerminalLauncher.Views.AppDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -12,19 +12,19 @@
             <DropShadowEffect Color="#000000" BlurRadius="28" ShadowDepth="3" Opacity="0.5"/>
         </Border.Effect>
         <StackPanel MinWidth="320" MaxWidth="470">
-            <TextBlock x:Name="TitleText" FontSize="19" FontWeight="Bold"
+            <TextBlock x:Name="TitleText" FontSize="{DynamicResource Size.Title}" FontWeight="Bold"
                        Foreground="{DynamicResource Brush.Text}" Margin="0,0,0,12"/>
             <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <ScrollViewer.Resources>
                     <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
                 </ScrollViewer.Resources>
-                <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="22" FontSize="13.5"
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="22" FontSize="{DynamicResource Size.Ui}"
                            Foreground="{DynamicResource Brush.TextMuted}"/>
             </ScrollViewer>
             <!-- حقل الإدخال: يظهر فقط في وضع «سؤال بنصّ» (AppDialog.Prompt) — مخفيّ في التأكيد/التنبيه -->
             <TextBox x:Name="InputBox" Visibility="Collapsed" Margin="0,14,0,0"
-                     FontSize="13.5" Padding="10,8"/>
+                     FontSize="{DynamicResource Size.Ui}" Padding="10,8"/>
 
             <!-- الأزرار مجمّعة على الحافة الأماميّة (يمين في LTR، يسار في RTL) — تتبع اتّجاه اللغة -->
             <StackPanel x:Name="ButtonPanel" Orientation="Horizontal"

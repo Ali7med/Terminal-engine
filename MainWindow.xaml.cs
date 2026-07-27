@@ -254,6 +254,15 @@ public partial class MainWindow : Window
         SmallSizeSlider.IsEnabled = !smallAuto;
         SmallSizeSlider.Value = smallShown;
         SmallSizeValue.Text = smallShown.ToString("0.#");
+        // الأدوار التفصيليّة: مشتقّة ما لم يُثبَّت أيٌّ منها صراحةً.
+        FontSettings f = FontManager.Current;
+        bool derived = f.HeadingSize <= 0 && f.TinySize <= 0 && f.CodeSize <= 0 && f.DisplaySize <= 0;
+        DerivedSizesCheck.IsChecked = derived;
+        HeadingSizeSlider.IsEnabled = !derived;
+        TinySizeSlider.IsEnabled = !derived;
+        CodeSizeSlider.IsEnabled = !derived;
+        DisplaySizeSlider.IsEnabled = !derived;
+        SyncDerivedSizeSliders();
         RadiusSlider.Value = FontManager.Current.CornerRadius;
         RadiusValue.Text = FontManager.Current.CornerRadius.ToString("0.#");
         FontJsonPathText.Text = FontManager.ConfigPath;
@@ -750,6 +759,90 @@ public partial class MainWindow : Window
             SmallSizeSlider.Value = derived;
             SmallSizeValue.Text = derived.ToString("0.#");
             _syncingUi = false;
+        }
+    }
+
+    // ===== الأدوار التفصيليّة (عنوان فرعيّ · نصّ دقيق · كود · عرض كبير) =====
+    //
+    // كلّها تشترك في القاعدة نفسها: صفرٌ في الإعدادات = اشتقاق من حجم نصّ الواجهة، وقيمةٌ موجبة =
+    // تثبيتٌ صريح. مفتاح «الاشتقاق» يقلب الأربعة معاً — لأنّ من يريد التفصيل يريده للمجموعة، ومن
+    // لا يريده لا يحتاج أربعة مفاتيح تسأله عن أربعة أدوار لا يعرفها.
+
+    private void HeadingSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => CommitRoleSize(HeadingSizeValue, e.NewValue, (s, v) => s.HeadingSize = v);
+
+    private void TinySizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => CommitRoleSize(TinySizeValue, e.NewValue, (s, v) => s.TinySize = v);
+
+    private void CodeSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => CommitRoleSize(CodeSizeValue, e.NewValue, (s, v) => s.CodeSize = v);
+
+    private void DisplaySizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => CommitRoleSize(DisplaySizeValue, e.NewValue, (s, v) => s.DisplaySize = v);
+
+    /// <summary>يعرض القيمة دائماً، ويكتبها في الإعدادات إلّا حين تكون الأدوار على الاشتقاق.</summary>
+    private void CommitRoleSize(TextBlock? label, double value, Action<FontSettings, double> set)
+    {
+        if (label is null) return;                       // أثناء بناء الواجهة قبل اكتمال العناصر
+        label.Text = value.ToString("0.#");
+        if (DerivedSizesCheck?.IsChecked != false) return;   // مشتقّ: المنزلق مرآة لا مصدر
+        CommitFont(s => set(s, value));
+    }
+
+    /// <summary>
+    /// يقلب الأدوار الأربعة بين الاشتقاق والتثبيت. عند العودة إلى الاشتقاق تُكتب أصفار وتُعاد
+    /// المنزلقات إلى القيم المشتقّة، فما تراه هو ما سيُطبَّق فعلاً.
+    /// </summary>
+    private void DerivedSizes_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+
+        bool auto = DerivedSizesCheck.IsChecked == true;
+        HeadingSizeSlider.IsEnabled = !auto;
+        TinySizeSlider.IsEnabled = !auto;
+        CodeSizeSlider.IsEnabled = !auto;
+        DisplaySizeSlider.IsEnabled = !auto;
+
+        if (auto)
+        {
+            CommitFont(s =>
+            {
+                s.HeadingSize = 0;
+                s.TinySize = 0;
+                s.CodeSize = 0;
+                s.DisplaySize = 0;
+            });
+            SyncDerivedSizeSliders();
+        }
+        else
+        {
+            CommitFont(s =>
+            {
+                s.HeadingSize = HeadingSizeSlider.Value;
+                s.TinySize = TinySizeSlider.Value;
+                s.CodeSize = CodeSizeSlider.Value;
+                s.DisplaySize = DisplaySizeSlider.Value;
+            });
+        }
+    }
+
+    /// <summary>يضع في المنزلقات ما يطبّقه المدير فعلاً (المضبوط صراحةً أو المشتقّ).</summary>
+    private void SyncDerivedSizeSliders()
+    {
+        FontSettings f = FontManager.Current;
+        double ui = f.UiSize;
+
+        _syncingUi = true;
+        Set(HeadingSizeSlider, HeadingSizeValue, f.HeadingSize > 0 ? f.HeadingSize : ui + 2);
+        Set(TinySizeSlider, TinySizeValue, f.TinySize > 0 ? f.TinySize : Math.Max(7, ui - 4));
+        Set(CodeSizeSlider, CodeSizeValue, f.CodeSize > 0 ? f.CodeSize : Math.Max(8, ui - 1));
+        Set(DisplaySizeSlider, DisplaySizeValue, f.DisplaySize > 0 ? f.DisplaySize : Math.Min(72, ui * 2.2));
+        _syncingUi = false;
+
+        static void Set(Slider slider, TextBlock label, double value)
+        {
+            slider.Value = Math.Clamp(value, slider.Minimum, slider.Maximum);
+            label.Text = slider.Value.ToString("0.#");
         }
     }
 
@@ -2287,22 +2380,114 @@ public partial class MainWindow : Window
 
     // ===== التيرمنالات =====
 
-    /// <summary>يفتح تيرمنالاً فارغاً (بلا أمر محفوظ) بصدفة الجزء النشط الحاليّ أو البروفايل الافتراضيّ.</summary>
-    private void OpenEmptyTerminal()
+    /// <summary>
+    /// يفتح تيرمنالاً فارغاً (بلا أمر محفوظ) بصدفة الجزء النشط الحاليّ ومن <b>مجلده نفسه</b> — كما تفعل
+    /// كلّ الطرفيّات: «تاب جديد» يعني «هنا، حيث أنا الآن». إن لم يكن هناك تبويب مفتوح أصلاً فلا مكان
+    /// يُورَّث، فتُعرَض قائمة أماكن البدء بدل فتح تيرمنال في مجلد عشوائيّ (مجلد تثبيت الأداة).
+    /// </summary>
+    private void OpenEmptyTerminal(UIElement? menuTarget = null)
     {
-        string shell = ActiveContainer?.ActiveView?.CurrentShellKey ?? ShellCatalog.DefaultKey;
-        OpenTerminalForProfile(shell);
+        var active = ActiveContainer?.ActiveView;
+        if (active == null)
+        {
+            ShowStartPathsMenu(menuTarget ?? NewTabButton);
+            return;
+        }
+        OpenTerminalForProfile(active.CurrentShellKey, active.KnownWorkingDirectory);
     }
 
-    /// <summary>يفتح تيرمنالاً فارغاً ببروفايل صدفة محدّد (اسم التاب = اسم البروفايل).</summary>
-    private void OpenTerminalForProfile(string profileId)
+    /// <summary>يفتح تيرمنالاً فارغاً ببروفايل صدفة محدّد (اسم التاب = اسم البروفايل)، في مسار اختياريّ.</summary>
+    private void OpenTerminalForProfile(string profileId, string? path = null)
     {
         var profile = ShellCatalog.GetProfile(profileId);
         string name = profile?.Name ?? "تيرمنال";
-        OpenTerminal(new CommandEntry { Name = name, Shell = profileId });
+        OpenTerminal(new CommandEntry { Name = name, Shell = profileId, Path = path ?? "" });
     }
 
-    private void NewTabButton_Click(object sender, RoutedEventArgs e) => OpenEmptyTerminal();
+    /// <summary>
+    /// أماكن البدء المقترَحة حين لا يوجد تيرمنال مفتوح يُورَّث مجلده: مجلدات المستخدم المعتادة ثمّ
+    /// الأقراص الثابتة الجاهزة. تُرشَّح إلى الموجود فعلاً على هذا الجهاز فلا يظهر بند يفشل عند النقر.
+    /// </summary>
+    private static IEnumerable<(string Label, string Path)> StartPathSuggestions()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        var named = new (string Key, string Path)[]
+        {
+            ("paths.desktop",   Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
+            ("paths.documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+            ("paths.downloads", Path.Combine(home, "Downloads")),
+            ("paths.home",      home),
+        };
+
+        foreach (var (key, path) in named)
+            if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+                yield return (Loc.T(key), path);
+
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            bool usable;
+            try { usable = drive.IsReady && drive.DriveType == DriveType.Fixed; }
+            catch { usable = false; }   // قرص شبكة منقطع يرمي عند الاستعلام
+            if (!usable) continue;
+
+            string label = drive.Name.TrimEnd('\\');
+            try { if (!string.IsNullOrWhiteSpace(drive.VolumeLabel)) label += "  " + drive.VolumeLabel; }
+            catch { /* بلا اسم مجلَّد */ }
+            yield return (label, drive.Name);
+        }
+    }
+
+    /// <summary>قائمة «افتح تيرمنال في…»: الأماكن المقترَحة + استعراض مجلد من القرص.</summary>
+    private void ShowStartPathsMenu(UIElement? target)
+    {
+        var menu = new ContextMenu { FlowDirection = Loc.Flow, PlacementTarget = target };
+
+        var title = new MenuItem
+        {
+            Header = Loc.T("paths.title"),
+            IsEnabled = false,
+            Foreground = (Brush)FindResource("Brush.TextMuted"),
+        };
+        menu.Items.Add(title);
+        menu.Items.Add(new Separator());
+
+        foreach (var (label, path) in StartPathSuggestions())
+        {
+            string captured = path;
+            var item = new MenuItem
+            {
+                Header = label,
+                // المسار الكامل في خانة الاختصار: يُقرأ رماديّاً على اليمين بلا تضخيم العنوان.
+                InputGestureText = path,
+                FlowDirection = FlowDirection.LeftToRight,
+            };
+            item.Click += (_, _) => OpenTerminalForProfile(ShellCatalog.DefaultKey, captured);
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        var browse = new MenuItem { Header = Loc.T("paths.browse") };
+        browse.Click += (_, _) => BrowseAndOpenTerminal();
+        menu.Items.Add(browse);
+
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>يفتح منتقي مجلدات ويندوز ثمّ تيرمنالاً في المجلد المختار.</summary>
+    private void BrowseAndOpenTerminal()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = Loc.T("paths.browse"),
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog(this) == true && Directory.Exists(dialog.FolderName))
+            OpenTerminalForProfile(ShellCatalog.DefaultKey, dialog.FolderName);
+    }
+
+    private void NewTabButton_Click(object sender, RoutedEventArgs e) => OpenEmptyTerminal(sender as UIElement);
 
     /// <summary>كم بروفايلاً يظهر قبل «عرض الكل» — قائمة قصيرة تُقرأ بلمحة.</summary>
     private const int ProfileMenuPreviewCount = 5;
@@ -2897,6 +3082,8 @@ public partial class MainWindow : Window
             {
                 Name = "تيرمنال",
                 Shell = active.CurrentShellKey,
+                // الجزء الجديد يبدأ من مجلد الجزء المنقسِم — التقسيم «هنا» لا «من الصفر».
+                Path = active.KnownWorkingDirectory ?? "",
             }));
         else
             OpenEmptyTerminal();   // لا تبويب مفتوح: التقسيم يبدأ بتيرمنال جديد
@@ -3040,7 +3227,7 @@ public partial class MainWindow : Window
         _paletteSource.Add(new CommandPaletteItem
         {
             Icon = "", Title = "تبويب جديد", Hint = "Ctrl+Shift+T",
-            Invoke = OpenEmptyTerminal,
+            Invoke = () => OpenEmptyTerminal(),
         });
         _paletteSource.Add(new CommandPaletteItem
         {

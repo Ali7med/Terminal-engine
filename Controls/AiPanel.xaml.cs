@@ -448,6 +448,45 @@ public partial class AiPanel : UserControl
         NotificationService.Secondary(string.Format(Loc.T("ai.panel.modelSet"), trimmed));
     }
 
+    /// <summary>النموذج الفعّال الآن — يقرأه المنتقي المضغوط في صندوق الأوامر ليعرض الصحيح.</summary>
+    public string CurrentModel() => _settings is null ? "" : ActiveModel();
+
+    /// <summary>
+    /// يضبط نموذج الجلسة من خارج اللوحة (المنتقي المضغوط في صندوق الأوامر) ويُبقي ترويسة اللوحة
+    /// متّفقة معه — نموذجٌ واحد للجلسة مهما كان المكان الذي غُيِّر منه.
+    /// </summary>
+    public void SetSessionModel(string model)
+    {
+        ApplySessionModel(model);
+        _modelSyncing = true;
+        try { ModelCombo.Text = CurrentModel(); }
+        finally { _modelSyncing = false; }
+    }
+
+    /// <summary>
+    /// معرّفات نماذج المزوّد الحاليّ. يُشاركها المنتقي المضغوط مع ترويسة اللوحة فلا يتكرّر نداء
+    /// الشبكة، ويعيد قائمة فارغة عند الفشل بدل أن يرمي — الحقل يبقى قابلاً للكتابة يدويّاً.
+    /// </summary>
+    public async System.Threading.Tasks.Task<IReadOnlyList<string>> LoadModelIdsAsync()
+    {
+        if (_settings is null || _keys is null) return Array.Empty<string>();
+
+        AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings);
+        if (descriptor is null) return Array.Empty<string>();
+
+        try
+        {
+            IAiProvider provider = AiProviderFactory.CreateFor(
+                descriptor, _keys.Get(descriptor.Id), _settings.BaseUrlOverride);
+
+            IReadOnlyList<AiModelInfo> models =
+                await provider.ListModelsDetailedAsync(System.Threading.CancellationToken.None).ConfigureAwait(true);
+
+            return models.Select(m => m.Id).ToList();
+        }
+        catch (AiException) { return Array.Empty<string>(); }
+    }
+
     // ===== الجلسات السابقة =====
 
     /// <summary>صفّ محادثة محفوظة في طبقة الجلسات.</summary>
@@ -481,7 +520,24 @@ public partial class AiPanel : UserControl
     }
 
     private void HistoryClose_Click(object sender, RoutedEventArgs e)
-        => HistoryOverlay.Visibility = Visibility.Collapsed;
+    {
+        HistoryOverlay.Visibility = Visibility.Collapsed;
+        FocusInput();
+    }
+
+    /// <summary>
+    /// يضع المؤشّر في صندوق السؤال — تُنادى عند فتح اللوحة وعند إغلاق طبقة الجلسات.
+    ///
+    /// <para>مؤجَّلة إلى <c>Input</c>: لحظةَ تغيير الرؤية لم يكن العنصر قد عُرِض بعد، وطلبُ التركيز
+    /// على عنصر غير مرئيّ يُهمَل بصمت فيبقى المؤشّر حيث كان ويحتاج المستخدم نقرة زائدة.</para>
+    /// </summary>
+    public void FocusInput() => Dispatcher.BeginInvoke(
+        new Action(() =>
+        {
+            InputBox.Focus();
+            InputBox.CaretIndex = InputBox.Text.Length;
+        }),
+        System.Windows.Threading.DispatcherPriority.Input);
 
     private void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         => HistoryTranscript.Text = HistoryList.SelectedItem is ChatRow row ? row.Transcript : "";

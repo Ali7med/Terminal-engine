@@ -1,9 +1,10 @@
-<Window x:Class="TerminalLauncher.MainWindow"
+﻿<Window x:Class="TerminalLauncher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         xmlns:loc="clr-namespace:TerminalLauncher.Services"
+        xmlns:theme="clr-namespace:TerminalLauncher.Theme"
         Title="مشغّل الأوامر" Height="860" Width="1400"
         Icon="pack://application:,,,/Assets/AppIcon/app.ico"
         MinHeight="560" MinWidth="980"
@@ -56,7 +57,7 @@
                                    Foreground="{DynamicResource Brush.OnAccent}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock x:Name="TitleText" Text="مشغّل الأوامر" FontWeight="SemiBold" FontSize="13.5"
+                    <TextBlock x:Name="TitleText" Text="مشغّل الأوامر" FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}"
                                VerticalAlignment="Center" Margin="10,0,0,0"/>
                 </StackPanel>
 
@@ -74,7 +75,7 @@
                             Content="&#xE710;" Click="NewTabButton_Click"
                             ToolTip="تيرمنال فارغ جديد (Ctrl+Shift+T)"/>
                     <Button x:Name="NewTabDropDown" Style="{StaticResource ChromeButton}"
-                            Content="&#xE70D;" FontSize="10" Click="NewTabDropDown_Click"
+                            Content="&#xE70D;" FontSize="{DynamicResource Size.Tiny}" Click="NewTabDropDown_Click"
                             ToolTip="اختر بروفايل صدفة"/>
                     <Button x:Name="ServerMonitorButton" Style="{StaticResource ChromeButton}"
                             Content="&#xE968;" Click="ToolsButton_Click" ToolTip="أدوات النظام">
@@ -111,6 +112,10 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+                    <!-- الدليل: مدخل الشرح من الواجهة الأماميّة، بالنبض نفسه الذي في الإعدادات
+                         حتّى تُعرَف الأيقونة أينما ظهرت. -->
+                    <Button x:Name="GuideButton" Style="{StaticResource ChromeGuideButton}"
+                            Content="&#xE897;" Tag="" Click="Docs_Click" ToolTip="{loc:T docs.tipMain}"/>
                     <!-- «ما الجديد» + نقطة لكنة تظهر حين يتوفّر تحديث؛ النقر حينها يفتح حوار التحديث. -->
                     <Grid>
                         <Button x:Name="WhatsNewButton" Style="{StaticResource ChromeButton}"
@@ -150,7 +155,7 @@
                                 Foreground="{DynamicResource Brush.Text}" Click="SidebarMenu_Click"
                                 ToolTip="الأوامر المحفوظة"/>
                         <Button x:Name="SidebarAddBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
-                                Content="＋" FontSize="20" Height="38"
+                                Content="＋" FontSize="{DynamicResource Size.Title}" Height="38"
                                 Foreground="{DynamicResource Brush.Accent}" Click="AddButton_Click" ToolTip="إضافة أمر"/>
                         <Border DockPanel.Dock="Top" Height="1" Margin="14,8" Background="{DynamicResource Brush.Hairline}"/>
                         <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
@@ -167,7 +172,7 @@
                                                             BorderBrush="Transparent" BorderThickness="0"
                                                             ClipToBounds="True">
                                                         <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="13"
+                                                                   VerticalAlignment="Center" FontWeight="Bold" FontSize="{DynamicResource Size.Ui}"
                                                                    Foreground="#FFFFFF"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -199,7 +204,7 @@
                                            VerticalAlignment="Center" Margin="0,0,9,0"
                                            Foreground="{DynamicResource Brush.Accent}"/>
                                 <TextBlock x:Name="HintLine1" Text="جلسة تيرمنال جديدة"
-                                           FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                                           FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <!-- كلّ صفّ: رقاقات الاختصار ثمّ وصفه. الرقاقات LTR دائماً (رموز كيبورد). -->
@@ -271,10 +276,10 @@
                     <Border Style="{StaticResource Card}" Padding="12">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="2,0,0,10">
-                                <TextBlock x:Name="SidebarHeader" Text="الأوامر المحفوظة" FontWeight="SemiBold" FontSize="14"
+                                <TextBlock x:Name="SidebarHeader" Text="الأوامر المحفوظة" FontWeight="SemiBold" FontSize="{DynamicResource Size.Ui}"
                                            VerticalAlignment="Center"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource IconButton}"
-                                        Content="＋" FontSize="19" Foreground="{DynamicResource Brush.Accent}"
+                                        Content="＋" FontSize="{DynamicResource Size.Title}" Foreground="{DynamicResource Brush.Accent}"
                                         Click="AddButton_Click" ToolTip="إضافة أمر"/>
                             </Grid>
 
@@ -342,7 +347,7 @@
                                                     Margin="0,0,10,0" VerticalAlignment="Center"
                                                     Background="{Binding Name, Converter={StaticResource Conv.PrimaryTagBrush}}">
                                                 <TextBlock Text="{Binding Initial}" Foreground="#FFFFFF"
-                                                           FontWeight="SemiBold" FontSize="12"
+                                                           FontWeight="SemiBold" FontSize="{DynamicResource Size.Small}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -476,7 +481,7 @@
                     <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Style="{StaticResource Card}" Padding="20" MouseLeftButtonDown="EditorCard_MouseDown">
                         <StackPanel>
-                            <TextBlock x:Name="ProjEditTitle" Text="مشروع جديد" FontSize="16" FontWeight="SemiBold"
+                            <TextBlock x:Name="ProjEditTitle" Text="مشروع جديد" FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
                                        Margin="0,0,0,14"/>
                             <TextBlock x:Name="ProjEditNameLabel" Text="الاسم" Style="{StaticResource SectionLabel}"/>
                             <TextBox x:Name="ProjEditName"/>
@@ -538,7 +543,7 @@
                         <DockPanel x:Name="SettingsContent" Margin="0" FlowDirection="RightToLeft">
                             <!-- الترويسة: عنوان + إغلاق -->
                             <Grid DockPanel.Dock="Top" Margin="24,20,20,16">
-                                <TextBlock x:Name="SettingsTitle" Text="الإعدادات" FontSize="19"
+                                <TextBlock x:Name="SettingsTitle" Text="الإعدادات" FontSize="{DynamicResource Size.Title}"
                                            FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource ChromeButton}"
                                         Content="&#xE8BB;" Click="CloseSettings_Click"/>
@@ -547,7 +552,7 @@
                                     Background="{DynamicResource Brush.Border}"/>
 
                             <TextBlock x:Name="AutoSaveLabel" DockPanel.Dock="Bottom" VerticalAlignment="Bottom"
-                                       Text="تُحفظ التفضيلات تلقائياً" FontSize="10.5" Margin="24,10,24,14"
+                                       Text="تُحفظ التفضيلات تلقائياً" FontSize="{DynamicResource Size.Tiny}" Margin="24,10,24,14"
                                        Foreground="{DynamicResource Brush.TextMuted}"/>
 
                             <!-- الجسم: قائمة فئات (يسار) + محتوى الفئة المختارة (يمين) -->
@@ -596,9 +601,15 @@
                                     <StackPanel>
                                         <!-- ===== فئة: المظهر ===== -->
                                         <StackPanel x:Name="CatAppearance">
+                                            <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,8">
+                                                <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
+                                                        Style="{StaticResource GuideButton}" Tag="appearance"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                        Click="Docs_Click"/>
+                                            </Grid>
                                             <TextBlock x:Name="AppearanceLabel" Text="الثيم" Style="{StaticResource SectionLabel}"/>
                                             <TextBlock x:Name="ThemeHint" Text="اختر ثيماً — يُطبَّق فوراً"
-                                                       Foreground="{DynamicResource Brush.TextMuted}" FontSize="11" Margin="2,0,2,10"/>
+                                                       Foreground="{DynamicResource Brush.TextMuted}" FontSize="{DynamicResource Size.Small}" Margin="2,0,2,10"/>
                                             <!-- بطاقات الثيمات تُبنى في الكود (BuildThemeCards): تُعرَض المجموعة
                                                  الأولى فقط هنا (عدّة في السطر عبر WrapPanel)، وزرّ «عرض الكلّ»
                                                  يفتح قائمة منبثقة ببقيّة الثيمات. -->
@@ -631,7 +642,7 @@
                                                 <Button x:Name="BgClearButton" Content="إزالة" Padding="14,7" Margin="8,0,0,0"
                                                         Click="BgClearButton_Click"/>
                                             </StackPanel>
-                                            <TextBlock x:Name="BgPathText" FontSize="10.5" Margin="2,6,2,0"
+                                            <TextBlock x:Name="BgPathText" FontSize="{DynamicResource Size.Tiny}" Margin="2,6,2,0"
                                                        TextTrimming="CharacterEllipsis" FlowDirection="LeftToRight"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
 
@@ -654,6 +665,12 @@
 
                                         <!-- ===== فئة: اللغة ===== -->
                                         <StackPanel x:Name="CatLanguage" Visibility="Collapsed">
+                                            <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,8">
+                                                <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
+                                                        Style="{StaticResource GuideButton}" Tag="language"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                        Click="Docs_Click"/>
+                                            </Grid>
                                             <TextBlock x:Name="LangLabel" Text="اللغة" Style="{StaticResource SectionLabel}"/>
                                             <Border CornerRadius="9" Padding="4" MaxWidth="360" HorizontalAlignment="Left"
                                                     Background="{DynamicResource Brush.Bg}"
@@ -679,7 +696,7 @@
                                                       Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
                                             <TextBlock Text="صندوق أمر واضح أسفل التيرمنال مع اقتراحات وإكمال شبحيّ. إطفاؤه يعيد الكتابة داخل الشبكة مباشرةً. يختفي تلقائياً في محرّرات كامل الشاشة."
                                                        TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
-                                                       FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
+                                                       FontSize="{DynamicResource Size.Small}" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
 
                                             <TextBlock x:Name="FontSizeLabel" Text="حجم الخطّ" Style="{StaticResource SectionLabel}"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
@@ -707,9 +724,9 @@
                                             <Border Height="1" Margin="0,22,0,0" Background="{DynamicResource Brush.Border}"/>
                                             <TextBlock Text="{loc:T settings.uiFonts}" Style="{StaticResource SectionLabel}" Margin="2,16,2,4"/>
                                             <TextBlock Text="{loc:T settings.fontsHint}" TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
-                                                       FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,10"/>
+                                                       FontSize="{DynamicResource Size.Small}" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,10"/>
 
-                                            <TextBlock Text="{loc:T settings.uiFamily}" FontSize="11.5"
+                                            <TextBlock Text="{loc:T settings.uiFamily}" FontSize="{DynamicResource Size.Small}"
                                                        Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,4"/>
                                             <!-- قائمة الخطوط المثبّتة مع معاينة كلّ اسم بخطّه نفسه؛ وقابلة للكتابة فيبقى
                                                  إدخال اسم يدويّ (أو إفراغه = الافتراضيّ) ممكناً كما كان. تُملأ عند أوّل فتح لا عند
@@ -722,12 +739,12 @@
                                                       KeyDown="FontUiFamily_KeyDown" LostFocus="FontUiFamily_LostFocus">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="14"/>
+                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="{DynamicResource Size.Ui}"/>
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
 
-                                            <TextBlock Text="{loc:T settings.monoFamily}" FontSize="11.5"
+                                            <TextBlock Text="{loc:T settings.monoFamily}" FontSize="{DynamicResource Size.Small}"
                                                        Foreground="{DynamicResource Brush.TextMuted}" Margin="2,12,2,4"/>
                                             <ComboBox x:Name="FontMonoFamilyBox" IsEditable="True" IsTextSearchEnabled="True"
                                                       MaxWidth="360" MinWidth="240" HorizontalAlignment="Left"
@@ -737,13 +754,13 @@
                                                       KeyDown="FontMonoFamily_KeyDown" LostFocus="FontMonoFamily_LostFocus">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="14"/>
+                                                        <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="{DynamicResource Size.Ui}"/>
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
 
                                             <TextBlock Text="{loc:T settings.pickFont}" TextWrapping="Wrap" MaxWidth="380"
-                                                       HorizontalAlignment="Left" FontSize="11" Margin="2,6,2,0"
+                                                       HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}" Margin="2,6,2,0"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                             <TextBlock Text="{loc:T settings.uiSize}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
@@ -801,6 +818,71 @@
                                                            VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>
 
+                                            <!-- ===== الأدوار التفصيليّة =====
+                                                 تُشتقّ كلّها من «حجم نصّ الواجهة» ما دام المفتاح مرفوعاً،
+                                                 فمنزلقٌ واحد يكبّر التطبيق متناسقاً. إطفاؤه يفكّ الاشتقاق
+                                                 ويسلّم كلّ دور لمنزلقه. -->
+                                            <Border Height="1" Margin="0,20,0,0" Background="{DynamicResource Brush.Border}"/>
+                                            <TextBlock Text="{loc:T settings.roles}" Style="{StaticResource SectionLabel}" Margin="2,14,2,4"/>
+                                            <TextBlock Text="{loc:T settings.rolesHint}" TextWrapping="Wrap" MaxWidth="380"
+                                                       HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
+                                                       Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,8"/>
+                                            <CheckBox x:Name="DerivedSizesCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T settings.rolesAuto}" Margin="2,0,2,10"
+                                                      Checked="DerivedSizes_Changed" Unchecked="DerivedSizes_Changed"/>
+
+                                            <TextBlock Text="{loc:T settings.headingSize}" Style="{StaticResource SectionLabel}" Margin="2,6,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="HeadingSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="10" Maximum="26" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="HeadingSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="HeadingSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T settings.tinySize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="TinySizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="7" Maximum="18" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="TinySizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="TinySizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T settings.codeSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="CodeSizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="8" Maximum="22" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="CodeSizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="CodeSizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T settings.displaySize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="DisplaySizeSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="16" Maximum="72" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                        ValueChanged="DisplaySizeSlider_ValueChanged"/>
+                                                <TextBlock x:Name="DisplaySizeValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <!-- نصّ دردشة الذكاء: قيمته تعيش في إعدادات المساعد، وموضعه هنا كي
+                                                 تكون كلّ أحجام نصوص التطبيق في لوحة واحدة. -->
+                                            <TextBlock Text="{loc:T ai.set.chatFont}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiChatFontSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="10" Maximum="22" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="AiChatFont_Changed"/>
+                                                <TextBlock x:Name="AiChatFontValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
                                             <!-- ===== استدارة الحواف (الكروت ونوافذ المشروع) ===== -->
                                             <TextBlock Text="{loc:T settings.cornerRadius}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
@@ -819,7 +901,7 @@
                                                         Click="ApplyFontJson_Click"/>
                                                 <Button x:Name="ResetFontBtn" Content="{loc:T settings.resetFont}" Margin="8,0,0,0" Padding="14,7" Click="ResetFont_Click"/>
                                             </StackPanel>
-                                            <TextBlock x:Name="FontJsonPathText" FontSize="10.5" Margin="2,8,2,0" FlowDirection="LeftToRight"
+                                            <TextBlock x:Name="FontJsonPathText" FontSize="{DynamicResource Size.Tiny}" Margin="2,8,2,0" FlowDirection="LeftToRight"
                                                        TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
 
@@ -827,8 +909,14 @@
                                         <StackPanel x:Name="CatAi" Visibility="Collapsed">
 
                                             <!-- ========== الاتّصال ========== -->
-                                            <TextBlock Text="{loc:T ai.set.grpConnection}" Style="{StaticResource Caption}"
-                                                       Margin="2,0,2,10"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                                <TextBlock Text="{loc:T ai.set.grpConnection}" Style="{StaticResource Caption}"
+                                                           Margin="2,0,2,0" VerticalAlignment="Center"/>
+                                                <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
+                                                        Style="{StaticResource GuideButton}" Tag="ai"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                        Click="Docs_Click"/>
+                                            </Grid>
 
                                             <TextBlock Text="{loc:T ai.set.provider}" Style="{StaticResource SectionLabel}"/>
                                             <ComboBox x:Name="AiProviderCombo" Width="420" HorizontalAlignment="Left"
@@ -860,7 +948,7 @@
                                                           Content="{loc:T ai.set.freeOnly}"
                                                           Checked="AiFreeOnly_Changed" Unchecked="AiFreeOnly_Changed"/>
                                                 <TextBlock x:Name="AiModelCountText" VerticalAlignment="Center"
-                                                           Margin="12,0,0,0" FontSize="11"
+                                                           Margin="12,0,0,0" FontSize="{DynamicResource Size.Small}"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </StackPanel>
 
@@ -876,7 +964,7 @@
                                                         Padding="12,5" Content="{loc:T ai.set.getKey}"
                                                         Click="AiGetKey_Click"/>
                                             </Grid>
-                                            <TextBlock x:Name="AiKeyStateText" FontSize="11" Margin="2,8,2,0"
+                                            <TextBlock x:Name="AiKeyStateText" FontSize="{DynamicResource Size.Small}" Margin="2,8,2,0"
                                                        TextWrapping="Wrap" Width="420" HorizontalAlignment="Left"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
 
@@ -891,7 +979,7 @@
                                                         Style="{StaticResource AccentButton}"
                                                         Content="{loc:T ai.set.test}" Click="AiTest_Click"/>
                                                 <TextBlock x:Name="AiTestResultText" VerticalAlignment="Center"
-                                                           Margin="12,0,0,0" FontSize="11" TextWrapping="Wrap"
+                                                           Margin="12,0,0,0" FontSize="{DynamicResource Size.Small}" TextWrapping="Wrap"
                                                            MaxWidth="280"/>
                                             </StackPanel>
 
@@ -952,16 +1040,8 @@
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>
 
-                                            <TextBlock Text="{loc:T ai.set.chatFont}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
-                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                <Slider x:Name="AiChatFontSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
-                                                        Minimum="10" Maximum="20" IsSnapToTickEnabled="True" TickFrequency="0.5"
-                                                        ValueChanged="AiChatFont_Changed"/>
-                                                <TextBlock x:Name="AiChatFontValue" Grid.Column="1" MinWidth="56" Margin="10,0,0,0"
-                                                           VerticalAlignment="Center" TextAlignment="Center"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
-                                            </Grid>
+                                            <!-- حجم نصّ الدردشة انتقل إلى «اللغة والخطّ»: أحجام النصوص
+                                                 كلّها في لوحة واحدة بدل منزلق هنا وآخر هناك. -->
 
                                             <TextBlock Text="{loc:T ai.set.customPrompt}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
                                             <TextBox x:Name="AiPromptBox" Style="{StaticResource MultilineTextBox}"
@@ -1012,8 +1092,14 @@
 
                                         <!-- ===== فئة: الاختصارات ===== -->
                                         <StackPanel x:Name="CatKeys" Visibility="Collapsed">
-                                            <TextBlock Text="{loc:T keys.title}" Style="{StaticResource Caption}"
-                                                       Margin="2,0,2,10"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                                <TextBlock Text="{loc:T keys.title}" Style="{StaticResource Caption}"
+                                                           Margin="2,0,2,0" VerticalAlignment="Center"/>
+                                                <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
+                                                        Style="{StaticResource GuideButton}" Tag="shortcuts"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                        Click="Docs_Click"/>
+                                            </Grid>
                                             <TextBlock Text="{loc:T keys.hint}" TextWrapping="Wrap"
                                                        Width="420" HorizontalAlignment="Left"
                                                        FontSize="{DynamicResource Size.Small}"
@@ -1031,8 +1117,16 @@
 
                                         <!-- ===== فئة: الأوامر المختصرة (أسماء مستعارة) ===== -->
                                         <StackPanel x:Name="CatAliases" Visibility="Collapsed">
-                                            <TextBlock Text="{loc:T alias.title}" Style="{StaticResource Caption}"
-                                                       Margin="2,0,2,10"/>
+                                            <!-- العنوان وزرّ الدليل في صفّ واحد: الشرح المطوّل
+                                                 يعيش في صفحة HTML، واللوحة تبقى للعمل لا للقراءة. -->
+                                            <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                                <TextBlock Text="{loc:T alias.title}" Style="{StaticResource Caption}"
+                                                           Margin="2,0,2,0" VerticalAlignment="Center"/>
+                                                <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
+                                                        Style="{StaticResource GuideButton}" Tag="aliases"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                        Click="Docs_Click"/>
+                                            </Grid>
                                             <TextBlock Text="{loc:T alias.hint}" TextWrapping="Wrap"
                                                        Width="420" HorizontalAlignment="Left"
                                                        FontSize="{DynamicResource Size.Small}"
@@ -1058,30 +1152,43 @@
                                                     Width="420" HorizontalAlignment="Left" Margin="0,18,0,0">
                                                 <StackPanel>
                                                     <TextBlock Text="{loc:T alias.name}" Style="{StaticResource SectionLabel}"/>
-                                                    <TextBox x:Name="AliasNameBox" Padding="8,6" FlowDirection="LeftToRight"/>
+                                                    <TextBox x:Name="AliasNameBox" Padding="8,6" FlowDirection="LeftToRight"
+                                                             FontFamily="Cascadia Mono, Consolas"
+                                                             theme:Placeholder.Text="{loc:T alias.namePh}"/>
                                                     <TextBlock Text="{loc:T alias.nameHint}" FontSize="{DynamicResource Size.Small}"
                                                                Margin="2,4,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                                     <TextBlock Text="{loc:T alias.desc}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
-                                                    <TextBox x:Name="AliasDescBox" Padding="8,6"/>
+                                                    <TextBox x:Name="AliasDescBox" Padding="8,6"
+                                                             theme:Placeholder.Text="{loc:T alias.descPh}"/>
 
-                                                    <TextBlock Text="{loc:T alias.vars}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                                    <TextBlock Text="{loc:T alias.vars}" Style="{StaticResource SectionLabel}" Margin="2,16,2,4"/>
+                                                    <TextBlock Text="{loc:T alias.varsHint}" TextWrapping="Wrap"
+                                                               FontSize="{DynamicResource Size.Small}" Margin="2,0,2,8"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
                                                     <StackPanel x:Name="AliasVarList"/>
+                                                    <TextBlock x:Name="AliasVarEmptyText" Text="{loc:T alias.varsEmpty}"
+                                                               TextWrapping="Wrap" Visibility="Collapsed"
+                                                               FontSize="{DynamicResource Size.Small}" Margin="2,0,2,0"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
                                                     <Button x:Name="AliasVarAddBtn" Content="{loc:T alias.varAdd}"
-                                                            Padding="10,4" Margin="2,6,2,0"
+                                                            Padding="10,4" Margin="2,8,2,0"
                                                             HorizontalAlignment="Left" Click="AliasVarAdd_Click"/>
 
                                                     <TextBlock Text="{loc:T alias.commands}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
                                                     <TextBox x:Name="AliasCommandsBox" Style="{StaticResource MultilineTextBox}"
                                                              MinLines="4" MaxLines="10" Padding="8,6"
                                                              FlowDirection="LeftToRight"
-                                                             FontFamily="Cascadia Mono, Consolas"/>
+                                                             FontFamily="Cascadia Mono, Consolas"
+                                                             theme:Placeholder.Text="{loc:T alias.commandsPh}"/>
                                                     <TextBlock Text="{loc:T alias.commandsHint}" TextWrapping="Wrap"
                                                                FontSize="{DynamicResource Size.Small}" Margin="2,4,2,0"
                                                                Foreground="{DynamicResource Brush.TextMuted}"/>
 
                                                     <TextBlock Text="{loc:T alias.shell}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
-                                                    <TextBox x:Name="AliasShellBox" Padding="8,6" FlowDirection="LeftToRight"/>
+                                                    <TextBox x:Name="AliasShellBox" Padding="8,6" FlowDirection="LeftToRight"
+                                                             FontFamily="Cascadia Mono, Consolas"
+                                                             theme:Placeholder.Text="{loc:T alias.shellPh}"/>
 
                                                     <CheckBox x:Name="AliasConfirmCheck" Style="{StaticResource AppCheckBox}"
                                                               Content="{loc:T alias.confirm}" Margin="2,16,2,8"/>
@@ -1115,7 +1222,7 @@
                             MouseLeftButtonDown="EditorCard_MouseDown">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="22,16,14,12">
-                                <TextBlock x:Name="ThemesOverlayTitle" Text="كل الثيمات" FontSize="17"
+                                <TextBlock x:Name="ThemesOverlayTitle" Text="كل الثيمات" FontSize="{DynamicResource Size.Title}"
                                            FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource ChromeButton}"
                                         Content="&#xE8BB;" Click="CloseThemesOverlay_Click"/>
@@ -1142,7 +1249,7 @@
                         </Border.Effect>
                         <StackPanel Width="236">
                             <TextBlock x:Name="ColorPickerTitle" Text="لون المشروع" FontWeight="SemiBold"
-                                       FontSize="13" Margin="0,0,0,10"/>
+                                       FontSize="{DynamicResource Size.Ui}" Margin="0,0,0,10"/>
                             <WrapPanel x:Name="ColorSwatchPanel"/>
                             <TextBlock Text="لون مخصّص (#RRGGBB)" Style="{StaticResource SectionLabel}" Margin="2,10,2,6"/>
                             <Grid FlowDirection="LeftToRight">
@@ -1167,7 +1274,7 @@
                             MouseLeftButtonDown="EditorCard_MouseDown">
                         <DockPanel>
                             <TextBlock x:Name="ProfileManagerTitle" DockPanel.Dock="Top"
-                                       Text="بروفايلات الصدفات" FontSize="16" FontWeight="SemiBold"
+                                       Text="بروفايلات الصدفات" FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
                                        Margin="0,0,0,14"/>
 
                             <TextBlock x:Name="DefaultProfileLabel" DockPanel.Dock="Top"
@@ -1197,7 +1304,7 @@
                                     <DataTemplate>
                                         <StackPanel Margin="2">
                                             <TextBlock Text="{Binding DisplayLabel}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding TypeHint}" FontSize="11"
+                                            <TextBlock Text="{Binding TypeHint}" FontSize="{DynamicResource Size.Small}"
                                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -1214,7 +1321,7 @@
                             Style="{StaticResource Card}" Padding="20"
                             MouseLeftButtonDown="EditorCard_MouseDown">
                         <StackPanel>
-                            <TextBlock x:Name="ProfileEditorTitle" Text="بروفايل مخصّص" FontSize="16"
+                            <TextBlock x:Name="ProfileEditorTitle" Text="بروفايل مخصّص" FontSize="{DynamicResource Size.Heading}"
                                        FontWeight="SemiBold" Margin="0,0,0,14"/>
 
                             <TextBlock Text="الاسم" Style="{StaticResource SectionLabel}"/>
@@ -1264,7 +1371,7 @@
                                            VerticalAlignment="Center" Margin="4,0,10,0"
                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                 <TextBox x:Name="CommandPaletteInput" Grid.Column="1"
-                                         BorderThickness="0" Background="Transparent" FontSize="14"
+                                         BorderThickness="0" Background="Transparent" FontSize="{DynamicResource Size.Ui}"
                                          Padding="0,6"
                                          TextChanged="CommandPaletteInput_TextChanged"
                                          PreviewKeyDown="CommandPaletteInput_PreviewKeyDown"/>
@@ -1297,9 +1404,9 @@
                                             <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets"
                                                        FontSize="13" VerticalAlignment="Center"
                                                        Foreground="{DynamicResource Brush.Accent}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13"
+                                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="{DynamicResource Size.Ui}"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Hint}" FontSize="11"
+                                            <TextBlock Grid.Column="2" Text="{Binding Hint}" FontSize="{DynamicResource Size.Small}"
                                                        VerticalAlignment="Center" Margin="10,0,0,0"
                                                        Foreground="{DynamicResource Brush.TextMuted}"
                                                        FlowDirection="LeftToRight"/>

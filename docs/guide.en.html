@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Launcher — Guide</title>
+<style>
+  :root {
+    --bg: #131211;
+    --surface: #1b1917;
+    --surface2: #221f1d;
+    --text: #ece8e4;
+    --muted: #a09891;
+    --hairline: #322d29;
+    --accent: #c2664b;
+    --accent-soft: #3a251d;
+    --warn: #d8a13a;
+    --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #faf7f4; --surface: #fff; --surface2: #f2ede8;
+      --text: #1e1a17; --muted: #6b625b; --hairline: #e0d8d0;
+      --accent: #a8492f; --accent-soft: #f7e8e2; --warn: #8a6100;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.7;
+  }
+
+  /* ===== Layout: sticky sidebar + body ===== */
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px;
+            max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  aside { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+          padding: 28px 0 40px; }
+  main { padding: 28px 0 120px; min-width: 0; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; gap: 0; }
+    aside { position: static; max-height: none; border-bottom: 1px solid var(--hairline); }
+  }
+
+  .brand { font-size: 17px; font-weight: 700; margin: 0 0 2px; }
+  .brand-sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .langswitch { display: inline-block; margin-bottom: 20px; font-size: 13px; }
+  .langswitch a { color: var(--accent); text-decoration: none; border: 1px solid var(--hairline);
+                  border-radius: 6px; padding: 4px 12px; }
+  .langswitch a:hover { background: var(--accent-soft); }
+
+  aside nav a { display: block; color: var(--muted); text-decoration: none;
+                padding: 5px 12px; border-radius: 7px; font-size: 14.5px; line-height: 1.5;
+                border-inline-start: 2px solid transparent; }
+  aside nav a:hover { color: var(--text); background: var(--surface); }
+  aside nav a.on { color: var(--accent); border-inline-start-color: var(--accent); background: var(--surface); }
+  aside nav .grp { color: var(--muted); font-size: 11.5px; letter-spacing: .06em;
+                   text-transform: uppercase; margin: 16px 0 4px; padding-inline-start: 12px; opacity: .7; }
+
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .lede { color: var(--muted); margin: 0 0 8px; }
+  h2 { font-size: 23px; margin: 64px 0 8px; padding-top: 14px; border-top: 1px solid var(--hairline);
+       scroll-margin-top: 16px; }
+  h3 { font-size: 17.5px; margin: 30px 0 6px; color: var(--accent); }
+  p { margin: 12px 0; }
+  ul, ol { margin: 12px 0; padding-inline-start: 22px; }
+  li { margin: 5px 0; }
+
+  code { font-family: var(--mono);
+         background: var(--surface2); border: 1px solid var(--hairline);
+         border-radius: 4px; padding: 1px 6px; font-size: .92em; }
+  pre { font-family: var(--mono);
+        background: var(--surface); border: 1px solid var(--hairline);
+        border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.6; }
+  pre code { background: none; border: 0; padding: 0; }
+
+  figure { margin: 24px 0; }
+  figure img { width: 100%; display: block; border: 1px solid var(--hairline); border-radius: 10px; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; text-align: center; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: start; padding: 9px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 14px; }
+  td:first-child { white-space: nowrap; }
+  .wrapcell td:first-child { white-space: normal; }
+
+  .note, .warn {
+    border-inline-start: 3px solid var(--accent);
+    background: var(--surface); border-radius: 0 8px 8px 0;
+    padding: 12px 16px; margin: 20px 0;
+  }
+  .warn { border-inline-start-color: var(--warn); }
+  .note p:first-child, .warn p:first-child { margin-top: 0; }
+  .note p:last-child, .warn p:last-child { margin-bottom: 0; }
+
+  kbd { font-family: var(--mono); display: inline-block;
+        background: var(--surface2); border: 1px solid var(--hairline);
+        border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: .88em; }
+
+  .seealso { font-size: 14px; color: var(--muted); margin-top: 18px; }
+  .seealso a { color: var(--accent); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; margin: 24px 0; }
+  .cards a { display: block; text-decoration: none; color: inherit; background: var(--surface);
+             border: 1px solid var(--hairline); border-radius: 10px; padding: 13px 15px; }
+  .cards a:hover { border-color: var(--accent); }
+  .cards b { display: block; color: var(--accent); font-size: 15px; margin-bottom: 2px; }
+  .cards span { color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--hairline);
+           color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside>
+  <p class="brand">Command Launcher</p>
+  <p class="brand-sub">Everything in the app, explained</p>
+  <div class="langswitch"><a href="guide.ar.html">العربية</a></div>
+
+  <nav id="toc">
+    <div class="grp">Getting started</div>
+    <a href="#start">The window at a glance</a>
+
+    <div class="grp">Daily work</div>
+    <a href="#terminal">Terminal &amp; tabs</a>
+    <a href="#composer">The command box</a>
+    <a href="#saved">Saved commands &amp; projects</a>
+    <a href="#palette">Command palette &amp; search</a>
+
+    <div class="grp">Save yourself time</div>
+    <a href="#aliases">Command aliases</a>
+    <a href="#shortcuts">Keyboard shortcuts</a>
+
+    <div class="grp">Intelligence</div>
+    <a href="#ai">AI assistant</a>
+    <a href="#memory">App memory</a>
+
+    <div class="grp">Look &amp; settings</div>
+    <a href="#appearance">Appearance &amp; background</a>
+    <a href="#language">Language &amp; fonts</a>
+
+    <div class="grp">Tools</div>
+    <a href="#servers">Server monitor</a>
+    <a href="#updates">What's new &amp; updates</a>
+  </nav>
+</aside>
+
+<main>
+
+<h1>Command Launcher — Guide</h1>
+<p class="lede">Every “Guide” button in the app opens this page at its own section — and from there you browse the rest from the sidebar.</p>
+
+<div class="cards">
+  <a href="#terminal"><b>Terminal</b><span>Tabs, splits and output search</span></a>
+  <a href="#aliases"><b>Aliases</b><span>One word expanding into a chain of commands</span></a>
+  <a href="#ai"><b>AI assistant</b><span>Knows where you are and runs what you ask</span></a>
+  <a href="#shortcuts"><b>Shortcuts</b><span>All of them rebindable</span></a>
+  <a href="#appearance"><b>Appearance</b><span>Themes, backgrounds, transparency</span></a>
+  <a href="#servers"><b>Server monitor</b><span>Disks, load and containers over SSH</span></a>
+</div>
+
+
+<h2 id="start">1 · The window at a glance</h2>
+
+<figure>
+  <img src="img/en/aliases-list.png" alt="The app window with the settings panel open">
+  <figcaption>The settings panel over the window: category list on one side, category content on the other.</figcaption>
+</figure>
+
+<p>The window has three areas:</p>
+
+<ul>
+  <li><strong>Title bar</strong> — quick search, “+” for a new terminal, the server monitor, the <strong>Guide</strong> (the pulsing icon), “What's new”, and settings.</li>
+  <li><strong>Sidebar</strong> — saved commands and projects. Collapses and expands from the menu button at its top.</li>
+  <li><strong>Terminal area</strong> — tabs and their panes, with the command box underneath.</li>
+</ul>
+
+<div class="note">
+  <p>Nothing needs saving: everything you change in settings is <strong>stored automatically</strong> and applied immediately.</p>
+</div>
+
+
+<h2 id="terminal">2 · Terminal &amp; tabs</h2>
+
+<h3>New tab and splitting</h3>
+
+<table>
+  <tbody>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>New tab — starts in <strong>the active tab's own folder</strong>, following the live <code>cd</code> rather than the start folder.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>Split vertically — two panes side by side in the same tab.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>Split horizontally — two panes stacked.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close the active pane (not the whole tab when it is split).</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Splits inherit the folder too. And when no terminal is open at all — so there is nothing to inherit —
+  “+” offers start locations: Desktop, Documents, Downloads, your home folder, the fixed drives,
+  and “Browse for a folder…”.
+</p>
+
+<h3>Tab menu (right-click its title)</h3>
+
+<table>
+  <tbody>
+    <tr><td>Rename</td><td>A name describing what you do in it instead of a long path.</td></tr>
+    <tr><td>Duplicate tab</td><td>A new tab with the same folder and shell.</td></tr>
+    <tr><td>Detach to its own window</td><td>Moves the tab out into its own window — for working across two screens.</td></tr>
+    <tr><td>Open in Explorer</td><td>Opens the working directory in Windows Explorer.</td></tr>
+    <tr><td>Copy title · Copy working directory</td><td>To the clipboard.</td></tr>
+    <tr><td>Move forward · Move back</td><td>Reordering tabs.</td></tr>
+    <tr><td>Close · Close others · Close to the right</td><td>Quick cleanup of a long row of tabs.</td></tr>
+  </tbody>
+</table>
+
+<h3>Searching the output</h3>
+
+<p><kbd>Ctrl</kbd>+<kbd>F</kbd> opens a search bar inside the active terminal's output — to find a line in a long dump without scrolling.</p>
+
+<h3>Pasting</h3>
+
+<p>
+  Pasting <strong>multi-line text</strong> shows a confirmation with what you are about to paste and how
+  many lines it is, before it reaches the shell. If it contains something that looks like a risky command,
+  the warning is highlighted. The reason: a hidden line inside text copied from the web runs the moment
+  it is pasted, with no chance to review it.
+</p>
+
+<h3>Font size</h3>
+
+<p><kbd>Ctrl</kbd> + mouse wheel grows and shrinks the terminal font. The command box follows it (slightly larger, so the input line stays clearer than the output).</p>
+
+
+<h2 id="composer">3 · The command box</h2>
+
+<p>The box under the terminal is not a plain text field — it has two modes and typing assistance.</p>
+
+<h3>Two modes: command ⇄ AI</h3>
+
+<p>
+  The switch next to the input line (or <kbd>Ctrl</kbd>+<kbd>I</kbd>) decides where what you type goes:
+  to <strong>the shell</strong> as a command, or to <strong>the assistant</strong> as a request in plain
+  language. The mode is <strong>per tab</strong> — switching it in one tab does not flip the others.
+</p>
+
+<h3>Suggestions as you type</h3>
+
+<p>The box suggests what fits your position in the line, and labels each suggestion's kind:</p>
+
+<table>
+  <tbody>
+    <tr><td>Command · subcommand · flag</td><td><code>git</code>, then <code>commit</code>, then <code>--amend</code>.</td></tr>
+    <tr><td>Folder · file</td><td>From the current working directory.</td></tr>
+    <tr><td>Branch</td><td>Git branches in the repository you are standing in.</td></tr>
+    <tr><td>Script</td><td><code>package.json</code> scripts and the like.</td></tr>
+    <tr><td>Process</td><td>For commands that take a process name.</td></tr>
+    <tr><td>History</td><td>From your previous commands.</td></tr>
+  </tbody>
+</table>
+
+<p>Next to the box: your <strong>command history</strong>, and a <strong>folder browser</strong> to <code>cd</code> by clicking instead of typing a path.</p>
+
+<div class="seealso">See also: <a href="#aliases">Command aliases</a> — any word you define there works straight from this box.</div>
+
+
+<h2 id="saved">4 · Saved commands &amp; projects</h2>
+
+<h3>Saved commands</h3>
+
+<p>
+  The sidebar keeps your recurring commands with their names and tags. Clicking one inserts it into
+  the box, and the search at the top of the sidebar filters the list as you type.
+</p>
+
+<h3>Projects</h3>
+
+<p>
+  A project = a folder + a set of quick commands + a colour and a name. “Open project” opens a terminal
+  in its folder. Inside it are ready <strong>steps</strong> you run by clicking — and
+  “＋ Add the current command from the terminal” captures the last command you typed and adds it to
+  the project without retyping it.
+</p>
+
+<p>Right-click menu on a project: open in a new tab · copy name · copy path · open in Explorer · duplicate · rename · project colour.</p>
+
+<div class="note">
+  <p>A duplicate command is not added twice: it tells you “the command already exists” instead of letting copies pile up in the list.</p>
+</div>
+
+
+<h2 id="palette">5 · Command palette &amp; search</h2>
+
+<p>
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> opens the command palette: you type and the results are
+  filtered across everything you can do — your saved commands, your projects, and app actions. At the
+  top of the palette is a <strong>“Suggested”</strong> section for what fits your current context.
+</p>
+
+<p>The title bar also has a quick search field that reaches the same thing without a shortcut.</p>
+
+
+<h2 id="aliases">6 · Command aliases</h2>
+
+<p>
+  <strong>An alias is a word you type in the command box that expands into a chain of commands.</strong>
+  Instead of typing the same three lines every time, you define them once under one word — and that
+  word can carry a value that changes on every call.
+</p>
+
+<pre><code>gpc "first commit"
+
+  →  git add .
+  →  git commit -m "first commit"
+  →  git push</code></pre>
+
+<h3>Where to create one</h3>
+
+<p>Settings (<kbd>Ctrl</kbd>+<kbd>,</kbd>) → <strong>Aliases</strong> → “New alias”.</p>
+
+<figure>
+  <img src="img/en/aliases-list.png" alt="The Aliases page in settings">
+  <figcaption>The Aliases page, with the pulsing “Guide” button at its top.</figcaption>
+</figure>
+
+<h3>Editor fields</h3>
+
+<figure>
+  <img src="img/en/alias-editor.png" alt="The alias editor with a variable card">
+  <figcaption>Every field is preceded by its name, and holds a grey example that disappears at the first character you type.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Field</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Word</strong></td><td>What you type to trigger the expansion. No spaces. Example: <code>gpc</code>.</td></tr>
+    <tr><td><strong>Description</strong></td><td>A line to remind you what it does a month from now. Shown in the list under the word.</td></tr>
+    <tr><td><strong>Variables</strong></td><td>The values passed at call time. Detailed below.</td></tr>
+    <tr><td><strong>Commands</strong></td><td>One command per line, run in order from top to bottom.</td></tr>
+    <tr><td><strong>Target shell</strong></td><td>Empty = every shell, or <code>pwsh</code>/<code>bash</code> so it only expands there. Useful because a bash command in PowerShell is a silent mistake.</td></tr>
+    <tr><td><strong>Confirm before running</strong></td><td>Shows what will run and waits for your approval.</td></tr>
+    <tr><td><strong>Enabled</strong></td><td>Turning it off keeps the alias in the list but stops it expanding — instead of deleting and retyping it.</td></tr>
+  </tbody>
+</table>
+
+<h3>Variables — the three fields</h3>
+
+<p>Each variable is a card with three fields. Values are filled <strong>in the order the variables are declared</strong>.</p>
+
+<table class="wrapcell">
+  <thead><tr><th>Field</th><th>What you write</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Name</strong></td><td>Letters, digits and underscore — e.g. <code>msg</code></td>
+        <td>This is what you write inside the commands, prefixed with <code>$</code>. A line under the card shows the result live: “Write it in the commands as: <code>$msg</code>”.</td></tr>
+    <tr><td><strong>Description</strong></td><td>Free text — “the commit message”</td>
+        <td>Reminds you what it means, and appears in the error message when it is missing. It does not affect execution.</td></tr>
+    <tr><td><strong>Default value</strong></td><td>A ready value — “update”</td>
+        <td>Used when you call the alias without a value. Leave it empty if there is no sensible default.</td></tr>
+    <tr><td><strong>Required</strong></td><td>Checkbox</td>
+        <td>If it is required with no value and no default, <strong>the run stops with a message naming the variable</strong>.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>Why order matters:</strong> values are matched by position, not by name. With two variables
+  <code>branch</code> then <code>msg</code>, <code>gpc main "fix"</code> gives <code>branch = main</code>
+  and <code>msg = fix</code>.</p>
+</div>
+
+<h3>How to write them inside commands</h3>
+
+<table>
+  <tbody>
+    <tr><td><code>$msg</code></td><td>The value of the variable named <code>msg</code>.</td></tr>
+    <tr><td><code>${msg}</code></td><td>The same, with braces separating the name from what follows: <code>${msg}_v2</code>.</td></tr>
+    <tr><td><code>$1</code> … <code>$9</code></td><td>The value at that position whatever the variable is called — or with no variables declared at all.</td></tr>
+    <tr><td><code>$@</code></td><td>Everything you typed after the word, space separated.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p><strong>What is not substituted — on purpose:</strong> only a variable <em>you declared</em> is
+  substituted. Every other <code>$</code> reaches the shell untouched: <code>$env:PATH</code>,
+  <code>$PWD</code> and <code>$(git rev-parse HEAD)</code> survive intact. Replacing them with an empty
+  string would break the command silently.</p>
+</div>
+
+<h3>Quoting</h3>
+
+<pre><code>gpc "fix the login bug"    →   msg = fix the login bug
+gpc fix login             →   msg = fix    ($2 = login)</code></pre>
+
+<h3>Ready-made examples</h3>
+
+<p><strong>nb</strong> — new branch and push it (variable <code>name</code>, required):</p>
+<pre><code>git checkout -b $name
+git push -u origin $name</code></pre>
+
+<p><strong>dcu</strong> — rebuild the project containers (no variables):</p>
+<pre><code>docker compose down
+docker compose build
+docker compose up -d</code></pre>
+
+<p><strong>serve</strong> — a local server on a port (<code>port</code>, default <code>8000</code>):</p>
+<pre><code>python -m http.server $port</code></pre>
+
+
+<h2 id="shortcuts">7 · Keyboard shortcuts</h2>
+
+<figure>
+  <img src="img/en/shortcuts.png" alt="The Shortcuts page in settings">
+  <figcaption>Click a shortcut, then press the new combination.</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>New terminal tab</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>Split vertically</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>Split horizontally</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close the active pane</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>Command palette</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Show/hide the AI panel</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Toggle the box: command ⇄ AI</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Search the terminal output</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Open settings</td></tr>
+  </tbody>
+</table>
+
+<h3>Changing a shortcut</h3>
+
+<ol>
+  <li>Click the shortcut shown next to the action — it turns into “press the combination…”.</li>
+  <li>Press the combination you want. It is recorded immediately.</li>
+  <li><kbd>Esc</kbd> cancels the capture and keeps the old one. <kbd>Backspace</kbd> restores the default.</li>
+</ol>
+
+<div class="note">
+  <p><strong>Conflicts are rejected out loud:</strong> if the combination already belongs to another
+  action, it is refused with a message <em>naming the action that owns it</em> — a new shortcut never
+  silently kills an old one.</p>
+</div>
+
+<p>The <strong>“Restore defaults”</strong> button at the bottom resets every shortcut at once.</p>
+
+<div class="warn">
+  <p>A combination is stored as text joined by <code>+</code>, so the <code>+</code> key itself cannot be assigned — “Ctrl++” would not be readable back.</p>
+</div>
+
+
+<h2 id="ai">8 · AI assistant</h2>
+
+<p>
+  The assistant has two entrances: a <strong>side panel</strong> (<kbd>Ctrl</kbd>+<kbd>P</kbd>) for a long
+  conversation, and <strong>AI mode inside the command box</strong> (<kbd>Ctrl</kbd>+<kbd>I</kbd>) for when
+  you want one command run immediately without leaving the terminal.
+</p>
+
+<h3>Connection</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Provider</strong></td><td>OpenAI · OpenRouter · Kimi · Z.ai · a custom provider with its own base URL.</td></tr>
+    <tr><td><strong>Key</strong></td><td>Stored encrypted with Windows DPAPI under your account — sent only to the provider you chose.</td></tr>
+    <tr><td><strong>Model</strong></td><td>The list is typable: type any part of a name to filter it. Changing it from the panel header affects only the current conversation.</td></tr>
+  </tbody>
+</table>
+
+<h3>Assistant behaviour</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Creativity</strong></td><td>Lower = steadier, more literal answers. For commands, lower is better.</td></tr>
+    <tr><td><strong>Reply length cap</strong></td><td>“Automatic” leaves it to the model. Raise it if answers get cut off.</td></tr>
+    <tr><td><strong>Context snippet cap</strong></td><td>How much screen output may be attached. Less = more privacy and lower cost.</td></tr>
+    <tr><td><strong>Custom instructions</strong></td><td>Added to every conversation: “always use PowerShell”, “explain briefly”.</td></tr>
+    <tr><td><strong>Auto-run</strong></td><td>When the reply is a single command, it runs straight away in the terminal.</td></tr>
+    <tr><td><strong>Panel width · chat font size</strong></td><td>Two sliders, applied to the open conversation immediately.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p><strong>The auto-run fence:</strong> risky commands (<code>rm -rf</code>, <code>git reset --hard</code>,
+  <code>curl | sh</code>, <code>mkfs</code>…) and multi-line blocks <strong>never run without your
+  confirmation</strong>, whatever this setting says. The “Send &amp; run” button on code blocks goes
+  through the same check — there is no side door.</p>
+</div>
+
+<h3>What is sent with your question</h3>
+
+<p>
+  Every request from the command box carries: the working directory, the shell name, your last eight
+  commands, and <strong>the last failed command</strong> (its text, exit code and first error line). The
+  screen output itself is <strong>not sent</strong> unless you enable “send tab context”. And when a
+  snippet would carry something that looks like a secret, you get a preview telling you how many items
+  were redacted — nothing leaves before you agree.
+</p>
+
+<h3>The panel</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>History</strong></td><td>Your saved conversations with their dates; open any of them to read the question and its full reply.</td></tr>
+    <tr><td><strong>Code blocks</strong></td><td>“Send &amp; run” puts it in the terminal and runs it; “Send only” puts it in the box so you can review it first.</td></tr>
+    <tr><td><strong>Searching indicator</strong></td><td>Shown from the moment you send until the first character of the reply.</td></tr>
+  </tbody>
+</table>
+
+<h3>When it does not understand you</h3>
+
+<p>
+  It does not guess. It replies with a single clarifying question and no command, and the box stays in
+  AI mode with an arrow pointing at where the answer goes. You type the answer and the conversation
+  continues in place, attached to its question.
+</p>
+
+<div class="seealso">See also: <a href="#memory">App memory</a> — what the app learns from your usage, and where your saved conversations live.</div>
+
+
+<h2 id="memory">9 · App memory</h2>
+
+<p>A window showing <strong>everything the app has learned about your usage</strong> — stored on your machine alone, and erasable in one click.</p>
+
+<table>
+  <tbody>
+    <tr><td><strong>Your recurring commands</strong></td><td>Your command templates, how many times each ran and its success rate. You can <strong>pin</strong> a template so it is suggested more, or <strong>ban</strong> it so it disappears.</td></tr>
+    <tr><td><strong>Errors and their fixes</strong></td><td>The errors you have hit, the saved solution for each, and how often it recurred.</td></tr>
+    <tr><td><strong>Suggestion log</strong></td><td>What the app suggested and your verdict: accepted · rejected · pending.</td></tr>
+    <tr><td><strong>Your profile</strong></td><td>A summary of your working habits, attached to assistant requests. It needs a few recurring commands before it forms.</td></tr>
+    <tr><td><strong>Conversations</strong></td><td>Saved AI conversations. If saving is off, the tab says so plainly and points you at its switch.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>“Clear everything”</strong> deletes the templates and their counters, the errors and their fixes, and the suggestion log. No undo.</p>
+</div>
+
+
+<h2 id="appearance">10 · Appearance &amp; background</h2>
+
+<h3>Theme</h3>
+
+<p>
+  Pick a theme and it applies immediately, no restart. A curated set is shown first, and
+  <strong>“Show all themes”</strong> opens the rest. Each theme has a <strong>light and a dark</strong>
+  mode, plus <strong>“Sync light/dark with the system”</strong> to follow Windows.
+</p>
+
+<h3>Accent colour and corner radius</h3>
+
+<p>The accent colour touches buttons, indicators and links across the whole interface. The corner radius sets how sharp the corners of cards and fields are.</p>
+
+<h3>Background</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Theme background</strong></td><td>The default — follows the chosen theme.</td></tr>
+    <tr><td><strong>Templates</strong></td><td>Ready backgrounds with gradients and depth.</td></tr>
+    <tr><td><strong>Solids · gradients · patterns</strong></td><td>Categorised sets to pick from.</td></tr>
+    <tr><td><strong>Custom image</strong></td><td>Your own image as the background, with “Remove” to go back.</td></tr>
+    <tr><td><strong>Terminal transparency</strong></td><td>How much of the background shows through behind the terminal text.</td></tr>
+  </tbody>
+</table>
+
+<p>Settings also holds the <strong>terminal text colour</strong> and the <strong>terminal font size</strong>.</p>
+
+
+<h2 id="language">11 · Language &amp; fonts</h2>
+
+<h3>Language</h3>
+
+<p>
+  Arabic or English, applied immediately — including the <strong>interface direction</strong> (right↔left).
+  Numerals stay Latin either way. <strong>This guide follows your language</strong>: the “Guide” button
+  opens the matching version.
+</p>
+
+<h3>Fonts</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Terminal font</strong></td><td>The terminal text font — picked from the fonts installed on your machine, each name rendered in its own typeface.</td></tr>
+    <tr><td><strong>Interface font</strong></td><td>The font for the rest of the app. Emptying the field restores the default.</td></tr>
+    <tr><td><strong>Monospace font</strong></td><td>For paths and technical text inside the interface.</td></tr>
+  </tbody>
+</table>
+
+<h3>Sizes by role</h3>
+
+<p>
+  Every piece of text in the app belongs to a <strong>role</strong>, and each role has its size. That
+  is what makes growing the font grow everything, instead of growing one label and leaving its
+  neighbour behind.
+</p>
+
+<table>
+  <tbody>
+    <tr><td><strong>Interface text</strong></td><td>The base. Every other role derives from it unless you break the link.</td></tr>
+    <tr><td><strong>Menus</strong></td><td>Drop-downs and right-click menus.</td></tr>
+    <tr><td><strong>Tables</strong></td><td>Rows in long lists and grids.</td></tr>
+    <tr><td><strong>Headings</strong></td><td>Window and major section titles.</td></tr>
+    <tr><td><strong>Sub-headings</strong></td><td>The smaller titles inside sections.</td></tr>
+    <tr><td><strong>Secondary text</strong></td><td>Hints and the descriptions under fields.</td></tr>
+    <tr><td><strong>Fine print</strong></td><td>Badges and counters.</td></tr>
+    <tr><td><strong>Technical text</strong></td><td>Paths and code blocks inside the interface.</td></tr>
+    <tr><td><strong>Large text</strong></td><td>The numbers and icons of empty states.</td></tr>
+    <tr><td><strong>Terminal</strong></td><td>The terminal text (<kbd>Ctrl</kbd> + wheel changes it too).</td></tr>
+    <tr><td><strong>AI chat</strong></td><td>The conversation text in the side panel.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <p><strong>One slider is usually enough:</strong> while “Derive them from the interface text size”
+  is on, moving the interface text size alone grows the whole app consistently. Turn it off to set
+  each role by hand.</p>
+</div>
+
+<h3>Settings editor (JSON)</h3>
+
+<p>
+  For fine control: <strong>“Settings editor”</strong> opens <code>config.json</code> inside the app with
+  <strong>format</strong>, <strong>validate</strong> and <strong>save &amp; apply</strong>. An error is
+  reported with its line and column, and <strong>saving is blocked while a syntax error stands</strong>.
+  Some system settings (theme/language/background) need a restart, and the editor says so on save.
+</p>
+
+
+<h2 id="servers">12 · Server monitor</h2>
+
+<p>A tool inside the app that connects to your servers over SSH to show their health, files and containers.</p>
+
+<h3>Servers</h3>
+
+<p>
+  Add a server, then <strong>“Test connection”</strong> before relying on it. The list shows the last
+  connection time for each, with: connect · disconnect · reconnect · edit · duplicate · delete.
+</p>
+
+<h3>Tabs</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Dashboard</strong></td><td>An overview: host, OS, kernel, CPU, core count, address, uptime, load, memory and the <code>/</code> disk — plus <strong>top processes</strong>.</td></tr>
+    <tr><td><strong>Disks</strong></td><td>Disks and consumed space.</td></tr>
+    <tr><td><strong>Folders</strong></td><td>Folder usage as a visual <strong>treemap</strong>, a tree, and <strong>largest files</strong> — to find what filled the disk.</td></tr>
+    <tr><td><strong>Files</strong></td><td>Browse the server's files: open · edit · download · rename · delete · upload · new folder · “console here”.</td></tr>
+    <tr><td><strong>Containers</strong></td><td>Docker containers: search, a name you choose for each container, and “open” to enter the <strong>container explorer</strong> and browse its files as if it were a machine.</td></tr>
+    <tr><td><strong>Management</strong></td><td>Administrative actions on the server.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <p>Deletion on a server is <strong>permanent</strong> — there is no recycle bin over SSH. That is why it asks before deleting any file or folder.</p>
+</div>
+
+
+<h2 id="updates">13 · What's new &amp; updates</h2>
+
+<p>
+  The <strong>“What's new”</strong> button in the title bar shows the full release history with each
+  version's highlights. It also appears once automatically after every update.
+</p>
+
+<p>
+  When an update is available, an <strong>accent-coloured dot</strong> appears on that same button, and
+  clicking it then opens the update dialog instead of the What's-new panel — because that is what you
+  are waiting for at that moment.
+</p>
+
+
+<footer>
+  <p>This guide is an HTML file next to the application, opened by the “Guide” button wherever it appears, and following the interface language.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+  // Highlight the current section in the sidebar while scrolling.
+  (function () {
+    var links = {};
+    document.querySelectorAll('#toc a').forEach(function (a) {
+      var id = a.getAttribute('href').slice(1);
+      if (id) links[id] = a;
+    });
+
+    var current = null;
+    function mark(id) {
+      if (current === id) return;
+      if (current && links[current]) links[current].classList.remove('on');
+      current = id;
+      if (links[id]) links[id].classList.add('on');
+    }
+
+    var heads = Array.prototype.slice.call(document.querySelectorAll('main h2[id]'));
+    if (!heads.length) return;
+
+    // Nearest heading above the top edge wins — simpler than intersection observers
+    // and more accurate right after an anchor jump.
+    function update() {
+      var best = heads[0], bestTop = -Infinity;
+      for (var i = 0; i < heads.length; i++) {
+        var top = heads[i].getBoundingClientRect().top - 90;
+        if (top <= 0 && top > bestTop) { bestTop = top; best = heads[i]; }
+      }
+      mark(best.id);
+    }
+
+    var ticking = false;
+    window.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(function () { update(); ticking = false; });
+    }, { passive: true });
+
+    update();
+  })();
+</script>
+</body>
+</html>

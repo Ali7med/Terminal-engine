@@ -1,4 +1,4 @@
-<UserControl x:Class="TerminalLauncher.Controls.FileEditorPanel"
+﻿<UserControl x:Class="TerminalLauncher.Controls.FileEditorPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
@@ -20,13 +20,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="DirtyDot" Grid.Column="0" Text="&#x25CF;" FontSize="13"
+                <TextBlock x:Name="DirtyDot" Grid.Column="0" Text="&#x25CF;" FontSize="{DynamicResource Size.Ui}"
                            VerticalAlignment="Center" Margin="0,0,6,0"
                            Visibility="Collapsed"
                            Foreground="{DynamicResource Brush.Accent}"/>
                 <TextBlock x:Name="FileNameText" Grid.Column="1"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                           FontFamily="Cascadia Mono, Consolas" FontSize="{DynamicResource Size.Small}"
                            Foreground="{DynamicResource Brush.Text}"/>
                 <Button Grid.Column="2" Style="{StaticResource IconButton}" Content="✕"
                         Click="CloseButton_Click" ToolTip="{Binding CloseTip, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
@@ -35,7 +35,7 @@
 
         <!-- المحرّر (AvalonEdit) — خطّ أحاديّ، أرقام أسطر، ثيم داكن -->
         <avalon:TextEditor x:Name="Editor" Grid.Row="1"
-                           FontFamily="Cascadia Mono, Consolas" FontSize="13"
+                           FontFamily="Cascadia Mono, Consolas" FontSize="{DynamicResource Size.Ui}"
                            ShowLineNumbers="True"
                            WordWrap="False"
                            HorizontalScrollBarVisibility="Auto"

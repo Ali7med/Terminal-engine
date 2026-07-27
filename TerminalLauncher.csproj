@@ -46,6 +46,13 @@
     <EmbeddedResource Include="CHANGELOG.md" LogicalName="TerminalLauncher.CHANGELOG.md" />
   </ItemGroup>
 
+  <!-- دليل الاستعمال: صفحتا HTML (عربيّة/إنجليزيّة) ولقطاتهما، تُنسَخ بجانب التطبيق ويفتحها
+       DocsService في متصفّح النظام. ملفّات لا مورد مُدمَج: المتصفّح لا يقرأ من داخل الـassembly. -->
+  <ItemGroup>
+    <Content Include="docs\guide.*.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="docs\img\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- مشروع engine/ مبنيّ عبر ProjectReference فقط؛ نمنع قوالب SDK من سحب ملفّاته
        (خصوصاً ملفّات الاختبارات التي تحتاج xunit) إلى تصريف التطبيق. -->
   <ItemGroup>

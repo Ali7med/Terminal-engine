@@ -1,4 +1,4 @@
-<Window x:Class="TerminalLauncher.Views.ConfigEditorWindow"
+﻿<Window x:Class="TerminalLauncher.Views.ConfigEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
@@ -34,7 +34,7 @@
         <!-- المحرّر (AvalonEdit) — تلوين مفتاح/قيمة، أرقام أسطر، خطّ أحاديّ -->
         <avalon:TextEditor x:Name="Editor" Grid.Row="1"
                            ShowLineNumbers="True" WordWrap="False"
-                           FontFamily="{DynamicResource Font.Mono}" FontSize="13.5"
+                           FontFamily="{DynamicResource Font.Mono}" FontSize="{DynamicResource Size.Ui}"
                            FlowDirection="LeftToRight"
                            Background="{DynamicResource Brush.TerminalBg}"
                            Foreground="{DynamicResource Brush.Text}"

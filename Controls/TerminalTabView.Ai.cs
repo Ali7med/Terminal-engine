@@ -96,6 +96,10 @@ public partial class TerminalTabView
         if (show) EnsureAiPanel();
         AiToggleButton.IsChecked = show;
         AiSidePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+
+        // فتحُ اللوحة نيّةُ سؤال: المؤشّر يذهب إلى صندوق السؤال فوراً بدل أن يطلب نقرة زائدة.
+        if (show) AiSidePanel.FocusInput();
+        else Renderer.Focus();
     }
 
     /// <summary>يهيّئ اللوحة عند أوّل فتح فقط.</summary>
@@ -326,6 +330,7 @@ public partial class TerminalTabView
         ComposerModeCmdText.Text = Loc.T("ai.cmp.modeCommand");
         ComposerModeAiText.Text = Loc.T("ai.cmp.modeAi");
         ComposerModeSwitch.ToolTip = Loc.T("ai.cmp.switchTip");
+        ComposerModelCombo.ToolTip = Loc.T("ai.cmp.model");
         WelcomeTitle.Text = Loc.T("ai.welcome.title");
         WelcomeDismissText.Text = Loc.T("ai.welcome.dismiss");
         UpdateComposerPlaceholder(ComposerInput.Text);
@@ -356,6 +361,64 @@ public partial class TerminalTabView
 
         // وضع الذكاء لا اقتراحات أوامر فيه — إخفاؤها فوراً كي لا تبقى قائمة أوامر معلّقة فوق سؤال.
         if (ai) { HideSuggestions(); ClearGhost(); }
+
+        // منتقي النموذج لا معنى له في وضع الأمر، وإخفاؤه يعيد المساحة للتيرمنال.
+        ComposerModelCombo.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
+        if (ai) SyncComposerModelText();
+    }
+
+    // ===== منتقي النموذج المضغوط =====
+    //
+    // يعرض نموذج الجلسة نفسه الذي تعرضه ترويسة اللوحة ويكتب فيه — لا نموذجاً ثانياً يخالفه.
+    // ولأنّ الطلب من الصندوق يمرّ باللوحة أصلاً، تظلّ اللوحة مالكة الحقيقة.
+
+    private bool _composerModelSyncing;
+    private bool _composerModelsLoaded;
+
+    /// <summary>يعرض النموذج الفعّال حاليّاً بلا إطلاق أحداث التغيير.</summary>
+    private void SyncComposerModelText()
+    {
+        if (!_aiPanelReady) { EnsureAiPanel(); }
+        if (!_aiPanelReady) return;
+
+        _composerModelSyncing = true;
+        try { ComposerModelCombo.Text = AiSidePanel.CurrentModel(); }
+        finally { _composerModelSyncing = false; }
+    }
+
+    /// <summary>
+    /// تحميل القائمة عند أوّل فتح للمنسدلة لا عند تبديل الوضع: نداء شبكيّ لمن لن يفتح القائمة
+    /// كلفة بلا مقابل. الفشل يترك الحقل قابلاً للكتابة يدويّاً.
+    /// </summary>
+    private async void ComposerModel_DropDownOpened(object? sender, EventArgs e)
+    {
+        if (_composerModelsLoaded || !_aiPanelReady) return;
+        _composerModelsLoaded = true;
+
+        System.Collections.Generic.IReadOnlyList<string> ids = await AiSidePanel.LoadModelIdsAsync();
+        if (ids.Count == 0) { _composerModelsLoaded = false; return; }
+
+        string current = ComposerModelCombo.Text;
+        _composerModelSyncing = true;
+        try
+        {
+            ComposerModelCombo.ItemsSource = ids;
+            ComposerModelCombo.Text = current;
+        }
+        finally { _composerModelSyncing = false; }
+    }
+
+    private void ComposerModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_composerModelSyncing || ComposerModelCombo.SelectedItem is not string id) return;
+        AiSidePanel.SetSessionModel(id);
+        ComposerInput.Focus();
+    }
+
+    private void ComposerModel_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_composerModelSyncing || !_aiPanelReady) return;
+        AiSidePanel.SetSessionModel(ComposerModelCombo.Text ?? "");
     }
 
     /// <summary>النصّ الإرشاديّ يظهر ما دام الصندوق فارغاً، ونصّه يتبع الوضع.</summary>

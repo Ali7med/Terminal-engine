@@ -77,6 +77,21 @@ public partial class TerminalTabView : UserControl
     /// <summary>مجلد العمل الفعليّ الحاليّ (يتبع <c>cd</c> الحيّ)، للاستعمال من قائمة سياق التبويب.</summary>
     public string WorkingDirectory => CurrentWorkDir();
 
+    /// <summary>
+    /// مجلد العمل <b>إن كان معروفاً فعلاً</b> (موجّه حيّ أو مسار الأمر المحفوظ)، وإلّا <c>null</c>.
+    /// يختلف عن <see cref="WorkingDirectory"/> الذي يرتدّ إلى مجلد العمليّة (مجلد تثبيت الأداة) — وهو
+    /// مقبول للـAI لكنّه مكان خاطئ لفتح تيرمنال جديد فيه. يستعمله زرّ «+» والتقسيم لتوريث مكان التاب الحاليّ.
+    /// </summary>
+    public string? KnownWorkingDirectory
+    {
+        get
+        {
+            if (_liveCwd != null && System.IO.Directory.Exists(_liveCwd)) return _liveCwd;
+            if (!string.IsNullOrWhiteSpace(_entry.Path) && System.IO.Directory.Exists(_entry.Path)) return _entry.Path;
+            return null;
+        }
+    }
+
     // ===== الإكمال التلقائيّ الشبحيّ (T-205): تتبّع تقريبيّ لسطر الإدخال الحاليّ =====
     // التيرمنال خام (الصدفة تملك تحرير السطر)، فنتتبّع الإدخال محلّياً ونكون محافظين:
     // أيّ غموض في الحالة يمسح السطر والشبح (شبحٌ خاطئ أسوأ من لا شبح).
@@ -481,7 +496,9 @@ public partial class TerminalTabView : UserControl
                 cwd = ExtractCwd(LinePlainText(snap.Lines[i]));
         }
         TrackLiveCwd(cwd);   // الاقتراحات تتبع cd الحقيقيّ لا مجلد البدء
-        cwd ??= _entry.Path.Replace('\\', '/');
+        // قبل أوّل موجّه ملتقَط: مجلد العمل الفعليّ لا <c>_entry.Path</c> وحده — فالأخير فارغ في التبويبات
+        // الفارغة، فكان المسار يظهر فارغاً في الصندوق حتّى يُطبَع أوّل موجّه.
+        cwd ??= CurrentWorkDir();
         ComposerCwd.Text = ShortenPath(cwd);
     }
 

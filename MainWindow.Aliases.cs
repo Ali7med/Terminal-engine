@@ -154,26 +154,69 @@ public partial class MainWindow
         AliasVarList.Children.Clear();
         if (_editingAlias is null) return;
 
-        foreach (AliasVariable variable in _editingAlias.Variables)
-            AliasVarList.Children.Add(BuildAliasVarRow(variable));
+        for (int i = 0; i < _editingAlias.Variables.Count; i++)
+            AliasVarList.Children.Add(BuildAliasVarRow(_editingAlias.Variables[i], i + 1));
+
+        // قائمة فارغة وصامتة تترك المستخدم يظنّ المتغيّرات إلزاميّة، أو لا يعرف ما هي أصلاً.
+        AliasVarEmptyText.Visibility = _editingAlias.Variables.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     /// <summary>
-    /// صفّ متغيّر: الاسم · الوصف · القيمة الافتراضيّة · إلزاميّ · حذف.
+    /// بطاقة متغيّر واحد: عنوانٌ برقمه، ثمّ حقلٌ في كلّ سطر مسبوقاً باسمه ومثالِه، ثمّ سطرٌ يقول
+    /// كيف يُكتب هذا المتغيّر داخل الأوامر.
+    ///
+    /// <para><b>لماذا بطاقة لا صفٌّ من ثلاثة حقول:</b> الصفّ كان ثلاثة صناديق متجاورة بلا عناوين —
+    /// عرضُ كلٍّ منها في لوحة بعرض 420 بضعُ عشرات من البكسل، ولا شيء يقول أيُّها الاسم وأيُّها
+    /// القيمة الافتراضيّة. البطاقة تعطي كلّ حقل سطراً وعنواناً ومثالاً.</para>
+    ///
     /// <para>الحقول تكتب في كائن المتغيّر مباشرةً (وهو ضمن النسخة قيد التحرير)، فلا حاجة لجمعها
     /// يدويّاً عند الحفظ ولا خطر نسيان حقل.</para>
     /// </summary>
-    private UIElement BuildAliasVarRow(AliasVariable variable)
+    private UIElement BuildAliasVarRow(AliasVariable variable, int order)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var head = new TextBlock
+        {
+            Text = string.Format(Loc.T("alias.varHead"), order),
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        head.SetResourceReference(TextBlock.FontSizeProperty, "Size.Small");
+        head.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Accent");
 
-        TextBox nameBox = AliasVarBox(variable.Name, Loc.T("alias.varName"), mono: true);
-        TextBox labelBox = AliasVarBox(variable.Label, Loc.T("alias.varLabel"), mono: false);
-        TextBox defaultBox = AliasVarBox(variable.Default, Loc.T("alias.varDefault"), mono: false);
+        var remove = new Button
+        {
+            Content = "✕",
+            Padding = new Thickness(7, 1, 7, 2),
+            ToolTip = Loc.T("alias.varRemove"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        remove.SetResourceReference(Control.FontSizeProperty, "Size.Small");
+        remove.Click += OnRemoveClicked;
+
+        var headRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        headRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(remove, 1);
+        headRow.Children.Add(head);
+        headRow.Children.Add(remove);
+
+        TextBox nameBox = AliasVarBox(variable.Name, "alias.varNamePh", "alias.varNameTip", mono: true);
+        TextBox labelBox = AliasVarBox(variable.Label, "alias.varLabelPh", "alias.varLabelTip", mono: false);
+        TextBox defaultBox = AliasVarBox(variable.Default, "alias.varDefaultPh", "alias.varDefaultTip", mono: false);
+
+        // معاينة حيّة: يكتب الاسم فيرى فوراً ما عليه كتابته في خانة الأوامر — وهو الرابط الذي
+        // كان مفقوداً بين تعريف المتغيّر واستعماله. تُنشَأ قبل ربط المعالجات لأنّ OnNameChanged
+        // يقرأها، وتحويل دالّة محلّيّة إلى مفوَّض يشترط أن يكون كلّ ما تلتقطه مُسنَداً سلفاً.
+        var usage = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        usage.SetResourceReference(TextBlock.FontSizeProperty, "Size.Small");
+        usage.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextMuted");
+        UpdateUsage();
 
         nameBox.TextChanged += OnNameChanged;
         labelBox.TextChanged += OnLabelChanged;
@@ -182,39 +225,45 @@ public partial class MainWindow
         var required = new CheckBox
         {
             IsChecked = variable.Required,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 4, 0),
-            ToolTip = Loc.T("alias.varRequired"),
+            Content = Loc.T("alias.varRequired"),
+            Margin = new Thickness(0, 10, 0, 0),
         };
+        required.SetResourceReference(FrameworkElement.StyleProperty, "AppCheckBox");
         required.Checked += OnRequiredChanged;
         required.Unchecked += OnRequiredChanged;
 
-        var remove = new Button
+        var body = new StackPanel();
+        body.Children.Add(headRow);
+        body.Children.Add(AliasFieldRow("alias.varName", nameBox));
+        body.Children.Add(AliasFieldRow("alias.varLabel", labelBox));
+        body.Children.Add(AliasFieldRow("alias.varDefault", defaultBox));
+        body.Children.Add(required);
+        body.Children.Add(usage);
+
+        var card = new Border
         {
-            Content = "✕",
-            Padding = new Thickness(7, 2, 7, 3),
-            VerticalAlignment = VerticalAlignment.Center,
+            Child = body,
+            Padding = new Thickness(12, 10, 12, 12),
+            Margin = new Thickness(0, 0, 0, 10),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
         };
-        remove.SetResourceReference(Control.FontSizeProperty, "Size.Small");
-        remove.Click += OnRemoveClicked;
+        card.SetResourceReference(Border.BackgroundProperty, "Brush.Surface");
+        card.SetResourceReference(Border.BorderBrushProperty, "Brush.Hairline");
+        return card;
 
-        var tail = new StackPanel { Orientation = Orientation.Horizontal };
-        tail.Children.Add(required);
-        tail.Children.Add(remove);
-
-        Grid.SetColumn(labelBox, 1);
-        Grid.SetColumn(defaultBox, 2);
-        Grid.SetColumn(tail, 3);
-
-        grid.Children.Add(nameBox);
-        grid.Children.Add(labelBox);
-        grid.Children.Add(defaultBox);
-        grid.Children.Add(tail);
-        return grid;
+        void UpdateUsage()
+        {
+            string name = nameBox.Text.Trim();
+            usage.Text = name.Length == 0
+                ? Loc.T("alias.varUseEmpty")
+                : string.Format(Loc.T("alias.varUse"), "$" + name);
+        }
 
         void OnNameChanged(object sender, TextChangedEventArgs args)
         {
             variable.Name = nameBox.Text.Trim();
+            UpdateUsage();
         }
 
         void OnLabelChanged(object sender, TextChangedEventArgs args)
@@ -239,16 +288,40 @@ public partial class MainWindow
         }
     }
 
-    private static TextBox AliasVarBox(string value, string hint, bool mono)
+    /// <summary>سطر «عنوانُ الحقل ثمّ الحقل» — العنوان بعرض ثابت فتصطفّ الحقول عموديّاً.</summary>
+    private static UIElement AliasFieldRow(string labelKey, TextBox field)
+    {
+        var label = new TextBlock
+        {
+            Text = Loc.T(labelKey),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        label.SetResourceReference(TextBlock.FontSizeProperty, "Size.Small");
+        label.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TextMuted");
+
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetColumn(field, 1);
+        row.Children.Add(label);
+        row.Children.Add(field);
+        return row;
+    }
+
+    /// <summary>حقل داخل بطاقة متغيّر: مثالٌ إرشاديّ داخله، وشرحُه في تلميحه.</summary>
+    private static TextBox AliasVarBox(string value, string placeholderKey, string tipKey, bool mono)
     {
         var box = new TextBox
         {
             Text = value,
-            ToolTip = hint,
-            Padding = new Thickness(6, 4, 6, 4),
-            Margin = new Thickness(0, 0, 6, 0),
+            ToolTip = Loc.T(tipKey),
+            Padding = new Thickness(7, 4, 7, 5),
             VerticalAlignment = VerticalAlignment.Center,
         };
+        Theme.Placeholder.SetText(box, Loc.T(placeholderKey));
 
         if (mono)
         {
@@ -310,4 +383,14 @@ public partial class MainWindow
     private static bool IsNamelessVariable(AliasVariable variable) => variable.Name.Length == 0;
 
     private void AliasCancel_Click(object sender, RoutedEventArgs e) => CloseAliasEditor();
+
+    /// <summary>
+    /// أزرار «الدليل» أينما كانت: في رؤوس أقسام الإعدادات وفي شريط العنوان.
+    ///
+    /// <para>الوجهة تُقرأ من <c>Tag</c> لا من معالج لكلّ زرّ: قسمٌ جديد في الإعدادات يحتاج سطر
+    /// XAML واحداً، ولا يبقى في الكود معالجٌ لكلّ قسم يتكاثر مع الأقسام. و<c>Tag</c> فارغ =
+    /// أوّل الدليل.</para>
+    /// </summary>
+    private void Docs_Click(object sender, RoutedEventArgs e)
+        => DocsService.Open((sender as FrameworkElement)?.Tag as string ?? "");
 }

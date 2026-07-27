@@ -17,11 +17,23 @@ public sealed class FontSettings
     /// <summary>الخطّ أحاديّ العرض (التيرمنال + النصوص التقنيّة). فارغ = Cascadia/Consolas.</summary>
     public string MonoFont { get; set; } = "";
 
+    // ===== سُلَّم الأحجام حسب الدور =====
+    // كلّ نصّ في التطبيق ينتمي إلى دور واحد من هذه الأدوار، ويقرأ حجمه من مورده. لا أحجام ثابتة
+    // في XAML: الحجم الثابت هو سبب أن يتغيّر نصٌّ ولا يتغيّر جاره من المنزلق نفسه.
+    //
     // الافتراضيّات مضبوطة على «مريح ومقروء» لا على «مضغوط»: شاشات اليوم أكبر، والقراءة الطويلة
     // أهمّ من حشر صفوف إضافيّة. من أراد الأصغر فالمنزلقات في الإعدادات.
+
+    /// <summary>نصّ الواجهة العامّ — الأساس الذي تُشتقّ منه الأدوار التلقائيّة.</summary>
     public double UiSize { get; set; } = 14;
+
+    /// <summary>القوائم المنسدلة وقوائم السياق.</summary>
     public double MenuSize { get; set; } = 15;
+
+    /// <summary>صفوف الجداول والقوائم الطويلة.</summary>
     public double TableSize { get; set; } = 13.5;
+
+    /// <summary>عناوين النوافذ والأقسام الكبرى.</summary>
     public double TitleSize { get; set; } = 17;
 
     /// <summary>
@@ -31,6 +43,18 @@ public sealed class FontSettings
     /// الصفر هو الافتراضيّ فتبقى ملفّات config.json القديمة على سلوكها السابق حرفيّاً.
     /// </summary>
     public double SmallSize { get; set; } = 0;
+
+    /// <summary>عناوين فرعيّة داخل الأقسام. <b>0 = تلقائيّ</b> (نصّ الواجهة + 2).</summary>
+    public double HeadingSize { get; set; }
+
+    /// <summary>أدقّ نصّ في الواجهة: الشارات والعدّادات. <b>0 = تلقائيّ</b> (نصّ الواجهة − 4).</summary>
+    public double TinySize { get; set; }
+
+    /// <summary>النصوص التقنيّة أحاديّة العرض داخل الواجهة (المسارات وكتل الكود). <b>0 = تلقائيّ</b>.</summary>
+    public double CodeSize { get; set; }
+
+    /// <summary>أرقام وأيقونات العرض الكبيرة في حالات الفراغ وشاشة البدء. <b>0 = تلقائيّ</b>.</summary>
+    public double DisplaySize { get; set; }
 
     /// <summary>استدارة حواف الكروت ونوافذ المشروع (نصف قطر الزاوية بالبكسل). 0 = زوايا حادّة.</summary>
     public double CornerRadius { get; set; } = 14;
@@ -146,6 +170,12 @@ public static class FontManager
         // وإن ضبطه المستخدم صراحةً احتُرمت قيمته.
         res["Size.Small"] = Clamp(s.SmallSize > 0 ? s.SmallSize : s.UiSize - 2);
         res["Size.Title"] = Clamp(s.TitleSize);
+        // بقيّة الأدوار تُشتقّ من نصّ الواجهة ما لم يضبطها المستخدم: منزلقٌ واحد يكبّر التطبيق كلّه
+        // متناسقاً، ومن أراد التفصيل فكّ الاشتقاق بضبط الدور الذي يريده وحده.
+        res["Size.Heading"] = Clamp(s.HeadingSize > 0 ? s.HeadingSize : s.UiSize + 2);
+        res["Size.Tiny"]    = Clamp(s.TinySize    > 0 ? s.TinySize    : s.UiSize - 4);
+        res["Size.Code"]    = Clamp(s.CodeSize    > 0 ? s.CodeSize    : s.UiSize - 1);
+        res["Size.Display"] = Clamp(s.DisplaySize > 0 ? s.DisplaySize : s.UiSize * 2.2, 7, 96);
         // أيقونات القائمة تتبع حجم المنيو (مطابقة للعنوان)، ونصّ الاختصار أصغر بقدر بسيط.
         res["Size.MenuIcon"]    = menu;
         res["Size.MenuGesture"] = Math.Max(9, menu - 2);
@@ -167,5 +197,8 @@ public static class FontManager
             : new FontFamily(name.Trim() + ", Segoe UI, Tahoma");
 
     private static double Clamp(double v) => Math.Clamp(v, 7, 40);
+
+    /// <summary>حدود مخصّصة — أحجام العرض الكبيرة تتجاوز سقف الأربعين.</summary>
+    private static double Clamp(double v, double min, double max) => Math.Clamp(v, min, max);
     private static double ClampRadius(double v) => Math.Clamp(v, 0, 28);
 }
