@@ -1113,6 +1113,45 @@
                                             <Button x:Name="KeysResetBtn" Content="{loc:T keys.reset}"
                                                     Padding="14,7" Margin="2,18,2,0"
                                                     HorizontalAlignment="Left" Click="KeysReset_Click"/>
+
+                                            <!-- ===== فتحه من مستكشف ويندوز بكلمة قصيرة ===== -->
+                                            <Border Height="1" Margin="0,24,0,0" Width="420"
+                                                    HorizontalAlignment="Left" Background="{DynamicResource Brush.Border}"/>
+                                            <TextBlock Text="{loc:T launch.title}" Style="{StaticResource Caption}"
+                                                       Margin="2,16,2,4" HorizontalAlignment="Left"/>
+                                            <TextBlock Text="{loc:T launch.hint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}" Margin="2,0,2,10"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <TextBlock Text="{loc:T launch.keyword}" Style="{StaticResource SectionLabel}"/>
+                                            <Grid Width="420" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="LaunchKeywordBox" Padding="8,6"
+                                                         FlowDirection="LeftToRight"
+                                                         FontFamily="Cascadia Mono, Consolas"
+                                                         theme:Placeholder.Text="hrt"
+                                                         TextChanged="LaunchKeyword_TextChanged"/>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                                    <Button x:Name="LaunchRegisterBtn" Content="{loc:T launch.enable}"
+                                                            Style="{StaticResource AccentButton}" Padding="14,6"
+                                                            Click="LaunchRegister_Click"/>
+                                                    <Button x:Name="LaunchUnregisterBtn" Content="{loc:T launch.disable}"
+                                                            Margin="6,0,0,0" Padding="12,6"
+                                                            Click="LaunchUnregister_Click"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock x:Name="LaunchStatusText" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}" Margin="2,8,2,0"/>
+                                            <TextBlock Text="{loc:T launch.note}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}" Margin="2,6,2,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
                                         </StackPanel>
 
                                         <!-- ===== فئة: الأوامر المختصرة (أسماء مستعارة) ===== -->

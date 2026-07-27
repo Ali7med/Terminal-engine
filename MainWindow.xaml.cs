@@ -122,7 +122,13 @@ public partial class MainWindow : Window
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
         Loaded += (_, _) => ApplyRounding();
-        Loaded += (_, _) => { SplashScreenHost.SetStatus(Loc.T("splash.session")); RestoreSession(); ApplyBackground(); };
+        Loaded += (_, _) =>
+        {
+            SplashScreenHost.SetStatus(Loc.T("splash.session"));
+            RestoreSession();
+            OpenLaunchFolderTerminal();   // إطلاقٌ «من مكان» (المستكشف/تشغيل) يفتح تبويباً هناك
+            ApplyBackground();
+        };
         // لوحة «ما الجديد» تلقائياً مرّة واحدة عند الترقية — بعد ظهور الواجهة (مغلّفة بـ try/catch داخلها).
         Loaded += (_, _) => Views.WhatsNewWindow.ShowIfNew(this, _settings, _settingsStore);
         // شارة التحديث: تظهر عند اكتشاف نسخة أحدث وتبقى حتّى يُطبّق التحديث. وبند الفحص
@@ -263,6 +269,7 @@ public partial class MainWindow : Window
         CodeSizeSlider.IsEnabled = !derived;
         DisplaySizeSlider.IsEnabled = !derived;
         SyncDerivedSizeSliders();
+        SyncLaunchUi();
         RadiusSlider.Value = FontManager.Current.CornerRadius;
         RadiusValue.Text = FontManager.Current.CornerRadius.ToString("0.#");
         FontJsonPathText.Text = FontManager.ConfigPath;

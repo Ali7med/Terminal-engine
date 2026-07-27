@@ -14,6 +14,12 @@ public sealed class AppSettings
     /// </summary>
     public Dictionary<string, string> Shortcuts { get; set; } = new();
 
+    /// <summary>
+    /// الكلمة المسجَّلة لفتح التطبيق من مستكشف ويندوز. تُحفَظ لعرضها في الإعدادات ولإزالة
+    /// التسجيل القديم عند تغييرها — أمّا مصدر الحقيقة فسجلّ ويندوز نفسه.
+    /// </summary>
+    public string LaunchKeyword { get; set; } = "";
+
     /// <summary>الوضع (داكن/فاتح). يُشتقّ من الثيم المختار عند التطبيق؛ يبقى للتبديل السريع.</summary>
     public ThemeMode Mode { get; set; } = ThemeMode.Dark;
 

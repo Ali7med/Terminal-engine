@@ -682,6 +682,23 @@ public static class Loc
         ["exp.upload"]         = ("رفع ملفّ هنا", "Upload a file here"),
         ["exp.newTerminal"]    = ("تيرمنال جديد", "New terminal"),
 
+        // ===== فتح التطبيق من مستكشف ويندوز بكلمة قصيرة =====
+        ["launch.title"]       = ("فتحه من ويندوز", "Launch from Windows"),
+        ["launch.hint"]        = ("سجّل كلمة قصيرة تكتبها في شريط عنوان المستكشف أو في «تشغيل» (Win+R) — كما تكتب cmd — فيُفتح التطبيق في المجلد الذي أنت فيه.",
+                                  "Register a short word you can type in Explorer's address bar or the Run box (Win+R) — the way you type cmd — and the app opens in the folder you are in."),
+        ["launch.keyword"]     = ("الكلمة", "Keyword"),
+        ["launch.enable"]      = ("سجّل الكلمة", "Register"),
+        ["launch.disable"]     = ("أزل التسجيل", "Unregister"),
+        ["launch.on"]          = ("مسجَّلة ✓ — اكتب «{0}» في شريط عنوان أيّ مجلد.",
+                                  "Registered ✓ — type “{0}” in any folder's address bar."),
+        ["launch.off"]         = ("غير مسجَّلة.", "Not registered."),
+        ["launch.errKeyword"]  = ("الكلمة تقبل الحروف والأرقام والشرطة فقط، وبطول 24 محرفاً على الأكثر.",
+                                  "The keyword accepts letters, digits and dashes only, up to 24 characters."),
+        ["launch.errExe"]      = ("تعذّر تحديد ملفّ التطبيق التنفيذيّ.", "Could not determine the application's executable."),
+        ["launch.errFail"]     = ("تعذّر التسجيل: {0}", "Registration failed: {0}"),
+        ["launch.note"]        = ("يُكتب التسجيل لحسابك وحدك بلا صلاحيّة مسؤول. وإن نقلتَ ملفّات التطبيق فأعد التسجيل.",
+                                  "The registration is written for your account only, with no administrator rights. Re-register if you move the application files."),
+
         // ===== الدليل (صفحات HTML تُفتح في المتصفّح) =====
         ["docs.open"]          = ("الدليل", "Guide"),
         ["docs.tip"]           = ("افتح شرح هذا القسم في الدليل", "Open the guide for this section"),
