@@ -330,7 +330,7 @@ public partial class TerminalTabView
         ComposerModeCmdText.Text = Loc.T("ai.cmp.modeCommand");
         ComposerModeAiText.Text = Loc.T("ai.cmp.modeAi");
         ComposerModeSwitch.ToolTip = Loc.T("ai.cmp.switchTip");
-        ComposerModelCombo.ToolTip = Loc.T("ai.cmp.model");
+        ComposerModelChip.ToolTip = Loc.T("ai.cmp.model");
         WelcomeTitle.Text = Loc.T("ai.welcome.title");
         WelcomeDismissText.Text = Loc.T("ai.welcome.dismiss");
         UpdateComposerPlaceholder(ComposerInput.Text);
@@ -362,63 +362,128 @@ public partial class TerminalTabView
         // وضع الذكاء لا اقتراحات أوامر فيه — إخفاؤها فوراً كي لا تبقى قائمة أوامر معلّقة فوق سؤال.
         if (ai) { HideSuggestions(); ClearGhost(); }
 
-        // منتقي النموذج لا معنى له في وضع الأمر، وإخفاؤه يعيد المساحة للتيرمنال.
-        ComposerModelCombo.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
+        // رقاقة النموذج لا معنى لها في وضع الأمر، وإخفاؤها يعيد المساحة للتيرمنال.
+        ComposerModelChip.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
         if (ai) SyncComposerModelText();
+        else ModelPickerPopup.IsOpen = false;
     }
 
-    // ===== منتقي النموذج المضغوط =====
+    // ===== رقاقة النموذج ولوحة اختياره =====
     //
-    // يعرض نموذج الجلسة نفسه الذي تعرضه ترويسة اللوحة ويكتب فيه — لا نموذجاً ثانياً يخالفه.
-    // ولأنّ الطلب من الصندوق يمرّ باللوحة أصلاً، تظلّ اللوحة مالكة الحقيقة.
+    // الرقاقة تجاور المسار: «أين أنا» و«من سيجيبني» سؤالان متجاوران، وجوابهما يجب أن يكون كذلك.
+    // واللوحة تحلّ محلّ منسدلة: مئات النماذج داخل ComboBox في شريط ضيّق تمطّه وتقتطع الأسماء،
+    // بينما اللوحة تعطي القائمة مساحتها وتضيف بحثاً ومرشّح «المجّانيّة» وخطوة اعتماد صريحة.
 
-    private bool _composerModelSyncing;
+    /// <summary>صفّ في لوحة النماذج: المعرّف وشارة «مجّانيّ» إن كان المزوّد يبلّغ بذلك.</summary>
+    private sealed record ModelRow(string Id, string Badge);
+
+    private System.Collections.Generic.IReadOnlyList<AiModelInfo> _composerModels =
+        System.Array.Empty<AiModelInfo>();
     private bool _composerModelsLoaded;
 
-    /// <summary>يعرض النموذج الفعّال حاليّاً بلا إطلاق أحداث التغيير.</summary>
+    /// <summary>يعرض النموذج الفعّال حاليّاً على الرقاقة.</summary>
     private void SyncComposerModelText()
     {
-        if (!_aiPanelReady) { EnsureAiPanel(); }
+        if (!_aiPanelReady) EnsureAiPanel();
         if (!_aiPanelReady) return;
 
-        _composerModelSyncing = true;
-        try { ComposerModelCombo.Text = AiSidePanel.CurrentModel(); }
-        finally { _composerModelSyncing = false; }
+        string model = AiSidePanel.CurrentModel();
+        ComposerModelText.Text = model.Length > 0 ? model : Loc.T("ai.cmp.noModel");
     }
 
-    /// <summary>
-    /// تحميل القائمة عند أوّل فتح للمنسدلة لا عند تبديل الوضع: نداء شبكيّ لمن لن يفتح القائمة
-    /// كلفة بلا مقابل. الفشل يترك الحقل قابلاً للكتابة يدويّاً.
-    /// </summary>
-    private async void ComposerModel_DropDownOpened(object? sender, EventArgs e)
+    private async void ComposerModelChip_Click(object sender, RoutedEventArgs e)
     {
-        if (_composerModelsLoaded || !_aiPanelReady) return;
-        _composerModelsLoaded = true;
+        if (!_aiPanelReady) EnsureAiPanel();
+        if (!_aiPanelReady) return;
 
-        System.Collections.Generic.IReadOnlyList<string> ids = await AiSidePanel.LoadModelIdsAsync();
-        if (ids.Count == 0) { _composerModelsLoaded = false; return; }
+        // الاتّجاه صراحةً: محتوى الـPopup في شجرة منفصلة لا يرث اتّجاه الواجهة.
+        ModelPickerRoot.FlowDirection = Loc.Flow;
+        ModelPickerTitle.Text = Loc.T("ai.cmp.pickTitle");
+        ModelPickerFreeOnly.Content = Loc.T("ai.set.freeOnly");
+        ModelPickerApply.Content = Loc.T("ai.cmp.pickApply");
+        ModelPickerCancel.Content = Loc.T("ui.cancel");
+        Theme.Placeholder.SetText(ModelPickerSearch, Loc.T("ai.cmp.pickSearch"));
+        ModelPickerPopup.IsOpen = true;
 
-        string current = ComposerModelCombo.Text;
-        _composerModelSyncing = true;
-        try
+        if (!_composerModelsLoaded)
         {
-            ComposerModelCombo.ItemsSource = ids;
-            ComposerModelCombo.Text = current;
+            ModelPickerStatus.Text = Loc.T("ai.cmp.pickLoading");
+            _composerModels = await AiSidePanel.LoadModelsAsync();
+            _composerModelsLoaded = _composerModels.Count > 0;
         }
-        finally { _composerModelSyncing = false; }
+
+        ApplyModelFilter();
+        _ = Dispatcher.BeginInvoke(new System.Action(() => ModelPickerSearch.Focus()),
+                                   System.Windows.Threading.DispatcherPriority.Input);
     }
 
-    private void ComposerModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>يطبّق البحث ومرشّح المجّانيّة، ويُبقي المحدَّد على النموذج الفعّال.</summary>
+    private void ApplyModelFilter()
     {
-        if (_composerModelSyncing || ComposerModelCombo.SelectedItem is not string id) return;
-        AiSidePanel.SetSessionModel(id);
+        string term = (ModelPickerSearch.Text ?? "").Trim();
+        bool freeOnly = ModelPickerFreeOnly.IsChecked == true;
+
+        var rows = new System.Collections.Generic.List<ModelRow>();
+        foreach (AiModelInfo model in _composerModels)
+        {
+            if (freeOnly && model.IsFree != true) continue;
+            if (term.Length > 0 && model.Id.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+            rows.Add(new ModelRow(model.Id, model.IsFree == true ? Loc.T("ai.cmp.freeBadge") : ""));
+        }
+
+        ModelPickerList.ItemsSource = rows;
+
+        string current = AiSidePanel.CurrentModel();
+        foreach (ModelRow row in rows)
+            if (row.Id == current) { ModelPickerList.SelectedItem = row; break; }
+
+        // الفراغ له سببان: القائمة لم تصل (مفتاح ناقص أو شبكة)، أو المرشّح ضيّق. لا يُخلَطان.
+        ModelPickerStatus.Text = _composerModels.Count == 0
+            ? Loc.T("ai.cmp.pickNone")
+            : rows.Count == 0 ? Loc.T("ai.cmp.pickNoMatch")
+            : string.Format(Loc.T("ai.cmp.pickCount"), rows.Count, _composerModels.Count);
+    }
+
+    private void ModelPickerSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (ModelPickerList is not null) ApplyModelFilter();
+    }
+
+    private void ModelPickerFilter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (ModelPickerList is not null) ApplyModelFilter();
+    }
+
+    private void ModelPickerList_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => ConfirmModelPick();
+
+    private void ModelPickerApply_Click(object sender, RoutedEventArgs e) => ConfirmModelPick();
+
+    private void ModelPickerCancel_Click(object sender, RoutedEventArgs e)
+    {
+        ModelPickerPopup.IsOpen = false;
         ComposerInput.Focus();
     }
 
-    private void ComposerModel_LostFocus(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// يعتمد المحدَّد: يصير <b>الافتراضيّ المحفوظ</b> للمساعد وليس لهذه الجلسة وحدها — لأنّ
+    /// «اعتماد» في لوحةٍ مقصودةٍ يعني «هذا ما أريده من الآن»، لا تجربةً تُنسى عند إعادة التشغيل.
+    /// </summary>
+    private void ConfirmModelPick()
     {
-        if (_composerModelSyncing || !_aiPanelReady) return;
-        AiSidePanel.SetSessionModel(ComposerModelCombo.Text ?? "");
+        if (ModelPickerList.SelectedItem is not ModelRow row) return;
+
+        if (_aiAppSettings is not null)
+        {
+            _aiAppSettings.Ai.Model = row.Id;
+            _aiSaveSettings?.Invoke();
+        }
+
+        AiSidePanel.SetSessionModel(row.Id);
+        SyncComposerModelText();
+
+        ModelPickerPopup.IsOpen = false;
+        ComposerInput.Focus();
     }
 
     /// <summary>النصّ الإرشاديّ يظهر ما دام الصندوق فارغاً، ونصّه يتبع الوضع.</summary>
@@ -557,7 +622,7 @@ public partial class TerminalTabView
             // بلا أمر = النموذج يسأل أو يشرح. نُبقي وضع الذكاء ونعيد التركيز للصندوق كي تكمل
             // المحادثة في مكانها — الجلسة تحتفظ بالتاريخ فيصل جوابك مربوطاً بسؤاله.
             AiInline.ShowAwaitingAnswer();
-            SetComposerAiMode(true);
+            SetComposerAiMode(true, persist: false);
             ComposerInput.Focus();
             return;
         }
@@ -625,7 +690,8 @@ public partial class TerminalTabView
     /// <summary>يضع الأمر في الصندوق بوضع «أمر» ليراجعه المستخدم ويشغّله بنفسه.</summary>
     private void EditAiCommand(string command)
     {
-        SetComposerAiMode(false);
+        // تبديلٌ آليّ لا اختيارٌ من المستخدم: لا يُكتب في الإعدادات (انظر SetComposerAiMode).
+        SetComposerAiMode(false, persist: false);
         ComposerInput.Text = RiskyCommandDetector.SanitizeForInsert(command);
         ComposerInput.CaretIndex = ComposerInput.Text.Length;
         ComposerInput.Focus();

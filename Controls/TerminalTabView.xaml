@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="TerminalLauncher.Controls.TerminalTabView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:TerminalLauncher.Services"
              xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
              FlowDirection="RightToLeft">
     <UserControl.Resources>
@@ -225,11 +226,11 @@
                         </Border>
                     </Popup>
                     <Button Style="{StaticResource IconButton}" Content="↻" Click="RestartButton_Click"
-                            ToolTip="إعادة التشغيل"/>
+                            ToolTip="{loc:T term.restart}"/>
                     <Button Style="{StaticResource IconButton}" Content="■" Click="StopButton_Click"
-                            ToolTip="إيقاف"/>
+                            ToolTip="{loc:T term.stop}"/>
                     <Button Style="{StaticResource IconButton}" Content="🧹" Click="ClearButton_Click"
-                            ToolTip="تنظيف الشاشة"/>
+                            ToolTip="{loc:T term.clear}"/>
                     <!-- فصل: نقرة → نافذة مستقلّة · Shift+نقرة → تيرمنال خارجيّ بنفس المسار (E8A7 = OpenInNewWindow) -->
                     <Button x:Name="DetachButton" Style="{StaticResource IconButton}"
                             Content="&#xE8A7;" FontFamily="Segoe MDL2 Assets" FontSize="12"
@@ -239,7 +240,7 @@
                                   Content="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                   Click="ExpandToggle_Click" ToolTip="توسيع مساحة العمل"/>
                     <Button Style="{StaticResource IconButton}" Content="✕" Click="CloseButton_Click"
-                            ToolTip="إغلاق هذا الجزء (Ctrl+W)"/>
+                            ToolTip="{loc:T term.closePane}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -298,11 +299,11 @@
                                        VerticalAlignment="Center" TextAlignment="Center"
                                        Foreground="{DynamicResource Brush.TextMuted}"/>
                             <Button Style="{StaticResource IconButton}" Content="‹" FontSize="{DynamicResource Size.Heading}"
-                                    Click="SearchPrev_Click" ToolTip="السابق (Shift+Enter)"/>
+                                    Click="SearchPrev_Click" ToolTip="{loc:T find.prev}"/>
                             <Button Style="{StaticResource IconButton}" Content="›" FontSize="{DynamicResource Size.Heading}"
-                                    Click="SearchNext_Click" ToolTip="التالي (Enter)"/>
+                                    Click="SearchNext_Click" ToolTip="{loc:T find.next}"/>
                             <Button Style="{StaticResource IconButton}" Content="✕"
-                                    Click="SearchClose_Click" ToolTip="إغلاق (Esc)"/>
+                                    Click="SearchClose_Click" ToolTip="{loc:T find.close}"/>
                         </StackPanel>
                     </Border>
 
@@ -471,6 +472,11 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
+
+                            <!-- المسار ورقاقة النموذج في صفّ أفقيّ واحد. سبق أن كانا في خليّة
+                                 الشبكة نفسها فتراكب نصّاهما: الشبكة تكدّس أبناء الخليّة الواحدة
+                                 فوق بعضهم، ولا ترصفهم. -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button x:Name="CwdPickerButton" HorizontalAlignment="Left" Margin="0"
                                     Padding="12,7" Cursor="Hand" Click="CwdPicker_Click" Focusable="False">
                                 <Button.Style>
@@ -509,23 +515,114 @@
                                 </StackPanel>
                             </Button>
 
+                                <!-- رقاقة النموذج تلي المسار في الصفّ نفسه: تقول أيّ نموذج سيجيب،
+                                     وتفتح لوحة اختيار. رقاقة لا منسدلة — قائمة بمئات النماذج داخل
+                                     ComboBox في شريط ضيّق تمطّه وتقتطع الأسماء، واللوحة تعطيها
+                                     مساحتها كاملةً. -->
+                                <Button x:Name="ComposerModelChip" Visibility="Collapsed"
+                                        VerticalAlignment="Center"
+                                        Margin="8,0,0,0" Padding="10,6" Cursor="Hand"
+                                        Focusable="False" Click="ComposerModelChip_Click"
+                                        Style="{Binding ElementName=CwdPickerButton, Path=Style}">
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- ‏«✦» لا «✨»: الثاني رمزٌ تعبيريّ يُرسَم بخطّ ملوّن (Segoe UI
+                                         Emoji) فيتجاهل Foreground ويخرج أسودَ على خلفيّة داكنة.
+                                         هذا محرفٌ نصّيّ عاديّ يتبع لون النصّ كبقيّة الرقاقة. -->
+                                    <TextBlock Text="✦" FontSize="{DynamicResource Size.Small}"
+                                               Margin="0,0,7,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                    <TextBlock x:Name="ComposerModelText" VerticalAlignment="Center" MaxWidth="180"
+                                               FontFamily="Cascadia Mono, Consolas" FlowDirection="LeftToRight"
+                                               FontSize="{DynamicResource Size.Small}"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="9"
+                                               Margin="7,1,0,0" VerticalAlignment="Center" Opacity="0.7"
+                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                </StackPanel>
+                            </Button>
+                            </StackPanel>
+
+                            <!-- لوحة اختيار النموذج -->
+                            <Popup x:Name="ModelPickerPopup" PlacementTarget="{Binding ElementName=ComposerModelChip}"
+                                   Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                                   PopupAnimation="Fade" HorizontalOffset="0" VerticalOffset="-6">
+                                <!-- الاتّجاه يُضبَط من الكود بلغة الواجهة لا بالوراثة: محتوى الـPopup
+                                     يعيش في شجرة منفصلة، وربطُه باتّجاه هذا العنصر كان يلتقط
+                                     RightToLeft المكتوب في XAML فتُقلَب لوحةٌ نصّها إنجليزيّ —
+                                     ويُعاد ترتيب أرقام سطر العدّ فتقرأ «of 341 models 341». -->
+                                <Border x:Name="ModelPickerRoot" Style="{StaticResource CardStrong}"
+                                        Padding="12" Width="380">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ModelPickerTitle" Style="{StaticResource Caption}"
+                                                   Margin="2,0,2,8" HorizontalAlignment="Left"/>
+
+                                        <!-- البحث ومرشّح المجّانيّة في سطر واحد: سطران لعنصرَي ترشيح
+                                             يأكلان من ارتفاع القائمة بلا مقابل. -->
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBox x:Name="ModelPickerSearch" Padding="8,5"
+                                                     FlowDirection="LeftToRight"
+                                                     FontFamily="Cascadia Mono, Consolas"
+                                                     TextChanged="ModelPickerSearch_TextChanged"/>
+
+                                            <CheckBox Grid.Column="1" x:Name="ModelPickerFreeOnly"
+                                                      Style="{StaticResource AppCheckBox}"
+                                                      Margin="10,0,2,0" VerticalAlignment="Center"
+                                                      Checked="ModelPickerFilter_Changed" Unchecked="ModelPickerFilter_Changed"/>
+                                        </Grid>
+
+                                        <ListBox x:Name="ModelPickerList" Height="220" BorderThickness="0"
+                                                 Background="Transparent" FlowDirection="LeftToRight"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 MouseDoubleClick="ModelPickerList_DoubleClick">
+                                            <ListBox.Resources>
+                                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
+                                            </ListBox.Resources>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Id}" TextTrimming="CharacterEllipsis"
+                                                                   FontFamily="Cascadia Mono, Consolas"
+                                                                   FontSize="{DynamicResource Size.Small}"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Badge}" Margin="8,0,0,0"
+                                                                   FontSize="{DynamicResource Size.Tiny}"
+                                                                   Foreground="{DynamicResource Brush.Accent}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <TextBlock x:Name="ModelPickerStatus" TextWrapping="Wrap" Margin="2,8,2,0"
+                                                   FontSize="{DynamicResource Size.Small}"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button x:Name="ModelPickerApply" Style="{StaticResource AccentButton}"
+                                                    Padding="16,6" Click="ModelPickerApply_Click"/>
+                                            <Button x:Name="ModelPickerCancel" Margin="8,0,0,0" Padding="14,6"
+                                                    Click="ModelPickerCancel_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+
                             <!-- مبدّل الوضع: أمر ⇄ ذكاء. نقطة الدخول الظاهرة للمساعد — بلا مبدّل
                                  بجانب الكتابة تبقى الميزة خلف قائمة لا يفتحها أحد. -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal"
                                         HorizontalAlignment="Right" VerticalAlignment="Center">
 
-                                <!-- منتقي النموذج: يظهر في وضع الذكاء وحده، وبعرض محدود يقتطع الاسم
-                                     الطويل بدل أن يزاحم التيرمنال. النموذج نفسه الذي تستعمله اللوحة. -->
-                                <ComboBox x:Name="ComposerModelCombo" Visibility="Collapsed"
-                                          IsEditable="True" IsTextSearchEnabled="False"
-                                          MaxWidth="150" MinWidth="86" Height="24"
-                                          Margin="0,0,6,0" VerticalAlignment="Center"
-                                          FlowDirection="LeftToRight"
-                                          FontSize="{DynamicResource Size.Tiny}"
-                                          MaxDropDownHeight="280"
-                                          DropDownOpened="ComposerModel_DropDownOpened"
-                                          SelectionChanged="ComposerModel_SelectionChanged"
-                                          LostFocus="ComposerModel_LostFocus"/>
+                                <!-- منتقي النموذج انتقل إلى رقاقة بجانب المسار: هناك مكانه الطبيعيّ
+                                     («أين أنا» و«من سيجيبني»)، وهنا كان يزاحم مبدّل الوضع. -->
 
                                 <Border x:Name="ComposerModeSwitch"
                                         VerticalAlignment="Center"

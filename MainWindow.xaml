@@ -156,7 +156,7 @@
                                 ToolTip="الأوامر المحفوظة"/>
                         <Button x:Name="SidebarAddBtn" DockPanel.Dock="Top" Style="{StaticResource IconButton}"
                                 Content="＋" FontSize="{DynamicResource Size.Title}" Height="38"
-                                Foreground="{DynamicResource Brush.Accent}" Click="AddButton_Click" ToolTip="إضافة أمر"/>
+                                Foreground="{DynamicResource Brush.Accent}" Click="AddButton_Click" ToolTip="{loc:T ui.addCmd}"/>
                         <Border DockPanel.Dock="Top" Height="1" Margin="14,8" Background="{DynamicResource Brush.Hairline}"/>
                         <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl x:Name="SidebarDots">
@@ -280,7 +280,7 @@
                                            VerticalAlignment="Center"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource IconButton}"
                                         Content="＋" FontSize="{DynamicResource Size.Title}" Foreground="{DynamicResource Brush.Accent}"
-                                        Click="AddButton_Click" ToolTip="إضافة أمر"/>
+                                        Click="AddButton_Click" ToolTip="{loc:T ui.addCmd}"/>
                             </Grid>
 
                             <!-- نفس حبّة بحث الرأس: عدسة + نصّ بديل (الحقل العادي كان يظهر صندوقاً فارغاً
@@ -292,8 +292,8 @@
                             <!-- مقطع «الإعدادات» أسفل اللوحة: عنوان مكتوم صغير + صفّ واحد — نفس بنية
                                  المقاطع في التصميم المرجعيّ (بلا خطّ فاصل). -->
                             <StackPanel DockPanel.Dock="Bottom">
-                                <TextBlock x:Name="SidebarSettingsCaption" Text="الإعدادات"
-                                           Style="{StaticResource Caption}"/>
+                                <!-- بلا عنوان مقطع فوق زرّ الإعدادات: الزرّ نفسه يقول «الإعدادات»
+                                     بأيقونته ونصّه، فالعنوان تكرارٌ لكلمةٍ واحدة مرّتين متتاليتين. -->
                                 <Button x:Name="SidebarSettingsBtn" Click="SettingsButton_Click"
                                         HorizontalContentAlignment="Stretch" Background="Transparent"
                                         BorderThickness="0" Padding="10,8">
@@ -422,11 +422,11 @@
                                 <Button Style="{StaticResource IconButton}"
                                         Width="26" Height="26" Content="&#xE89F;" FontFamily="Segoe MDL2 Assets"
                                         FontSize="11" Foreground="{DynamicResource Brush.TextMuted}"
-                                        Click="QuickDockClose_Click" ToolTip="طيّ اللوحة"/>
+                                        Click="QuickDockClose_Click" ToolTip="{loc:T ui.collapsePanel}"/>
                             </StackPanel>
                             <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0" CornerRadius="6" Padding="7,3"
                                     Background="{DynamicResource Brush.Bg}" Cursor="Hand"
-                                    ToolTip="فولدر المشروع" MouseLeftButtonUp="QuickEditProject_Click">
+                                    ToolTip="{loc:T ui.projectFolder}" MouseLeftButtonUp="QuickEditProject_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="{DynamicResource Size.Small}"
                                                Foreground="{DynamicResource Brush.TextMuted}" VerticalAlignment="Center"
@@ -483,7 +483,7 @@
                         <StackPanel>
                             <TextBlock x:Name="ProjEditTitle" Text="مشروع جديد" FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
                                        Margin="0,0,0,14"/>
-                            <TextBlock x:Name="ProjEditNameLabel" Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock x:Name="ProjEditNameLabel" Text="{loc:T prof.name}" Style="{StaticResource SectionLabel}"/>
                             <TextBox x:Name="ProjEditName"/>
 
                             <TextBlock x:Name="ProjEditTagsLabel" Text="التاكات (تصنيفات ملوّنة)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
@@ -500,7 +500,7 @@
                                         MouseLeftButtonUp="ProjNewTagColorDot_Click" ToolTip="لون التاك الجديد"/>
                                 <TextBox x:Name="ProjEditNewTag" Grid.Column="1" VerticalContentAlignment="Center"
                                          KeyDown="ProjEditNewTag_KeyDown" ToolTip="اكتب اسم تاك جديد ثم Enter أو «إضافة»"/>
-                                <Button Grid.Column="2" Content="＋ تاك" Margin="6,0,0,0" Padding="12,6"
+                                <Button Grid.Column="2" Content="{loc:T ui.addTag}" Margin="6,0,0,0" Padding="12,6"
                                         Click="ProjEditAddTag_Click"/>
                             </Grid>
 
@@ -512,17 +512,17 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="ProjEditFolder" FlowDirection="LeftToRight"/>
                                 <Button Grid.Column="1" Content="&#xE838;" FontFamily="Segoe MDL2 Assets"
-                                        Margin="6,0,0,0" Padding="10,6" Click="ProjEditBrowse_Click" ToolTip="استعراض"/>
+                                        Margin="6,0,0,0" Padding="10,6" Click="ProjEditBrowse_Click" ToolTip="{loc:T ui.browse}"/>
                             </Grid>
 
                             <TextBlock x:Name="ProjEditShellLabel" Text="الصدفة الافتراضية" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <ComboBox x:Name="ProjEditShell" DisplayMemberPath="Display" HorizontalAlignment="Left" Width="200"/>
 
                             <Grid Margin="0,20,0,0">
-                                <Button x:Name="ProjEditCancelBtn" HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
+                                <Button x:Name="ProjEditCancelBtn" HorizontalAlignment="Left" Content="{loc:T ui.cancel}" Padding="16,8"
                                         Click="ProjEditCancel_Click"/>
                                 <Button x:Name="ProjEditSaveBtn" HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
-                                        Content="حفظ" Padding="20,8" Click="ProjEditSave_Click"/>
+                                        Content="{loc:T ui.save}" Padding="20,8" Click="ProjEditSave_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -692,9 +692,9 @@
                                         <StackPanel x:Name="CatFont" Visibility="Collapsed" Margin="0,22,0,0">
                                             <!-- صندوق التأليف المنفصل (نمط Warp) -->
                                             <CheckBox x:Name="ComposerCheck" Style="{StaticResource AppCheckBox}"
-                                                      Content="صندوق إدخال غنيّ منفصل (نمط Warp)" Margin="2,0,2,4"
+                                                      Content="{loc:T ui.composerRich}" Margin="2,0,2,4"
                                                       Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
-                                            <TextBlock Text="صندوق أمر واضح أسفل التيرمنال مع اقتراحات وإكمال شبحيّ. إطفاؤه يعيد الكتابة داخل الشبكة مباشرةً. يختفي تلقائياً في محرّرات كامل الشاشة."
+                                            <TextBlock Text="{loc:T ui.composerRichHint}"
                                                        TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
                                                        FontSize="{DynamicResource Size.Small}" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
 
@@ -1251,7 +1251,7 @@
                             <TextBlock x:Name="ColorPickerTitle" Text="لون المشروع" FontWeight="SemiBold"
                                        FontSize="{DynamicResource Size.Ui}" Margin="0,0,0,10"/>
                             <WrapPanel x:Name="ColorSwatchPanel"/>
-                            <TextBlock Text="لون مخصّص (#RRGGBB)" Style="{StaticResource SectionLabel}" Margin="2,10,2,6"/>
+                            <TextBlock Text="{loc:T ui.customColor}" Style="{StaticResource SectionLabel}" Margin="2,10,2,6"/>
                             <Grid FlowDirection="LeftToRight">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1259,7 +1259,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="ColorHexInput" VerticalContentAlignment="Center"
                                          KeyDown="ColorHexInput_KeyDown"/>
-                                <Button Grid.Column="1" Content="تطبيق" Margin="6,0,0,0" Padding="12,6"
+                                <Button Grid.Column="1" Content="{loc:T ui.apply}" Margin="6,0,0,0" Padding="12,6"
                                         Click="ColorHexApply_Click"/>
                             </Grid>
                         </StackPanel>
@@ -1274,11 +1274,11 @@
                             MouseLeftButtonDown="EditorCard_MouseDown">
                         <DockPanel>
                             <TextBlock x:Name="ProfileManagerTitle" DockPanel.Dock="Top"
-                                       Text="بروفايلات الصدفات" FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
+                                       Text="{loc:T prof.title}" FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
                                        Margin="0,0,0,14"/>
 
                             <TextBlock x:Name="DefaultProfileLabel" DockPanel.Dock="Top"
-                                       Text="البروفايل الافتراضيّ" Style="{StaticResource SectionLabel}"/>
+                                       Text="{loc:T prof.default}" Style="{StaticResource SectionLabel}"/>
                             <ComboBox x:Name="DefaultProfileCombo" DockPanel.Dock="Top"
                                       DisplayMemberPath="DisplayLabel" SelectedValuePath="Id"
                                       Margin="0,0,0,14"
@@ -1286,15 +1286,15 @@
 
                             <Grid DockPanel.Dock="Bottom" Margin="0,14,0,0">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <Button x:Name="ProfileAddBtn" Content="إضافة" Padding="16,8"
+                                    <Button x:Name="ProfileAddBtn" Content="{loc:T prof.add}" Padding="16,8"
                                             Click="ProfileAdd_Click"/>
-                                    <Button x:Name="ProfileEditBtn" Content="تعديل" Padding="16,8" Margin="8,0,0,0"
+                                    <Button x:Name="ProfileEditBtn" Content="{loc:T prof.edit}" Padding="16,8" Margin="8,0,0,0"
                                             Click="ProfileEdit_Click"/>
-                                    <Button x:Name="ProfileDeleteBtn" Content="حذف" Padding="16,8" Margin="8,0,0,0"
+                                    <Button x:Name="ProfileDeleteBtn" Content="{loc:T prof.delete}" Padding="16,8" Margin="8,0,0,0"
                                             Click="ProfileDelete_Click"/>
                                 </StackPanel>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
-                                        x:Name="ProfileCloseBtn" Content="إغلاق" Padding="20,8"
+                                        x:Name="ProfileCloseBtn" Content="{loc:T prof.close}" Padding="20,8"
                                         Click="ProfileManagerClose_Click"/>
                             </Grid>
 
@@ -1324,29 +1324,29 @@
                             <TextBlock x:Name="ProfileEditorTitle" Text="بروفايل مخصّص" FontSize="{DynamicResource Size.Heading}"
                                        FontWeight="SemiBold" Margin="0,0,0,14"/>
 
-                            <TextBlock Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock Text="{loc:T prof.name}" Style="{StaticResource SectionLabel}"/>
                             <TextBox x:Name="ProfileEditorName"/>
 
-                            <TextBlock Text="الملفّ التنفيذيّ (ExePath)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBlock Text="{loc:T prof.exe}" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <TextBox x:Name="ProfileEditorExe" FlowDirection="LeftToRight"/>
 
-                            <TextBlock Text="الوسائط (Arguments)" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBlock Text="{loc:T prof.args}" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <TextBox x:Name="ProfileEditorArgs" FlowDirection="LeftToRight"/>
 
-                            <TextBlock Text="مجلّد العمل" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
+                            <TextBlock Text="{loc:T prof.cwd}" Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <TextBox x:Name="ProfileEditorWorkDir" FlowDirection="LeftToRight"/>
 
-                            <TextBlock Text="متغيّرات البيئة (KEY=VALUE في كل سطر)"
+                            <TextBlock Text="{loc:T prof.env}"
                                        Style="{StaticResource SectionLabel}" Margin="2,12,2,6"/>
                             <TextBox x:Name="ProfileEditorEnv" MinHeight="60" AcceptsReturn="True"
                                      TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                                      FlowDirection="LeftToRight"/>
 
                             <Grid Margin="0,20,0,0">
-                                <Button HorizontalAlignment="Left" Content="إلغاء" Padding="16,8"
+                                <Button HorizontalAlignment="Left" Content="{loc:T ui.cancel}" Padding="16,8"
                                         Click="ProfileEditorCancel_Click"/>
                                 <Button HorizontalAlignment="Right" Style="{StaticResource AccentButton}"
-                                        Content="حفظ" Padding="20,8" Click="ProfileEditorSave_Click"/>
+                                        Content="{loc:T ui.save}" Padding="20,8" Click="ProfileEditorSave_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>

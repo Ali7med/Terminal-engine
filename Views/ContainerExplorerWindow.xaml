@@ -37,15 +37,15 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Button x:Name="HomeBtn" Grid.Column="0" Content="&#xE80F;" FontFamily="Segoe MDL2 Assets"
-                            Padding="9,5" Click="Home_Click" ToolTip="الجذر (/)"/>
+                            Padding="9,5" Click="Home_Click" ToolTip="{loc:T exp.root}"/>
                     <Button x:Name="UpBtn" Grid.Column="1" Margin="6,0,0,0" Content="&#xE74A;"
-                            FontFamily="Segoe MDL2 Assets" Padding="9,5" Click="Up_Click" ToolTip="أعلى"/>
+                            FontFamily="Segoe MDL2 Assets" Padding="9,5" Click="Up_Click" ToolTip="{loc:T exp.up}"/>
                     <TextBox x:Name="PathBox" Grid.Column="2" Margin="8,0" VerticalContentAlignment="Center"
                              FlowDirection="LeftToRight" FontFamily="Consolas, monospace" KeyDown="PathBox_KeyDown"/>
                     <Button x:Name="NewFolderBtn" Grid.Column="3" Content="&#xE8F4;" FontFamily="Segoe MDL2 Assets"
-                            Padding="9,5" Click="NewFolder_Click" ToolTip="مجلّد جديد هنا"/>
+                            Padding="9,5" Click="NewFolder_Click" ToolTip="{loc:T exp.newFolder}"/>
                     <Button x:Name="UploadBtn" Grid.Column="4" Margin="6,0,0,0" Content="&#xE898;"
-                            FontFamily="Segoe MDL2 Assets" Padding="9,5" Click="Upload_Click" ToolTip="رفع ملفّ هنا"/>
+                            FontFamily="Segoe MDL2 Assets" Padding="9,5" Click="Upload_Click" ToolTip="{loc:T exp.upload}"/>
                     <Button x:Name="ConsoleHereBtn" Grid.Column="5" Margin="6,0,0,0" Content="الكونسول هنا"
                             Padding="12,5" Click="ConsoleHere_Click" ToolTip="cd إلى هذا المسار في الكونسول"/>
                     <Button x:Name="RefreshBtn" Grid.Column="6" Margin="6,0,0,0" Content="&#xE72C;"
@@ -224,7 +224,7 @@
                                       ToolTip="صدفة التيرمنال الجديد"/>
                             <Button DockPanel.Dock="Right" x:Name="AddConsoleBtn" Content="&#xE710;"
                                     FontFamily="Segoe MDL2 Assets" Padding="8,4" Click="AddConsole_Click"
-                                    ToolTip="تيرمنال جديد"/>
+                                    ToolTip="{loc:T exp.newTerminal}"/>
                             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="ConsoleTabsBar">
                                     <ItemsControl.ItemsPanel>
@@ -294,9 +294,9 @@
                         <TextBlock x:Name="ViewerPath" Grid.Column="0" FontWeight="SemiBold" FontSize="{DynamicResource Size.Small}"
                                    FlowDirection="LeftToRight" FontFamily="Consolas, monospace"
                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                        <Button x:Name="ViewerEditBtn" Grid.Column="1" Content="تعديل" Padding="12,5"
+                        <Button x:Name="ViewerEditBtn" Grid.Column="1" Content="{loc:T prof.edit}" Padding="12,5"
                                 Click="ViewerEdit_Click"/>
-                        <Button x:Name="ViewerSaveBtn" Grid.Column="2" Content="حفظ" Padding="12,5"
+                        <Button x:Name="ViewerSaveBtn" Grid.Column="2" Content="{loc:T ui.save}" Padding="12,5"
                                 Visibility="Collapsed" Style="{StaticResource AccentButton}" Click="ViewerSave_Click"/>
                         <Button x:Name="ViewerDownloadBtn" Grid.Column="3" Margin="6,0,0,0" Content="تنزيل…" Padding="12,5"
                                 Click="ViewerDownload_Click"/>
@@ -348,9 +348,9 @@
                                    Foreground="{DynamicResource Brush.TextMuted}" Opacity="0.7"/>
                     </Grid>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
-                        <Button x:Name="InputCancel" Content="إلغاء" Padding="22,10" MinWidth="96"
+                        <Button x:Name="InputCancel" Content="{loc:T ui.cancel}" Padding="22,10" MinWidth="96"
                                 FontSize="{DynamicResource Size.Ui}" FontWeight="Medium" Click="InputCancel_Click"/>
-                        <Button x:Name="InputOk" Content="حفظ" Margin="10,0,0,0" Padding="22,10" MinWidth="96"
+                        <Button x:Name="InputOk" Content="{loc:T ui.save}" Margin="10,0,0,0" Padding="22,10" MinWidth="96"
                                 FontSize="{DynamicResource Size.Ui}" FontWeight="Medium" IsDefault="True"
                                 Style="{StaticResource AccentButton}" Click="InputOk_Click"/>
                     </StackPanel>

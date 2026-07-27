@@ -283,12 +283,15 @@
         <Setter Property="Background" Value="{DynamicResource Brush.GlassStrong}"/>
     </Style>
 
-    <!-- ========== عنوان مقطع صغير (Caption) ==========
-         السطر المكتوم الصغير فوق مجموعة عناصر (مثل «الإعدادات») — بلا خطّ فاصل. -->
+    <!-- ========== عنوان مجموعة (Caption) ==========
+         السطر فوق مجموعة عناصر («الاتّصال»، «الإعدادات»). هو <b>أعلى</b> من SectionLabel في
+         التسلسل لا أدنى منه: كان يقرأ حجم «النصّ الدقيق» فيخرج أصغر من عناوين الحقول تحته —
+         ترتيبٌ مقلوب يجعل عنوان المجموعة أخفت ما في الشاشة. -->
     <Style x:Key="Caption" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
-        <Setter Property="FontSize" Value="{DynamicResource Size.Tiny}"/>
-        <Setter Property="Opacity" Value="0.75"/>
+        <Setter Property="FontSize" Value="{DynamicResource Size.Heading}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Opacity" Value="0.9"/>
         <Setter Property="Margin" Value="10,10,10,4"/>
     </Style>
 

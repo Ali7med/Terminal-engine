@@ -467,24 +467,22 @@ public partial class AiPanel : UserControl
     /// معرّفات نماذج المزوّد الحاليّ. يُشاركها المنتقي المضغوط مع ترويسة اللوحة فلا يتكرّر نداء
     /// الشبكة، ويعيد قائمة فارغة عند الفشل بدل أن يرمي — الحقل يبقى قابلاً للكتابة يدويّاً.
     /// </summary>
-    public async System.Threading.Tasks.Task<IReadOnlyList<string>> LoadModelIdsAsync()
+    public async System.Threading.Tasks.Task<IReadOnlyList<AiModelInfo>> LoadModelsAsync()
     {
-        if (_settings is null || _keys is null) return Array.Empty<string>();
+        if (_settings is null || _keys is null) return Array.Empty<AiModelInfo>();
 
         AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings);
-        if (descriptor is null) return Array.Empty<string>();
+        if (descriptor is null) return Array.Empty<AiModelInfo>();
 
         try
         {
             IAiProvider provider = AiProviderFactory.CreateFor(
                 descriptor, _keys.Get(descriptor.Id), _settings.BaseUrlOverride);
 
-            IReadOnlyList<AiModelInfo> models =
-                await provider.ListModelsDetailedAsync(System.Threading.CancellationToken.None).ConfigureAwait(true);
-
-            return models.Select(m => m.Id).ToList();
+            return await provider.ListModelsDetailedAsync(System.Threading.CancellationToken.None)
+                                 .ConfigureAwait(true);
         }
-        catch (AiException) { return Array.Empty<string>(); }
+        catch (AiException) { return Array.Empty<AiModelInfo>(); }
     }
 
     // ===== الجلسات السابقة =====

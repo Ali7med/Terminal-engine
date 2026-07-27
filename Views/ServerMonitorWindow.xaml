@@ -287,7 +287,7 @@
                                             FlowDirection="LeftToRight">
                                     <TextBlock Text="&#xE8E9;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                                VerticalAlignment="Center" Margin="0,0,6,0"
-                                               Foreground="{DynamicResource Brush.TextMuted}" ToolTip="حجم خطّ التفاصيل"/>
+                                               Foreground="{DynamicResource Brush.TextMuted}" ToolTip="{loc:T srv.detailFont}"/>
                                     <Button x:Name="FontMinusBtn" Content="A−" Padding="8,3" MinWidth="30"
                                             Click="FontMinus_Click" ToolTip="تصغير الخطّ"/>
                                     <TextBlock x:Name="FontSizeLabel" MinWidth="26" TextAlignment="Center"
@@ -569,7 +569,7 @@
                                                 <Border Margin="0,4" Padding="12,10" CornerRadius="8" Cursor="Hand"
                                                         Background="{DynamicResource Brush.Surface}"
                                                         BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
-                                                        ToolTip="نقر مزدوج: دخول القرص وتصفّح مجلّداته"
+                                                        ToolTip="{loc:T srv.diskDblClick}"
                                                         MouseLeftButtonDown="DiskCard_MouseDown"
                                                         ContextMenuOpening="DiskCard_ContextMenuOpening">
                                                     <Border.ContextMenu>
@@ -612,7 +612,7 @@
                                                             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
                                                                 <Button Style="{StaticResource IconButton}" Content="&#xE838;"
                                                                         FontFamily="Segoe MDL2 Assets" FontSize="14" Width="28" Height="26"
-                                                                        Click="DiskOpenFolders_Click" ToolTip="عرض المجلّدات"/>
+                                                                        Click="DiskOpenFolders_Click" ToolTip="{loc:T srv.showFolders}"/>
                                                                 <Button Style="{StaticResource IconButton}" Content="&#xE7C3;"
                                                                         FontFamily="Segoe MDL2 Assets" FontSize="14" Width="28" Height="26"
                                                                         Click="DiskOpenFiles_Click" ToolTip="عرض أكبر الملفّات"/>
@@ -1325,10 +1325,10 @@
                                        FontWeight="SemiBold" Margin="20,18,20,10"/>
 
                             <Grid DockPanel.Dock="Bottom" Margin="20,14,20,18">
-                                <Button HorizontalAlignment="Left" x:Name="EditorCancel" Content="إلغاء" Padding="16,8"
+                                <Button HorizontalAlignment="Left" x:Name="EditorCancel" Content="{loc:T ui.cancel}" Padding="16,8"
                                         Click="EditorCancel_Click"/>
                                 <Button HorizontalAlignment="Right" x:Name="EditorSave" Style="{StaticResource AccentButton}"
-                                        Content="حفظ" Padding="20,8" Click="EditorSave_Click"/>
+                                        Content="{loc:T ui.save}" Padding="20,8" Click="EditorSave_Click"/>
                             </Grid>
 
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0,16,0">
@@ -1336,7 +1336,7 @@
                                     <Style TargetType="ScrollBar" BasedOn="{StaticResource ThemedScrollBar}"/>
                                 </ScrollViewer.Resources>
                                 <StackPanel>
-                                    <TextBlock x:Name="LblName" Text="الاسم" Style="{StaticResource SectionLabel}"/>
+                                    <TextBlock x:Name="LblName" Text="{loc:T prof.name}" Style="{StaticResource SectionLabel}"/>
                                     <TextBox x:Name="EdName"/>
 
                                     <Grid Margin="0,12,0,0">
@@ -1400,10 +1400,10 @@
                                        Margin="0,0,0,14"/>
                             <TextBox x:Name="RenameBox" FlowDirection="LeftToRight" KeyDown="RenameBox_KeyDown"/>
                             <Grid Margin="0,18,0,0">
-                                <Button HorizontalAlignment="Left" x:Name="RenameCancel" Content="إلغاء" Padding="16,8"
+                                <Button HorizontalAlignment="Left" x:Name="RenameCancel" Content="{loc:T ui.cancel}" Padding="16,8"
                                         Click="RenameCancel_Click"/>
                                 <Button HorizontalAlignment="Right" x:Name="RenameSave" Style="{StaticResource AccentButton}"
-                                        Content="حفظ" Padding="20,8" Click="RenameSave_Click"/>
+                                        Content="{loc:T ui.save}" Padding="20,8" Click="RenameSave_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -1625,9 +1625,9 @@
                             <TextBox x:Name="NameInput" VerticalContentAlignment="Center" Padding="8,6"
                                      KeyDown="NameInput_KeyDown"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">
-                                <Button x:Name="NameSave" Content="حفظ" Style="{StaticResource AccentButton}"
+                                <Button x:Name="NameSave" Content="{loc:T ui.save}" Style="{StaticResource AccentButton}"
                                         Padding="20,8" Click="NameSave_Click"/>
-                                <Button x:Name="NameCancel" Content="إلغاء" Margin="8,0,0,0" Padding="18,8"
+                                <Button x:Name="NameCancel" Content="{loc:T ui.cancel}" Margin="8,0,0,0" Padding="18,8"
                                         Click="NameCancel_Click"/>
                             </StackPanel>
                         </StackPanel>
@@ -1660,9 +1660,9 @@
                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                             </Border>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-                                <Button x:Name="ConfirmCancel" Content="إلغاء" Padding="22,10" MinWidth="96"
+                                <Button x:Name="ConfirmCancel" Content="{loc:T ui.cancel}" Padding="22,10" MinWidth="96"
                                         FontSize="{DynamicResource Size.Ui}" FontWeight="Medium" Click="ConfirmCancel_Click"/>
-                                <Button x:Name="ConfirmOk" Content="حذف" Padding="22,10" MinWidth="96" Margin="10,0,0,0"
+                                <Button x:Name="ConfirmOk" Content="{loc:T prof.delete}" Padding="22,10" MinWidth="96" Margin="10,0,0,0"
                                         FontSize="{DynamicResource Size.Ui}" FontWeight="Medium" IsDefault="False"
                                         Click="ConfirmOk_Click" Style="{StaticResource DangerButton}"/>
                             </StackPanel>
