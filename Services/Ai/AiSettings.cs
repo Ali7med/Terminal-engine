@@ -88,4 +88,10 @@ public sealed class AiSettings
     /// ليس «أمراً مقترَحاً» يُنفَّذ بلا قراءة.</para>
     /// </summary>
     public bool AutoRunAiCommand { get; set; } = true;
+
+    /// <summary>عرض لوحة الذكاء بالبكسل. القيمة تسري على كلّ التبويبات حيّاً.</summary>
+    public double PanelWidth { get; set; } = 360;
+
+    /// <summary>حجم نصّ المحادثة داخل اللوحة (منفصل عن حجم نصّ الواجهة العامّ).</summary>
+    public double ChatFontSize { get; set; } = 12;
 }

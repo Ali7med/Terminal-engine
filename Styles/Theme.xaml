@@ -475,6 +475,35 @@
         </Setter>
     </Style>
 
+    <!-- زرّ نصّيّ بلا كروم: للروابط داخل الأشرطة («افتح المحادثة»، «لا تُظهر ثانيةً»).
+         <b>لا يُبنى على ChromeButton</b> — ذاك يفرض خطّ Segoe MDL2 Assets (خطّ أيقونات لا حروف
+         فيه)، فأيّ نصّ عربيّ أو لاتينيّ عليه يظهر مربّعات فارغة. -->
+    <Style x:Key="TextLinkButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Ui}"/>
+        <Setter Property="FontSize" Value="{DynamicResource Size.Small}"/>
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="6" Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.RowHover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="ChromeCloseButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">

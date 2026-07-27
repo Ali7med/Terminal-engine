@@ -99,11 +99,14 @@ public sealed class AiContextBuilder
     }
 
     /// <summary>
-    /// سياق «المكان» وحده: الصدفة ومجلد العمل وآخر الأوامر — <b>بلا مخرجات الشاشة</b>. هذا ما
-    /// يُرفَق بطلبات وضع الذكاء في صندوق الأوامر افتراضاً: يكفي كي يعرف المساعد أين هو وبمَ تعمل،
-    /// ولا يُصدِّر ما يعرضه التيرمنال. الأوامر تمرّ بالمُنقّح كغيرها — سطر أمر قد يحمل رمزاً.
+    /// سياق «المكان» وحده: الصدفة ومجلد العمل وآخر الأوامر وآخر فشل — <b>بلا مخرجات الشاشة</b>.
+    /// هذا ما يُرفَق بطلبات وضع الذكاء في صندوق الأوامر افتراضاً: يكفي كي يعرف المساعد أين أنت وبمَ
+    /// تعمل وما تعطّل للتوّ، ولا يُصدِّر ما يعرضه التيرمنال. كلّه يمرّ بالمُنقّح — سطر أمر أو رسالة
+    /// خطأ قد يحمل رمزاً.
     /// </summary>
-    public AiContextSnippet FromEnvironment(string? shell, string? cwd, IReadOnlyList<string>? recentCommands)
+    /// <param name="lastFailure">سطر واحد يصف آخر أمر فاشل (أمره ورمز خروجه وأوّل سطر خطئه).</param>
+    public AiContextSnippet FromEnvironment(
+        string? shell, string? cwd, IReadOnlyList<string>? recentCommands, string? lastFailure = null)
     {
         var sb = new StringBuilder();
         if (recentCommands is { Count: > 0 })
@@ -111,6 +114,10 @@ public sealed class AiContextBuilder
             sb.Append("recent commands:\n");
             foreach (string command in recentCommands) sb.Append("  ").Append(command).Append('\n');
         }
+
+        if (!string.IsNullOrWhiteSpace(lastFailure))
+            sb.Append("last failure: ").Append(lastFailure!.Trim()).Append('\n');
+
         return Build(AiContextKind.Ambient, sb.ToString().TrimEnd(), shell, cwd, exitCode: null, command: null);
     }
 

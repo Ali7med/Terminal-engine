@@ -83,6 +83,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ClampToWorkArea();
 
         _settings = _settingsStore.Load();
         Loc.InitFromCode(_settings.Language);
@@ -140,12 +141,30 @@ public partial class MainWindow : Window
         PreviewKeyDown += MainWindow_PreviewKeyDown;
     }
 
-    // اختصارات مستوى النافذة (تُلتقط قبل عناصر الصدفة الداخلية عبر tunneling).
+    /// <summary>
+    /// يقصّ حجم البدء على مساحة عمل الشاشة. القياس في XAML (1400×860) مريح على شاشة كبيرة لكنّه
+    /// يتجاوز شاشة 1366×768 فتفتح النافذة أكبر منها وتختفي حوافّها. الهامش المتروك يُبقي شريط
+    /// المهام وحافّة الشاشة ظاهرين، والحدّ الأدنى محفوظ فلا ينكمش التخطيط إلى ما لا يُستعمَل.
+    /// </summary>
+    private void ClampToWorkArea()
+    {
+        Rect area = SystemParameters.WorkArea;
+        if (area.Width <= 0 || area.Height <= 0) return;   // جلسة بلا شاشة (خدمة/تشخيص)
+
+        Width = Math.Min(Width, Math.Max(MinWidth, area.Width - 80));
+        Height = Math.Min(Height, Math.Max(MinHeight, area.Height - 60));
+    }
+
+    /// <summary>
+    /// اختصارات مستوى النافذة (تُلتقط قبل عناصر الصدفة الداخلية عبر tunneling).
+    /// <para>التوجيه عبر <see cref="ShortcutService"/> لا بـ<c>switch</c> على مفاتيح ثابتة: وحده
+    /// يجعل الاختصارات قابلة للعرض والتغيير من الإعدادات.</para>
+    /// <para>ما لا تعرفه هذه الدالّة يمضي إلى التبويب (Ctrl+I وCtrl+F يعالجهما التيرمنال نفسه).</para>
+    /// </summary>
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        var mods = Keyboard.Modifiers;
-        bool ctrl = (mods & ModifierKeys.Control) != 0;
-        bool shift = (mods & ModifierKeys.Shift) != 0;
+        // التقاط تركيبة جديدة يسبق كلّ شيء: وإلّا نفّذت التركيبة فعلَها بدل أن تُسنَد.
+        if (HandleShortcutCapture(e)) return;
 
         // Esc: يغلق لوحة الأوامر إن كانت مفتوحة.
         if (e.Key == Key.Escape && _commandPaletteOpen)
@@ -155,24 +174,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (ctrl && shift)
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;   // Alt+X يصل كـSystem
+        switch (ShortcutService.Match(_settings, key, Keyboard.Modifiers))
         {
-            switch (e.Key)
-            {
-                case Key.T: OpenEmptyTerminal(); e.Handled = true; return;            // تيرمنال فارغ جديد
-                case Key.D: SplitActivePane(Orientation.Vertical); e.Handled = true; return;   // انقسام عمودي (جنباً لجنب)
-                case Key.E: SplitActivePane(Orientation.Horizontal); e.Handled = true; return; // انقسام أفقي (فوق/تحت)
-                case Key.P: OpenCommandPalette(); e.Handled = true; return;           // لوحة الأوامر
-            }
+            case ShortcutService.NewTerminal: OpenEmptyTerminal(); break;
+            case ShortcutService.SplitVertical: SplitActivePane(Orientation.Vertical); break;
+            case ShortcutService.SplitHorizontal: SplitActivePane(Orientation.Horizontal); break;
+            case ShortcutService.CommandPalette: OpenCommandPalette(); break;
+            case ShortcutService.ClosePane: CloseActivePane(); break;
+            case ShortcutService.AiPanel: ActiveTerminalView()?.ToggleAiPanel(); break;
+            case ShortcutService.OpenSettings: ToggleSettings(true); break;
+            default: return;   // لا يخصّ النافذة — يمضي إلى التبويب
         }
 
-        // Ctrl+W: إغلاق الجزء النشط (لا يصطدم بـ Ctrl+W في الصدفة لأنّه يُلتقط هنا أوّلاً).
-        if (ctrl && !shift && e.Key == Key.W)
-        {
-            CloseActivePane();
-            e.Handled = true;
-        }
+        e.Handled = true;
     }
+
+    /// <summary>عرض التيرمنال النشط إن وُجد — للاختصارات التي تخصّ التبويب لا النافذة.</summary>
+    private Controls.TerminalTabView? ActiveTerminalView()
+        => TerminalTabs.SelectedItem is System.Windows.Controls.TabItem { Content: Controls.TerminalPaneContainer c }
+            ? c.ActiveView
+            : null;
 
     // ===== إطار النافذة =====
 
@@ -1093,7 +1115,147 @@ public partial class MainWindow : Window
         CatLanguage.Visibility   = cat == "language"   ? Visibility.Visible : Visibility.Collapsed;
         CatFont.Visibility       = cat == "language"   ? Visibility.Visible : Visibility.Collapsed;
         CatAi.Visibility         = cat == "ai"         ? Visibility.Visible : Visibility.Collapsed;
+        CatKeys.Visibility       = cat == "keys"       ? Visibility.Visible : Visibility.Collapsed;
+        CatAliases.Visibility    = cat == "aliases"    ? Visibility.Visible : Visibility.Collapsed;
+
         if (cat == "ai") SyncAiUi();
+        if (cat == "keys") BuildShortcutRows();
+        if (cat == "aliases") BuildAliasList();
+    }
+
+    // ===== اختصارات قابلة للتخصيص =====
+
+    /// <summary>الفعل الذي نلتقط له تركيبة الآن (null = لا التقاط).</summary>
+    private string? _capturingShortcut;
+    private Button? _capturingButton;
+
+    /// <summary>يبني صفوف الاختصارات من السجلّ — لا قائمة يدويّة تنحرف عنه.</summary>
+    private void BuildShortcutRows()
+    {
+        if (KeysList is null) return;
+
+        CancelShortcutCapture();
+        KeysList.Children.Clear();
+
+        foreach (ShortcutAction action in ShortcutService.All)
+            KeysList.Children.Add(BuildShortcutRow(action));
+    }
+
+    private UIElement BuildShortcutRow(ShortcutAction action)
+    {
+        var grid = new Grid { Margin = new Thickness(2, 0, 2, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var label = new TextBlock
+        {
+            Text = Loc.T(action.LabelKey),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        label.SetResourceReference(TextBlock.FontSizeProperty, "Size.Ui");
+
+        var button = new Button
+        {
+            Content = ShortcutService.GestureFor(_settings, action.Id),
+            Tag = action.Id,
+            MinWidth = 130,
+            Padding = new Thickness(10, 5, 10, 5),
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono, Consolas"),
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        button.Click += ShortcutButton_Click;
+        Grid.SetColumn(button, 1);
+
+        grid.Children.Add(label);
+        grid.Children.Add(button);
+        return grid;
+    }
+
+    private void ShortcutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string id } button) return;
+
+        CancelShortcutCapture();
+        _capturingShortcut = id;
+        _capturingButton = button;
+        button.Content = Loc.T("keys.press");
+    }
+
+    /// <summary>
+    /// ينهي الالتقاط ويعيد الزرّ إلى عرض اختصاره — زرّ يبقى يقول «اضغط التركيبة…» إلى الأبد
+    /// يجعل الإعدادات تبدو معطّلة.
+    /// </summary>
+    private void CancelShortcutCapture()
+    {
+        if (_capturingButton is not null && _capturingShortcut is not null)
+            _capturingButton.Content = ShortcutService.GestureFor(_settings, _capturingShortcut);
+
+        _capturingShortcut = null;
+        _capturingButton = null;
+    }
+
+    /// <summary>
+    /// يستهلك ضغطة أثناء الالتقاط. يعيد true إن تولّى الضغطة — فلا تمضي إلى الاختصارات
+    /// العاديّة (وإلّا لانقسمت الشاشة وأنت تحاول إسناد اختصار الانقسام).
+    /// </summary>
+    private bool HandleShortcutCapture(KeyEventArgs e)
+    {
+        if (_capturingShortcut is null) return false;
+
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (ShortcutService.IsModifier(key)) return true;   // مُعدّل وحده ليس اختصاراً
+
+        e.Handled = true;
+
+        if (key == Key.Escape) { CancelShortcutCapture(); return true; }
+
+        string id = _capturingShortcut;
+
+        // Backspace يعيد الافتراضيّ — مخرج من تخصيص سيّئ بلا تذكّر ما كان الأصل.
+        if (key == Key.Back)
+        {
+            ShortcutService.Assign(_settings, id, "");
+            FinishShortcutCapture(id);
+            return true;
+        }
+
+        string gesture = ShortcutService.Format(key, Keyboard.Modifiers);
+        string? owner = ShortcutService.Owner(_settings, gesture, id);
+        if (owner is not null)
+        {
+            // الرفض لا الإسناد الصامت: إسناد تركيبة مأخوذة يقتل الفعل الآخر بلا أن يدري أحد.
+            NotificationService.Warning(
+                Loc.T("keys.title"),
+                string.Format(Loc.T("keys.conflict"), gesture, ShortcutService.LabelFor(owner)));
+            CancelShortcutCapture();
+            return true;
+        }
+
+        ShortcutService.Assign(_settings, id, gesture);
+        FinishShortcutCapture(id);
+        return true;
+    }
+
+    private void FinishShortcutCapture(string id)
+    {
+        SaveSettings();
+
+        string gesture = ShortcutService.GestureFor(_settings, id);
+        if (_capturingButton is not null) _capturingButton.Content = gesture;
+
+        _capturingShortcut = null;
+        _capturingButton = null;
+
+        NotificationService.Secondary(
+            string.Format(Loc.T("keys.changed"), ShortcutService.LabelFor(id), gesture));
+    }
+
+    private void KeysReset_Click(object sender, RoutedEventArgs e)
+    {
+        ShortcutService.ResetAll(_settings);
+        SaveSettings();
+        BuildShortcutRows();
     }
 
     // ===== اللغة =====
@@ -2347,7 +2509,8 @@ public partial class MainWindow : Window
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
         view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
         view.DetachRequested += DetachViewToWindow;   // زرّ الفصل → نافذة مستقلّة
-        view.AttachAi(_settings, SaveSettings, OpenAiSettings, AiRedactor, AiAllowToken, AiLearning, () => CurrentAiProfile, OpenShellIntegrationForActiveTab, PollCatalogSuggestion, AcceptCatalogSuggestion, t => AiConversations.Save(t));   // لوحة الـAI (كسولة)
+        view.AttachAi(_settings, SaveSettings, OpenAiSettings, AiRedactor, AiAllowToken, AiLearning, () => CurrentAiProfile, OpenShellIntegrationForActiveTab, PollCatalogSuggestion, AcceptCatalogSuggestion, t => AiConversations.Save(t), AiConversations);   // لوحة الـAI (كسولة)
+        view.ApplyAiPanelMetrics(_settings.Ai.PanelWidth, _settings.Ai.ChatFontSize);   // قياسات اللوحة المحفوظة
         return view;
     }
 

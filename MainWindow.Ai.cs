@@ -165,6 +165,8 @@ public partial class MainWindow
             AiTempSlider.Value = ai.Temperature;
             AiMaxTokensSlider.Value = ai.MaxTokens;
             AiCtxLimitSlider.Value = ai.ContextCharLimit;
+            AiPanelWidthSlider.Value = ai.PanelWidth;
+            AiChatFontSlider.Value = ai.ChatFontSize;
 
             ai.Temperature = AiTempSlider.Value;
             ai.MaxTokens = (int)AiMaxTokensSlider.Value;
@@ -512,6 +514,43 @@ public partial class MainWindow
     }
 
     private void AiPrompt_Changed(object sender, RoutedEventArgs e) => CommitAiPrompt();
+
+    private void AiPanelWidth_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AiPanelWidthValue is null) return;   // قبل اكتمال بناء الواجهة — انظر AiTemp_Changed
+
+        int value = (int)e.NewValue;
+        AiPanelWidthValue.Text = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_aiSyncing) return;
+
+        _settings.Ai.PanelWidth = value;
+        SaveSettings();
+        PushAiPanelMetrics();
+    }
+
+    private void AiChatFont_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AiChatFontValue is null) return;
+
+        AiChatFontValue.Text = e.NewValue.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        if (_aiSyncing) return;
+
+        _settings.Ai.ChatFontSize = e.NewValue;
+        SaveSettings();
+        PushAiPanelMetrics();
+    }
+
+    /// <summary>
+    /// يمرّر قياسات اللوحة إلى كلّ التبويبات المفتوحة. منزلق لا يُرى أثره حتّى إعادة التشغيل
+    /// يبدو معطّلاً.
+    /// </summary>
+    private void PushAiPanelMetrics()
+    {
+        foreach (object? item in TerminalTabs.Items)
+            if (item is System.Windows.Controls.TabItem { Content: Controls.TerminalPaneContainer container })
+                foreach (Controls.TerminalTabView view in container.AllViews)
+                    view.ApplyAiPanelMetrics(_settings.Ai.PanelWidth, _settings.Ai.ChatFontSize);
+    }
 
     /// <summary>
     /// يثبّت «التعليمات المخصّصة». <c>LostFocus</c> وحده لا يكفي: إغلاق الإعدادات بـEsc أو بنقرة

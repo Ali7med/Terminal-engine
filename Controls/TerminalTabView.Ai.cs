@@ -23,6 +23,7 @@ public partial class TerminalTabView
     private Action? _aiOpenShellIntegration;
     private Func<CatalogSuggestion?>? _aiPollCatalog;
     private Action<string>? _aiSaveConversation;
+    private ConversationStore? _aiConversationStore;
     private Action<CatalogSuggestion, string>? _aiAcceptCatalog;
     private AiLearningService? _aiLearning;
     private Func<AiProfile>? _aiProfile;
@@ -54,9 +55,11 @@ public partial class TerminalTabView
         Action openShellIntegration,
         Func<CatalogSuggestion?> pollCatalog,
         Action<CatalogSuggestion, string> acceptCatalog,
-        Action<string> saveConversation)
+        Action<string> saveConversation,
+        ConversationStore? conversations = null)
     {
         _aiAppSettings = settings;
+        _aiConversationStore = conversations;
         _aiSaveSettings = saveSettings;
         _aiOpenSettings = openAiSettings;
         _aiAllowToken = allowToken;
@@ -75,6 +78,19 @@ public partial class TerminalTabView
     private void AiToggleButton_Click(object sender, RoutedEventArgs e)
         => SetAiPanelVisible(AiToggleButton.IsChecked == true);
 
+    /// <summary>يُظهر/يُخفي لوحة الذكاء — نقطة دخول عامّة لاختصار النافذة (Ctrl+P افتراضاً).</summary>
+    public void ToggleAiPanel() => SetAiPanelVisible(AiSidePanel.Visibility != Visibility.Visible);
+
+    /// <summary>
+    /// عرض اللوحة وحجم نصّ دردشتها من الإعدادات. العرض يُطبَّق دائماً (العنصر موجود ولو مطويّاً)،
+    /// وحجم النصّ حين تكون اللوحة مبنيّة — واللوحة غير المبنيّة تأخذه عند أوّل فتح.
+    /// </summary>
+    public void ApplyAiPanelMetrics(double width, double chatFontSize)
+    {
+        if (width > 0) AiSidePanel.Width = width;
+        if (_aiPanelReady) AiSidePanel.ApplyChatFontSize(chatFontSize);
+    }
+
     private void SetAiPanelVisible(bool show)
     {
         if (show) EnsureAiPanel();
@@ -87,11 +103,16 @@ public partial class TerminalTabView
     {
         if (_aiPanelReady || _aiAppSettings is null || _aiKeyStore is null) return;
 
-        AiSidePanel.Configure(_aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }), _aiProfile, _aiSaveConversation);
+        AiSidePanel.Configure(
+            _aiAppSettings.Ai, _aiKeyStore, _aiSaveSettings ?? (() => { }),
+            _aiProfile, _aiSaveConversation, _aiConversationStore);
         AiSidePanel.SettingsRequested += () => _aiOpenSettings?.Invoke();
         AiSidePanel.AllowToken += token => _aiAllowToken?.Invoke(token);
         AiSidePanel.ReplyCompleted += OnInlineReplyCompleted;
         AiSidePanel.ReplyFailed += OnInlineReplyFailed;
+        AiSidePanel.RunCodeRequested += RunCodeFromPanel;
+        AiSidePanel.ApplyChatFontSize(_aiAppSettings.Ai.ChatFontSize);
+        AiSidePanel.InsertCodeRequested += code => EditAiCommand(FirstCommandLine(code).Line);
         AiInline.OpenChatRequested += () => SetAiPanelVisible(true);
         _aiPanelReady = true;
     }
@@ -381,20 +402,74 @@ public partial class TerminalTabView
         ClearGhost();
         HideSuggestions();
 
-        // الجلسة تُبنى وتُسجّل فيها المحادثة — بلا فتح اللوحة. من سأل من التيرمنال
+        // الجلسة تُبنى وتُسجّل فيها المحادثة — <b>بلا فتح اللوحة أبداً</b>. من سأل من التيرمنال
         // يتوقّع الجواب في التيرمنال، لا أن يُنقَل إلى شاشة أخرى.
         EnsureAiPanel();
 
         AiContextSnippet snippet = _aiAppSettings.Ai.AmbientContextEnabled
             ? _aiContext.FromAmbient(_lastSnapshot, CurrentShellName(), WorkingDirectory)
-            : _aiContext.FromEnvironment(CurrentShellName(), WorkingDirectory, RecentCommandsForAi());
+            : _aiContext.FromEnvironment(
+                CurrentShellName(), WorkingDirectory, RecentCommandsForAi(), LastFailureForAi());
 
-        // المعاينة وحدها تفرض فتح اللوحة: الموافقة على ما سيُرسَل لا تصحّ في لوحة مخفيّة.
-        if (snippet.ForcePreview || _aiAppSettings.Ai.AlwaysPreview) SetAiPanelVisible(true);
+        string payload = AiContextBuilder.Compose(ComposerDirective + "\n\n" + question, snippet);
 
+        // حُجب سرّ فعلاً ⇒ موافقة صريحة — لكنّ مكانها هذا الشريط لا فتح اللوحة. أمّا المعاينة
+        // الروتينيّة (AlwaysPreview) فلا تنطبق على هذا المسار: طلبُ التنفيذ المباشر يعني ألّا
+        // يقف في الطريق إلّا ما يستحقّ الوقوف فعلاً.
+        if (snippet.ForcePreview)
+        {
+            AiInline.ShowConfirm(
+                question,
+                string.Format(Loc.T("ai.prev.redacted"), snippet.Redacted.Count),
+                onSend: () => SendComposerAsk(question, payload),
+                onCancel: () => AiInline.Hide());
+            return;
+        }
+
+        SendComposerAsk(question, payload);
+    }
+
+    /// <summary>
+    /// توجيه مختصر يرافق كلّ طلب من الصندوق: جملة واحدة ثمّ أمر واحد قابل للتنفيذ، أو
+    /// <b>سؤال توضيحيّ واحد بلا كود</b> إن كان الطلب غامضاً. بلا هذا التوجيه يردّ النموذج
+    /// بفقرات شرح أو يخمّن أمراً فيه موضع فارغ — وهذا المسار ينفّذ ما يعود، فالتخمين فيه أغلى.
+    /// </summary>
+    private static string ComposerDirective =>
+        "You are answering from inside a terminal input box, and your command may be executed immediately. " +
+        "Reply with AT MOST one short sentence, then exactly one runnable command in a fenced code block, " +
+        "written for the shell named in the context below. " +
+        "If the request is ambiguous, or you need information the context does not give you, DO NOT guess: " +
+        "reply with a single short clarifying question and NO code block at all. " +
+        "Never emit placeholders such as <name> or your-repo inside a command.";
+
+    /// <summary>يُرسل ويبدأ عرض «يفكّر» المتحرّك.</summary>
+    private void SendComposerAsk(string question, string payload)
+    {
         _awaitingInlineReply = true;
         AiInline.ShowThinking(question);
-        AiSidePanel.AskWithContext(question, snippet);
+        AiSidePanel.AskDirect(question, payload);
+    }
+
+    /// <summary>
+    /// آخر أمر فاشل مختصراً (الأمر + رمز الخروج + أوّل سطر خطأ). «أين أنت» يشمل ما تعطّل للتوّ،
+    /// وهو عادةً أهمّ سطر على الشاشة — سطر واحد لا مخرجات كاملة. null إن لم يفشل شيء.
+    /// </summary>
+    private string? LastFailureForAi()
+    {
+        ScreenSnapshot? snapshot = _lastSnapshot;
+        if (snapshot is null) return null;
+
+        for (int i = snapshot.Blocks.Count - 1; i >= 0; i--)
+        {
+            BlockSnapshot block = snapshot.Blocks[i];
+            if (block.State != BlockState.Failed || block.EndLine == long.MaxValue) continue;
+
+            string? error = AiLearningService.FirstErrorLine(BlockOutputText(block));
+            return block.CommandText + " (exit " + block.ExitCode + ")"
+                 + (error is null ? "" : " → " + error);
+        }
+
+        return null;
     }
 
     /// <summary>هل ننتظر ردّاً بدأ من صندوق الأوامر؟ (ردود اللوحة نفسها لا تخصّ الشريط.)</summary>
@@ -414,7 +489,15 @@ public partial class TerminalTabView
 
         (string first, bool multiLine) = FirstCommandLine(parts.Command);
         string command = RiskyCommandDetector.SanitizeForInsert(first);
-        if (command.Length == 0) { AiInline.ShowNoCommand(); return; }
+        if (command.Length == 0)
+        {
+            // بلا أمر = النموذج يسأل أو يشرح. نُبقي وضع الذكاء ونعيد التركيز للصندوق كي تكمل
+            // المحادثة في مكانها — الجلسة تحتفظ بالتاريخ فيصل جوابك مربوطاً بسؤاله.
+            AiInline.ShowAwaitingAnswer();
+            SetComposerAiMode(true);
+            ComposerInput.Focus();
+            return;
+        }
 
         if (RiskyCommandDetector.IsRisky(command))
         {
@@ -483,6 +566,26 @@ public partial class TerminalTabView
         ComposerInput.Text = RiskyCommandDetector.SanitizeForInsert(command);
         ComposerInput.CaretIndex = ComposerInput.Text.Length;
         ComposerInput.Focus();
+    }
+
+    /// <summary>
+    /// «أرسل ونفّذ» من كتلة كود في لوحة الدردشة. يمرّ بنفس حارس الأوامر الخطرة الذي يمرّ به مسار
+    /// الصندوق — زرٌّ في اللوحة لا يجوز أن يكون طريقاً جانبيّاً يتجاوز ما يقف أمامه في الطريق الرئيس.
+    /// الخطر يُدرَج في الصندوق مع تنبيه، ولا يُنفَّذ.
+    /// </summary>
+    private void RunCodeFromPanel(string code)
+    {
+        string command = RiskyCommandDetector.SanitizeForInsert(FirstCommandLine(code).Line);
+        if (command.Length == 0) return;
+
+        if (RiskyCommandDetector.IsRisky(command))
+        {
+            EditAiCommand(command);
+            NotificationService.Secondary(Loc.T("ai.ctx.risky"), NotificationType.Warning);
+            return;
+        }
+
+        RunAiCommand(command);
     }
 
     /// <summary>آخر ثمانية أوامر من الجلسة — تكفي ليعرف المساعد ما كنت تفعل بلا تصدير الشاشة.</summary>

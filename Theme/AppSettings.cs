@@ -7,6 +7,13 @@ public enum ThemeMode { Dark, Light }
 /// <summary>تفضيلات المظهر المحفوظة (تبقى بين التشغيلات).</summary>
 public sealed class AppSettings
 {
+    /// <summary>
+    /// اختصارات لوحة المفاتيح المخصّصة: معرّف الفعل ← صيغة مثل <c>Ctrl+Shift+P</c>. المفتاح الغائب
+    /// يعني «الافتراضيّ» — فلا نخزّن ما لم يغيّره المستخدم، وتغيير افتراضيّ في نسخة لاحقة يصل
+    /// من لم يخصّص.
+    /// </summary>
+    public Dictionary<string, string> Shortcuts { get; set; } = new();
+
     /// <summary>الوضع (داكن/فاتح). يُشتقّ من الثيم المختار عند التطبيق؛ يبقى للتبديل السريع.</summary>
     public ThemeMode Mode { get; set; } = ThemeMode.Dark;
 

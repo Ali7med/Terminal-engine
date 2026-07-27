@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -32,6 +33,7 @@ public partial class AiPanel : UserControl
     private Action? _persistSettings;
     private Func<AiProfile>? _profile;
     private Action<string>? _saveConversation;
+    private ConversationStore? _conversations;
     private AiErrorAction _pendingAction = AiErrorAction.None;
     private string _lastUserText = "";
 
@@ -58,13 +60,15 @@ public partial class AiPanel : UserControl
     /// <param name="profile">يعيد ملفّ معرفة المستخدم لحقنه في البادئة الثابتة (null = بلا حقن).</param>
     public void Configure(
         AiSettings settings, AiKeyStore keys, Action persistSettings,
-        Func<AiProfile>? profile = null, Action<string>? saveConversation = null)
+        Func<AiProfile>? profile = null, Action<string>? saveConversation = null,
+        ConversationStore? conversations = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _keys = keys ?? throw new ArgumentNullException(nameof(keys));
         _persistSettings = persistSettings;
         _profile = profile;
         _saveConversation = saveConversation;
+        _conversations = conversations;
         _openSettings = () => SettingsRequested?.Invoke();
 
         RebuildSession();
@@ -140,7 +144,7 @@ public partial class AiPanel : UserControl
     /// </summary>
     private AiChatOptions ChatOptions() => new()
     {
-        Model = AiProviderFactory.ResolveModel(_settings!),
+        Model = ActiveModel(),
         Temperature = _settings!.Temperature,
         MaxTokens = _settings.MaxTokens > 0 ? _settings.MaxTokens : null,
     };
@@ -180,6 +184,17 @@ public partial class AiPanel : UserControl
 
         ScrollToEnd();
     }
+
+    /// <summary>
+    /// يرسل حمولة جاهزة <b>بلا أيّ معاينة داخل هذه اللوحة</b> — يستعمله وضع الذكاء في صندوق
+    /// الأوامر، حيث يتكفّل الشريط داخل التيرمنال بعرض الموافقة إن لزمت.
+    ///
+    /// <para>الفرق عن <see cref="AskWithContext"/> ليس تخفيفاً للضمانة بل نقلاً لمكانها: لوحة
+    /// مخفيّة لا يصلح أن تُعرض فيها موافقة، وفتحها قسراً هو بالضبط ما طُلب تجنّبه.</para>
+    /// </summary>
+    /// <param name="displayText">ما يظهر في المحادثة (سؤال المستخدم وحده).</param>
+    /// <param name="payload">النصّ الكامل المُرسَل (التوجيه + السؤال + السياق).</param>
+    public void AskDirect(string displayText, string payload) => DispatchSend(displayText, payload);
 
     /// <summary>
     /// يعرض ملاحظة إرشاديّة في المحادثة (مثل «لا يوجد أمر فاشل — يحتاج تكامل الصدفة»). تدهور
@@ -308,6 +323,7 @@ public partial class AiPanel : UserControl
 
         _replyViews.Clear();
         _session.Send(provider, payload, ChatOptions());
+        ShowSearching();
         SendBtn.Content = Loc.T("ai.panel.stop");
         ScrollToEnd();
     }
@@ -336,10 +352,15 @@ public partial class AiPanel : UserControl
         InputBox.Tag = Loc.T("ai.panel.ask");
         CopyAllBtn.ToolTip = Loc.T("ai.panel.copyAll");
         ClearBtn.ToolTip = Loc.T("ai.panel.clear");
+        HistoryBtn.ToolTip = Loc.T("ai.panel.history");
+        HistoryTitle.Text = Loc.T("ai.panel.history");
+        ModelCombo.ToolTip = Loc.T("ai.panel.modelTip");
         RefreshOrigin();
     }
 
-    /// <summary>وسم «المزوّد · النموذج» تحت العنوان — يجعل الخطأ والردّ منسوبين لمصدر واضح.</summary>
+    /// <summary>
+    /// وسم المزوّد تحت العنوان + منسدلة النموذج — يجعلان الخطأ والردّ منسوبين لمصدر واضح.
+    /// </summary>
     private void RefreshOrigin()
     {
         if (_settings is null)
@@ -349,9 +370,121 @@ public partial class AiPanel : UserControl
         }
 
         AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings);
-        string model = AiProviderFactory.ResolveModel(_settings);
-        OriginText.Text = descriptor is null ? "" : $"{descriptor.DisplayName} · {model}";
+        OriginText.Text = descriptor?.DisplayName ?? "";
+
+        _modelSyncing = true;
+        try { ModelCombo.Text = ActiveModel(); }
+        finally { _modelSyncing = false; }
     }
+
+    // ===== نموذج هذه الجلسة =====
+
+    /// <summary>نموذج محلّيّ لهذه اللوحة وحدها (فارغ = المحفوظ في الإعدادات).</summary>
+    private string _sessionModel = "";
+    private bool _modelSyncing;
+    private bool _modelsLoaded;
+
+    /// <summary>النموذج الفعّال الآن: ما اختير للجلسة، وإلّا المحفوظ في الإعدادات.</summary>
+    private string ActiveModel()
+        => _sessionModel.Length > 0 ? _sessionModel : AiProviderFactory.ResolveModel(_settings!);
+
+    /// <summary>
+    /// تحميل قائمة النماذج عند أوّل فتح للمنسدلة لا عند بناء اللوحة: نداء شبكيّ لمن لن يفتح
+    /// القائمة أبداً كلفة بلا مقابل. الفشل لا يُعطّل شيئاً — الحقل يبقى قابلاً للكتابة يدويّاً.
+    /// </summary>
+    private async void ModelCombo_DropDownOpened(object? sender, EventArgs e)
+    {
+        if (_modelsLoaded || _settings is null || _keys is null) return;
+        _modelsLoaded = true;
+
+        AiProviderDescriptor? descriptor = AiProviderFactory.DescriptorFor(_settings);
+        if (descriptor is null) return;
+
+        try
+        {
+            IAiProvider provider = AiProviderFactory.CreateFor(
+                descriptor, _keys.Get(descriptor.Id), _settings.BaseUrlOverride);
+
+            IReadOnlyList<AiModelInfo> models =
+                await provider.ListModelsDetailedAsync(System.Threading.CancellationToken.None).ConfigureAwait(true);
+
+            string current = ModelCombo.Text;
+            _modelSyncing = true;
+            try
+            {
+                ModelCombo.ItemsSource = models.Select(m => m.Id).ToList();
+                ModelCombo.Text = current;
+            }
+            finally { _modelSyncing = false; }
+        }
+        catch (AiException)
+        {
+            _modelsLoaded = false;   // محاولة أخرى ممكنة عند الفتح التالي
+        }
+    }
+
+    private void ModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_modelSyncing || ModelCombo.SelectedItem is not string id) return;
+        ApplySessionModel(id);
+    }
+
+    private void ModelCombo_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_modelSyncing) return;
+        ApplySessionModel(ModelCombo.Text ?? "");
+    }
+
+    /// <summary>
+    /// يثبّت نموذج الجلسة. <b>لا يُكتب في الإعدادات</b>: طلب «لهذه الجلسة» يعني ألّا ينساق معه
+    /// التطبيق كلّه ولا بقيّة التبويبات.
+    /// </summary>
+    private void ApplySessionModel(string model)
+    {
+        string trimmed = model.Trim();
+        if (trimmed.Length == 0 || trimmed == ActiveModel()) return;
+
+        _sessionModel = trimmed;
+        NotificationService.Secondary(string.Format(Loc.T("ai.panel.modelSet"), trimmed));
+    }
+
+    // ===== الجلسات السابقة =====
+
+    /// <summary>صفّ محادثة محفوظة في طبقة الجلسات.</summary>
+    private sealed record ChatRow(string Title, string When, string Transcript);
+
+    private void History_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryOverlay.Visibility == Visibility.Visible) { HistoryClose_Click(sender, e); return; }
+
+        var rows = new List<ChatRow>();
+        if (_conversations is not null)
+        {
+            foreach (SavedConversation saved in _conversations.All())
+                rows.Add(new ChatRow(
+                    saved.Title,
+                    saved.SavedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm",
+                        System.Globalization.CultureInfo.InvariantCulture),
+                    saved.Transcript));
+        }
+
+        HistoryList.ItemsSource = rows;
+        HistoryTranscript.Text = "";
+
+        // الفراغ له سببان مختلفان — وخلطهما يجعل المستخدم يظنّ أنّ محادثاته ضاعت.
+        bool saving = _settings?.SaveConversations == true;
+        HistoryEmpty.Text = saving ? Loc.T("ai.mem.chatsEmpty") : Loc.T("ai.mem.chatsOff");
+        HistoryEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HistoryList.Visibility = rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+        HistoryOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HistoryClose_Click(object sender, RoutedEventArgs e)
+        => HistoryOverlay.Visibility = Visibility.Collapsed;
+
+    private void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => HistoryTranscript.Text = HistoryList.SelectedItem is ChatRow row ? row.Transcript : "";
 
     /// <summary>
     /// يحدّث عدّاد التوكنز من آخر ردّ. يظهر فقط حين يُبلغ المزوّد عن الاستهلاك — إخفاؤه أصدق من
@@ -426,6 +559,7 @@ public partial class AiPanel : UserControl
 
         _replyViews.Clear();
         _session.Send(provider, text, ChatOptions());
+        ShowSearching();
         SendBtn.Content = Loc.T("ai.panel.stop");
         ScrollToEnd();
     }
@@ -449,7 +583,84 @@ public partial class AiPanel : UserControl
     private void CopyAll_Click(object sender, RoutedEventArgs e)
     {
         string transcript = _session?.Transcript() ?? "";
-        if (transcript.Length > 0) CopyToClipboard(transcript);
+        if (transcript.Length == 0) return;
+
+        // نسخ بلا أثر مرئيّ يبدو زرّاً معطّلاً: الحافظة لا تُرى، فالتوست هو التأكيد الوحيد.
+        CopyToClipboard(transcript);
+        NotificationService.Secondary(Loc.T("ai.panel.copiedChat"), NotificationType.Success);
+    }
+
+    // ===== مؤشّر «يبحث عن الإجابة» =====
+
+    private Border? _searching;
+    private System.Windows.Threading.DispatcherTimer? _searchDots;
+    private int _searchDotCount;
+
+    /// <summary>
+    /// يعرض صفّاً متحرّكاً حتى وصول أوّل مقطع من الردّ. إرسالٌ بلا أثر مرئيّ يبدو زرّاً لم يعمل —
+    /// والانتظار قد يطول ثوانيَ عند النماذج المجّانيّة المزدحمة.
+    /// </summary>
+    private void ShowSearching()
+    {
+        HideSearching();
+
+        var label = new TextBlock
+        {
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)FindResource("Brush.TextMuted"),
+        };
+
+        var pip = new Border
+        {
+            Width = 8,
+            Height = 8,
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = (Brush)FindResource("Brush.Accent"),
+        };
+        pip.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+            1.0, 0.2, new Duration(TimeSpan.FromMilliseconds(750)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+        });
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(pip);
+        row.Children.Add(label);
+
+        _searching = new Border
+        {
+            Child = row,
+            Padding = new Thickness(10, 7, 10, 7),
+            Margin = new Thickness(0, 2, 0, 6),
+        };
+        MessageHost.Children.Add(_searching);
+
+        _searchDotCount = 0;
+        _searchDots = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        { Interval = TimeSpan.FromMilliseconds(380) };
+        _searchDots.Tick += (_, _) =>
+        {
+            _searchDotCount = (_searchDotCount + 1) % 4;
+            label.Text = Loc.T("ai.panel.searching") + new string('.', _searchDotCount);
+        };
+        _searchDots.Start();
+
+        label.Text = Loc.T("ai.panel.searching");
+        ScrollToEnd();
+    }
+
+    /// <summary>يُزيل المؤشّر ويوقف مؤقّته — مؤقّت يظلّ يدقّ خلف عنصر محذوف تسريب صامت.</summary>
+    private void HideSearching()
+    {
+        _searchDots?.Stop();
+        _searchDots = null;
+
+        if (_searching is not null) MessageHost.Children.Remove(_searching);
+        _searching = null;
     }
 
     // ===== تصيير الردّ =====
@@ -461,6 +672,9 @@ public partial class AiPanel : UserControl
     private void OnReplyUpdated()
     {
         if (_session is null) return;
+
+        // أوّل مقطع وصل ⇒ انتهى «البحث» وبدأ العرض.
+        HideSearching();
 
         IReadOnlyList<AiSegment> segments = _session.Reply.Segments;
         string pending = _session.Reply.PendingText;
@@ -507,7 +721,7 @@ public partial class AiPanel : UserControl
         {
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 0, 6),
-            FontSize = 13,
+            // بلا حجم صريح — يتبع حجم نصّ الدردشة.
             Foreground = (Brush)FindResource("Brush.Text"),
         };
         FillMarkdown(block, text);
@@ -560,8 +774,18 @@ public partial class AiPanel : UserControl
     }
 
     /// <summary>
-    /// كتلة كود: خطّ أحاديّ، خلفيّة مميّزة، زرّ نسخ، و<b>اتّجاه LTR مفروض</b> — الكود لا يُقلَب
-    /// مع الواجهة العربيّة، وقلبه يجعل الأمر غير قابل للنسخ بصريّاً.
+    /// يُطلَق حين يطلب المستخدم تشغيل كتلة كود في التيرمنال مباشرةً. <b>المضيف هو من ينفّذ</b>
+    /// ويطبّق حارس الأوامر الخطرة — اللوحة لا تعرف صدفةً ولا تملك أن تشغّل شيئاً بنفسها.
+    /// </summary>
+    public event Action<string>? RunCodeRequested;
+
+    /// <summary>يُطلَق حين يطلب المستخدم إدراج الكتلة في صندوق الأوامر بلا تنفيذ.</summary>
+    public event Action<string>? InsertCodeRequested;
+
+    /// <summary>
+    /// كتلة كود: خطّ أحاديّ، خلفيّة مميّزة، أفعال (أرسل ونفّذ · أرسل فقط · انسخ)،
+    /// و<b>اتّجاه LTR مفروض</b> — الكود لا يُقلَب مع الواجهة العربيّة، وقلبه يجعل الأمر غير قابل
+    /// للنسخ بصريّاً.
     /// </summary>
     private Border BuildCodeBlock(string language, string text)
     {
@@ -569,7 +793,7 @@ public partial class AiPanel : UserControl
         {
             Text = text,
             FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
-            FontSize = 12,
+            // بلا حجم صريح — يتبع حجم نصّ الدردشة.
             TextWrapping = TextWrapping.NoWrap,
             FlowDirection = FlowDirection.LeftToRight,
             Foreground = (Brush)FindResource("Brush.Text"),
@@ -583,20 +807,36 @@ public partial class AiPanel : UserControl
             FlowDirection = FlowDirection.LeftToRight,
         };
 
-        var copyBtn = new Button
+        // شريط التمرير الأفقيّ يتبع الثيم: كتلة أعرض من اللوحة كانت تُظهر شريطاً نظاميّاً
+        // فاتحاً وسط سطح داكن. ThemedScrollBar وحده يعالج الاتّجاه الأفقيّ (ارتفاع ثابت + Track أفقيّ).
+        scroller.Resources.Add(
+            typeof(System.Windows.Controls.Primitives.ScrollBar),
+            new Style(
+                typeof(System.Windows.Controls.Primitives.ScrollBar),
+                (Style)FindResource("ThemedScrollBar")));
+
+        var actions = new StackPanel
         {
-            Content = Loc.T("ai.panel.copyCode"),
-            Style = (Style)FindResource("IconButton"),
+            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            FontSize = 10,
-            Padding = new Thickness(6, 2, 6, 2),
+            FlowDirection = FlowDirection.LeftToRight,
         };
-        copyBtn.Click += (_, _) =>
+
+        // أفعال التيرمنال تظهر فقط حين يوجد مضيف يستقبلها — زرّ لا يفعل شيئاً أسوأ من غيابه.
+        if (RunCodeRequested is not null)
+            actions.Children.Add(CodeAction(Loc.T("ai.code.run"), () => RunCodeRequested?.Invoke(code.Text)));
+
+        if (InsertCodeRequested is not null)
+            actions.Children.Add(CodeAction(Loc.T("ai.code.send"), () => InsertCodeRequested?.Invoke(code.Text)));
+
+        Button? copyBtn = null;
+        copyBtn = CodeAction(Loc.T("ai.panel.copyCode"), () =>
         {
             CopyToClipboard(code.Text);
-            copyBtn.Content = Loc.T("ai.panel.copied");
-        };
+            if (copyBtn is not null) copyBtn.Content = Loc.T("ai.panel.copied");
+        });
+        actions.Children.Add(copyBtn);
 
         var header = new TextBlock
         {
@@ -614,7 +854,7 @@ public partial class AiPanel : UserControl
         Grid.SetRow(scroller, 1);
         grid.Children.Add(header);
         grid.Children.Add(scroller);
-        grid.Children.Add(copyBtn);
+        grid.Children.Add(actions);
 
         return new Border
         {
@@ -629,6 +869,21 @@ public partial class AiPanel : UserControl
         };
     }
 
+    /// <summary>زرّ صغير في ترويسة كتلة الكود.</summary>
+    private Button CodeAction(string label, Action onClick)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Style = (Style)FindResource("IconButton"),
+            FontSize = 10,
+            Padding = new Thickness(7, 2, 7, 2),
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        button.Click += (_, _) => onClick();
+        return button;
+    }
+
     private void AppendUserBubble(string text)
     {
         var bubble = new Border
@@ -641,11 +896,21 @@ public partial class AiPanel : UserControl
             {
                 Text = text,
                 TextWrapping = TextWrapping.Wrap,
-                FontSize = 13,
+                // بلا حجم صريح: يُورَث من حاوية الرسائل فيتبع منزلق حجم الدردشة.
                 Foreground = (Brush)FindResource("Brush.Text"),
             },
         };
         MessageHost.Children.Add(bubble);
+    }
+
+    /// <summary>
+    /// يضبط حجم نصّ المحادثة. يُضبَط على <b>حاوية الرسائل</b> لا على كلّ عنصر: حجم الخطّ
+    /// خاصّية موروثة، فيسري على ما بُني وما سيُبنى معاً بلا إعادة تصيير المحادثة.
+    /// </summary>
+    public void ApplyChatFontSize(double size)
+    {
+        if (size <= 0) return;
+        System.Windows.Documents.TextElement.SetFontSize(MessageHost, size);
     }
 
     private void ScrollToEnd() => Scroller.ScrollToEnd();
@@ -660,6 +925,7 @@ public partial class AiPanel : UserControl
 
     private void ShowError(AiErrorView view)
     {
+        HideSearching();
         ErrorText.Text = view.Message;
         ErrorOrigin.Text = view.Origin;
         ErrorOrigin.Visibility = view.Origin.Length > 0 ? Visibility.Visible : Visibility.Collapsed;

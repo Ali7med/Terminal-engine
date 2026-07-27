@@ -575,6 +575,12 @@
                                     <RadioButton x:Name="NavAi" GroupName="SettingsCat"
                                                  Style="{StaticResource SettingsNavButton}" Tag="ai"
                                                  Content="{loc:T ai.set.title}" Checked="CategoryNav_Checked"/>
+                                    <RadioButton x:Name="NavKeys" GroupName="SettingsCat"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="keys"
+                                                 Content="{loc:T keys.nav}" Checked="CategoryNav_Checked"/>
+                                    <RadioButton x:Name="NavAliases" GroupName="SettingsCat"
+                                                 Style="{StaticResource SettingsNavButton}" Tag="aliases"
+                                                 Content="{loc:T alias.nav}" Checked="CategoryNav_Checked"/>
                                 </StackPanel>
 
                                 <Border Grid.Column="1" Background="{DynamicResource Brush.Border}"/>
@@ -935,6 +941,28 @@
                                                        Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,6,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
 
+                                            <TextBlock Text="{loc:T ai.set.panelWidth}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiPanelWidthSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="280" Maximum="720" IsSnapToTickEnabled="True" TickFrequency="10"
+                                                        ValueChanged="AiPanelWidth_Changed"/>
+                                                <TextBlock x:Name="AiPanelWidthValue" Grid.Column="1" MinWidth="56" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{loc:T ai.set.chatFont}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                            <Grid Width="420" HorizontalAlignment="Left" FlowDirection="LeftToRight">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Slider x:Name="AiChatFontSlider" VerticalAlignment="Center" Style="{StaticResource AccentSlider}"
+                                                        Minimum="10" Maximum="20" IsSnapToTickEnabled="True" TickFrequency="0.5"
+                                                        ValueChanged="AiChatFont_Changed"/>
+                                                <TextBlock x:Name="AiChatFontValue" Grid.Column="1" MinWidth="56" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
                                             <TextBlock Text="{loc:T ai.set.customPrompt}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
                                             <TextBox x:Name="AiPromptBox" Style="{StaticResource MultilineTextBox}"
                                                      Width="420" MinLines="3" MaxLines="6" Padding="8,6"
@@ -980,6 +1008,96 @@
                                             <TextBlock Text="{loc:T ai.set.saveChatsHint}" TextWrapping="Wrap"
                                                        Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,0,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: الاختصارات ===== -->
+                                        <StackPanel x:Name="CatKeys" Visibility="Collapsed">
+                                            <TextBlock Text="{loc:T keys.title}" Style="{StaticResource Caption}"
+                                                       Margin="2,0,2,10"/>
+                                            <TextBlock Text="{loc:T keys.hint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,0,2,16"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <!-- الصفوف تُبنى من سجلّ ShortcutService لا يدويّاً — فعلٌ جديد يظهر هنا
+                                                 تلقائيّاً، ولا يوجد اختصار مخفيّ لا تراه الإعدادات. -->
+                                            <StackPanel x:Name="KeysList" Width="420" HorizontalAlignment="Left"/>
+
+                                            <Button x:Name="KeysResetBtn" Content="{loc:T keys.reset}"
+                                                    Padding="14,7" Margin="2,18,2,0"
+                                                    HorizontalAlignment="Left" Click="KeysReset_Click"/>
+                                        </StackPanel>
+
+                                        <!-- ===== فئة: الأوامر المختصرة (أسماء مستعارة) ===== -->
+                                        <StackPanel x:Name="CatAliases" Visibility="Collapsed">
+                                            <TextBlock Text="{loc:T alias.title}" Style="{StaticResource Caption}"
+                                                       Margin="2,0,2,10"/>
+                                            <TextBlock Text="{loc:T alias.hint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,0,2,16"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <StackPanel x:Name="AliasList" Width="420" HorizontalAlignment="Left"/>
+                                            <TextBlock x:Name="AliasEmptyText" Visibility="Collapsed"
+                                                       Text="{loc:T alias.empty}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}" Margin="2,0,2,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <Button x:Name="AliasAddBtn" Content="{loc:T alias.add}"
+                                                    Style="{StaticResource AccentButton}" Padding="14,7"
+                                                    Margin="2,16,2,0" HorizontalAlignment="Left"
+                                                    Click="AliasAdd_Click"/>
+
+                                            <!-- المحرّر يعمل على نسخة من الاسم المستعار، فإلغاء التحرير
+                                                 لا يترك تعديلات نصفيّة في المحفوظ. -->
+                                            <Border x:Name="AliasEditor" Visibility="Collapsed"
+                                                    Style="{StaticResource CardStrong}" Padding="16"
+                                                    Width="420" HorizontalAlignment="Left" Margin="0,18,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="{loc:T alias.name}" Style="{StaticResource SectionLabel}"/>
+                                                    <TextBox x:Name="AliasNameBox" Padding="8,6" FlowDirection="LeftToRight"/>
+                                                    <TextBlock Text="{loc:T alias.nameHint}" FontSize="{DynamicResource Size.Small}"
+                                                               Margin="2,4,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                                    <TextBlock Text="{loc:T alias.desc}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
+                                                    <TextBox x:Name="AliasDescBox" Padding="8,6"/>
+
+                                                    <TextBlock Text="{loc:T alias.vars}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                                    <StackPanel x:Name="AliasVarList"/>
+                                                    <Button x:Name="AliasVarAddBtn" Content="{loc:T alias.varAdd}"
+                                                            Padding="10,4" Margin="2,6,2,0"
+                                                            HorizontalAlignment="Left" Click="AliasVarAdd_Click"/>
+
+                                                    <TextBlock Text="{loc:T alias.commands}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                                    <TextBox x:Name="AliasCommandsBox" Style="{StaticResource MultilineTextBox}"
+                                                             MinLines="4" MaxLines="10" Padding="8,6"
+                                                             FlowDirection="LeftToRight"
+                                                             FontFamily="Cascadia Mono, Consolas"/>
+                                                    <TextBlock Text="{loc:T alias.commandsHint}" TextWrapping="Wrap"
+                                                               FontSize="{DynamicResource Size.Small}" Margin="2,4,2,0"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                                    <TextBlock Text="{loc:T alias.shell}" Style="{StaticResource SectionLabel}" Margin="2,16,2,6"/>
+                                                    <TextBox x:Name="AliasShellBox" Padding="8,6" FlowDirection="LeftToRight"/>
+
+                                                    <CheckBox x:Name="AliasConfirmCheck" Style="{StaticResource AppCheckBox}"
+                                                              Content="{loc:T alias.confirm}" Margin="2,16,2,8"/>
+                                                    <CheckBox x:Name="AliasEnabledCheck" Style="{StaticResource AppCheckBox}"
+                                                              Content="{loc:T alias.enabled}" Margin="2,0,2,0"/>
+
+                                                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                                                        <Button x:Name="AliasSaveBtn" Content="{loc:T alias.save}"
+                                                                Style="{StaticResource AccentButton}" Padding="16,7"
+                                                                Click="AliasSave_Click"/>
+                                                        <Button x:Name="AliasCancelBtn" Content="{loc:T ai.prev.cancel}"
+                                                                Padding="14,7" Margin="8,0,0,0"
+                                                                Click="AliasCancel_Click"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>

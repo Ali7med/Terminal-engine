@@ -1256,8 +1256,11 @@ public partial class TerminalTabView : UserControl
         bool shift = (mods & ModifierKeys.Shift) != 0;
         bool suggesting = SuggestPanel.Visibility == Visibility.Visible && SuggestList.Items.Count > 0;
 
-        // Ctrl+I: تبديل وضع الصندوق (أمر ⇄ ذكاء) بلا مغادرة لوحة المفاتيح.
-        if (ctrl && e.Key == Key.I)
+        // تبديل وضع الصندوق (أمر ⇄ ذكاء) بلا مغادرة لوحة المفاتيح — التركيبة من سجلّ الاختصارات
+        // لا ثابتة في الكود، كي يستطيع المستخدم تغييرها من الإعدادات.
+        if (_aiAppSettings is not null
+            && Services.ShortcutService.Matches(
+                _aiAppSettings, Services.ShortcutService.AiComposerMode, e.Key, mods))
         {
             SetComposerAiMode(!ComposerAiMode);
             e.Handled = true;
@@ -1407,6 +1410,9 @@ public partial class TerminalTabView : UserControl
         string trimmed = text.Trim();
         if (trimmed.Length > 0) RecordHistory(trimmed);
 
+        // اسم مستعار؟ يُوسَّع إلى أوامره ويُرسَل مكانه. ما ليس اسماً معروفاً يمضي إلى الصدفة كما كُتب.
+        if (trimmed.Length > 0 && TryRunAlias(trimmed)) return;
+
         // بديل الكتلة الاستدلاليّ: بدء كتلة أمر جديدة (يُتجاهَل تحت OSC 133 الحقيقيّ).
         lock (_screenLock) _coreScreen?.BeginHeuristicCommand(trimmed);
 
@@ -1423,6 +1429,52 @@ public partial class TerminalTabView : UserControl
 
         ClearInputTracking();   // الصندوق هو مصدر الإدخال الآن — لا شبح داخل الشبكة
         Renderer.ScrollOffset = 0;   // القفز للقاع كي تُرى المخرجات
+    }
+
+    /// <summary>
+    /// يوسّع اسماً مستعاراً ويرسل أوامره. يعيد <c>false</c> إن لم تكن أوّل كلمة اسماً مستعاراً
+    /// معروفاً — فيمضي السطر إلى الصدفة كما كُتب.
+    ///
+    /// <para>الاسم الناقصة متغيّراتُه <b>يُوقَف</b> برسالة تسمّي الناقص: إرسال أمر نصفه فارغ إلى
+    /// الصدفة يعطي خطأ صياغة غامضاً بدل أن يقول «ينقصك رسالة الكومِت».</para>
+    /// </summary>
+    private bool TryRunAlias(string line)
+    {
+        Services.Aliases.CommandAlias? alias = Services.Aliases.AliasStore.Shared.Find(
+            Services.Aliases.AliasExpander.HeadWord(line), CurrentShellName());
+        if (alias is null) return false;
+
+        List<string> args = Services.Aliases.AliasExpander.SplitArguments(line);
+        if (args.Count > 0) args.RemoveAt(0);   // اسم الاسم المستعار نفسه ليس وسيطاً
+
+        Services.Aliases.AliasExpansion expansion = Services.Aliases.AliasExpander.Expand(alias, args);
+        if (!expansion.Ok)
+        {
+            Services.NotificationService.Warning(
+                alias.Name,
+                expansion.MissingVariable is null
+                    ? Services.Loc.T("alias.errEmpty")
+                    : string.Format(Services.Loc.T("alias.errMissing"), expansion.MissingVariable));
+            return true;   // تولّينا السطر: إرساله كما هو سيفشل بلا تفسير
+        }
+
+        if (alias.ConfirmBeforeRun)
+        {
+            string preview = string.Join("\n", expansion.Commands);
+            string? choice = Views.AppDialog.Confirm(
+                Window.GetWindow(this), alias.Name, preview,
+                (Services.Loc.T("alias.run"), "run", Views.DialogButtonKind.Accent),
+                (Services.Loc.T("ai.prev.cancel"), "cancel", Views.DialogButtonKind.Neutral));
+
+            if (choice != "run") return true;
+        }
+
+        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(expansion.Commands[0]);
+        foreach (string command in expansion.Commands) Send(command + _newline);
+
+        ClearInputTracking();
+        Renderer.ScrollOffset = 0;
+        return true;
     }
 
     /// <summary>يملأ الصندوق من تاريخ الجلسة (سهم أعلى=أقدم). يعيد false إن لا تنقّل ممكن.</summary>
@@ -1980,6 +2032,16 @@ public partial class TerminalTabView : UserControl
         bool alt = (mods & ModifierKeys.Alt) != 0;
         // Alt يُبدِّل e.Key إلى Key.System ويضع المفتاح الحقيقي في SystemKey.
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        // 0) البحث في المخرجات: تركيبته من سجلّ الاختصارات القابل للتخصيص، فتسبق الجدول الثابت.
+        if (!alt && _aiAppSettings is not null
+            && Services.ShortcutService.Matches(
+                _aiAppSettings, Services.ShortcutService.SearchOutput, key, mods))
+        {
+            DispatchAction(TermAction.Search);
+            e.Handled = true;
+            return;
+        }
 
         // 1) اختصارات التطبيق المحجوزة (T-006.5) — تُفحَص أوّلاً (Alt غير مسموح فيها).
         if (!alt && AppShortcuts.TryGetValue((key, mods & ~ModifierKeys.Windows), out var action))

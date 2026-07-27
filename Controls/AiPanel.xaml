@@ -32,16 +32,30 @@
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="TitleText" FontSize="12" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="OriginText" FontSize="10"
-                               Foreground="{DynamicResource Brush.TextMuted}"
-                               TextTrimming="CharacterEllipsis"/>
+                    <!-- المزوّد نصّاً، والنموذج منسدلة قابلة للكتابة: تبديل النموذج لتجربة واحدة
+                         لا يستحقّ فتح الإعدادات وتغيير إعداد دائم. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <TextBlock x:Name="OriginText" FontSize="10" VerticalAlignment="Center"
+                                   Margin="0,0,6,0"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <ComboBox x:Name="ModelCombo" IsEditable="True" IsTextSearchEnabled="False"
+                                  StaysOpenOnEdit="True" MaxDropDownHeight="260"
+                                  Height="24" FontSize="10" MinWidth="120" MaxWidth="210"
+                                  FlowDirection="LeftToRight"
+                                  DropDownOpened="ModelCombo_DropDownOpened"
+                                  SelectionChanged="ModelCombo_SelectionChanged"
+                                  LostFocus="ModelCombo_LostFocus"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                     <!-- عدّاد التوكنز: يظهر فقط حين يُبلغ المزوّد عن الاستهلاك (لا تفعل كلّ المنصّات). -->
                     <TextBlock x:Name="TokenText" FontSize="10" VerticalAlignment="Center"
                                Margin="0,0,8,0" Visibility="Collapsed" FlowDirection="LeftToRight"
                                Foreground="{DynamicResource Brush.TextMuted}"/>
+                    <Button x:Name="HistoryBtn" Style="{StaticResource IconButton}"
+                            Content="↻" Click="History_Click"/>
                     <Button x:Name="CopyAllBtn" Style="{StaticResource IconButton}"
                             Content="⧉" Click="CopyAll_Click"/>
                     <Button x:Name="ClearBtn" Style="{StaticResource IconButton}"
@@ -58,6 +72,50 @@
                 <ctrl:AiContextPreview x:Name="ContextPreview" Visibility="Collapsed"/>
             </StackPanel>
         </ScrollViewer>
+
+        <!-- طبقة الجلسات السابقة: تعلو المحادثة ولا تمسّها — قراءة محادثة قديمة لا يجوز أن تُضيع
+             ما أنت فيه الآن. -->
+        <Border Grid.Row="1" x:Name="HistoryOverlay" Visibility="Collapsed"
+                Background="{DynamicResource Brush.Surface}">
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="2,0,2,8">
+                    <TextBlock x:Name="HistoryTitle" FontSize="12" FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <Button x:Name="HistoryCloseBtn" HorizontalAlignment="Right"
+                            Style="{StaticResource TextLinkButton}" Content="✕"
+                            Click="HistoryClose_Click"/>
+                </Grid>
+
+                <ListBox Grid.Row="1" x:Name="HistoryList" MaxHeight="170" BorderThickness="0"
+                         Background="Transparent" SelectionChanged="HistoryList_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,2">
+                                <TextBlock Text="{Binding Title}" FontSize="11.5"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding When}" FontSize="10" FlowDirection="LeftToRight"
+                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Grid.Row="1" x:Name="HistoryEmpty" Visibility="Collapsed"
+                           TextWrapping="Wrap" FontSize="11.5" Margin="6,10"
+                           Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                <TextBox Grid.Row="2" x:Name="HistoryTranscript" IsReadOnly="True" Margin="0,8,0,0"
+                         Style="{StaticResource MultilineTextBox}"
+                         Padding="8,6" FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                         FlowDirection="LeftToRight"/>
+            </Grid>
+        </Border>
 
         <!-- شريط الخطأ: رسالة بشريّة + زرّ إجراء واحد -->
         <Border Grid.Row="2" x:Name="ErrorBar" Visibility="Collapsed" Margin="8,0,8,8"
