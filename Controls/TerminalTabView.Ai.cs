@@ -682,6 +682,7 @@ public partial class TerminalTabView
 
         RecordHistory(safe);
         lock (_screenLock) _coreScreen?.BeginHeuristicCommand(safe);
+        MarkCommandStarted();
         Send(safe + _newline);
         ClearInputTracking();
         Renderer.ScrollOffset = 0;   // القفز للقاع كي تُرى المخرجات

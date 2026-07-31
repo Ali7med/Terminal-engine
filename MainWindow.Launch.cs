@@ -11,6 +11,22 @@ namespace TerminalLauncher;
 /// </summary>
 public partial class MainWindow
 {
+    /// <summary>
+    /// المجلد الذي أُطلِق منه التطبيق — يُقرأ <b>مرّة واحدة</b> عند أوّل استعمال.
+    ///
+    /// <para>القراءة المتأخّرة تكذب: <see cref="Environment.CurrentDirectory"/> يتغيّر بمجرّد أن
+    /// يفتح المستخدم حوار «اختر فولدر»، فيصير كلّ إطلاق لاحقٍ يبدو إطلاقاً «من مكان».</para>
+    /// </summary>
+    private static readonly string? LaunchedFrom = ExplorerLaunch.LaunchFolder();
+
+    /// <summary>
+    /// إطلاق «سريع»: من شريط عنوان المستكشف أو حوار «تشغيل» أو بوسيط مجلد — لا من أيقونة التطبيق.
+    ///
+    /// <para>هذا الإطلاق لمهمّة عاجلة في مجلد بعينه، فلا تُستعاد تبويبات الجلسة السابقة ولا
+    /// تُحفَظ تبويباتُه فوقها: نافذةٌ فُتحت لدقيقة يجب ألّا تمحو جلسة عملٍ كاملة.</para>
+    /// </summary>
+    private static bool IsQuickLaunch => LaunchedFrom is not null;
+
     /// <summary>يملأ حقل الكلمة ويعرض حالة التسجيل — يُستدعى مع مزامنة لوحة الإعدادات.</summary>
     private void SyncLaunchUi()
     {
@@ -80,14 +96,13 @@ public partial class MainWindow
     /// يفتح تيرمنالاً في المجلد الذي أُطلِق منه التطبيق — وهو ما يجعل كتابة الكلمة في شريط عنوان
     /// المستكشف مكافئةً لكتابة <c>cmd</c>.
     ///
-    /// <para>يُستدعى بعد استعادة الجلسة: التبويبات المستعادة تبقى، ويُضاف تبويب المجلد الجديد
-    /// فيصير هو النشط — فالمستخدم طلب <b>هذا</b> المجلد الآن.</para>
+    /// <para>في هذه الحالة لا تكون الجلسة السابقة قد استُعيدت (انظر <see cref="IsQuickLaunch"/>)،
+    /// فيبقى في النافذة تبويبٌ واحد نظيف على المجلد المطلوب.</para>
     /// </summary>
     private void OpenLaunchFolderTerminal()
     {
-        string? folder = ExplorerLaunch.LaunchFolder();
-        if (folder is null) return;
+        if (LaunchedFrom is null) return;
 
-        OpenTerminalForProfile(Terminal.ShellCatalog.DefaultKey, folder);
+        OpenTerminalForProfile(Terminal.ShellCatalog.DefaultKey, LaunchedFrom);
     }
 }

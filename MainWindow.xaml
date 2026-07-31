@@ -71,9 +71,19 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button x:Name="NewTabButton" Style="{StaticResource ChromeButton}"
-                            Content="&#xE710;" Click="NewTabButton_Click"
-                            ToolTip="تيرمنال فارغ جديد (Ctrl+Shift+T)"/>
+                    <!-- أيقونة تيرمنال + علامة زائد صغيرة: «افتح تيرمنالاً جديداً» بلا لبس مع «أضف»
+                         المجرَّدة. الحبّة بلون اللكنة (ChromeAccentButton) فتُرى في شريط أزراره مكتومة. -->
+                    <Button x:Name="NewTabButton" Style="{StaticResource ChromeAccentButton}"
+                            Click="NewTabButton_Click"
+                            AutomationProperties.Name="{loc:T tip.newtab}"
+                            ToolTip="{loc:T tip.newtab}">
+                        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight">
+                            <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="9"
+                                       VerticalAlignment="Center" Margin="3,0,0,0"/>
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="NewTabDropDown" Style="{StaticResource ChromeButton}"
                             Content="&#xE70D;" FontSize="{DynamicResource Size.Tiny}" Click="NewTabDropDown_Click"
                             ToolTip="اختر بروفايل صدفة"/>
@@ -319,8 +329,17 @@
                                 <StackPanel x:Name="ProjectFilterBar" Orientation="Horizontal"/>
                             </ScrollViewer>
 
+                            <!-- الفعل الأوّل في اللوحة صار «افتح تيرمنالاً» لا «افتح المشروع»: لوحة أوامر
+                                 المشروع تُفتح بالنقر المزدوج على اسمه، أمّا الحاجة المتكرّرة فهي تيرمنال
+                                 على باث المشروع المحدَّد (أو تيرمنال فارغ إن لا تحديد). -->
                             <Button x:Name="RunBtn" DockPanel.Dock="Bottom" Margin="0,10,0,0" Style="{StaticResource AccentButton}"
-                                    Content="&#x25B6;  فتح المشروع" Click="RunButton_Click"/>
+                                    Click="RunButton_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock x:Name="RunBtnText" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
                             <ListBox x:Name="EntriesList" Margin="0,0,0,2"
                                      MouseDoubleClick="EntriesList_MouseDoubleClick"
@@ -695,6 +714,18 @@
                                                       Content="{loc:T ui.composerRich}" Margin="2,0,2,4"
                                                       Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
                                             <TextBlock Text="{loc:T ui.composerRichHint}"
+                                                       TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
+
+                                            <!-- البرامج التي تُخفي صندوق الإدخال (وكلاء/محرّرات/ssh…).
+                                                 ما عداها يبقى الصندوق ظاهراً أثناء تنفيذها ليُمكن Ctrl+C. -->
+                                            <TextBlock Text="{loc:T ui.interactive}" Style="{StaticResource SectionLabel}"/>
+                                            <TextBox x:Name="InteractiveBox" Width="360" HorizontalAlignment="Left"
+                                                     FlowDirection="LeftToRight" TextWrapping="Wrap" AcceptsReturn="True"
+                                                     MinHeight="56" MaxHeight="110" VerticalScrollBarVisibility="Auto"
+                                                     FontFamily="Cascadia Mono, Consolas" Margin="2,0,2,4"
+                                                     LostFocus="InteractiveBox_LostFocus"/>
+                                            <TextBlock Text="{loc:T ui.interactiveHint}"
                                                        TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
                                                        FontSize="{DynamicResource Size.Small}" Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,16"/>
 
@@ -1167,6 +1198,17 @@
                                                         Click="Docs_Click"/>
                                             </Grid>
                                             <TextBlock Text="{loc:T alias.hint}" TextWrapping="Wrap"
+                                                       Width="420" HorizontalAlignment="Left"
+                                                       FontSize="{DynamicResource Size.Small}"
+                                                       Margin="2,0,2,16"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                            <!-- التسجيل في الصدفة الحقيقيّة: يجعل الاسم المختصر يعمل
+                                                 حتّى حين يُكتب داخل شبكة التيرمنال لا في صندوق الإدخال. -->
+                                            <CheckBox x:Name="ShellAliasCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="{loc:T alias.shell}" Margin="2,0,2,4"
+                                                      Checked="ShellAliasCheck_Changed" Unchecked="ShellAliasCheck_Changed"/>
+                                            <TextBlock Text="{loc:T alias.shellHint}" TextWrapping="Wrap"
                                                        Width="420" HorizontalAlignment="Left"
                                                        FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,0,2,16"

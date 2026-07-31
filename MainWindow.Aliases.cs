@@ -121,8 +121,23 @@ public partial class MainWindow
         if (choice != "delete") return;
 
         AliasStore.Shared.Delete(alias.Id);
+        ShellAliasBridge.Refresh();   // ملفّات الصدفة تتبع المخزن
         if (_editingAlias?.Id == alias.Id) CloseAliasEditor();
         BuildAliasList();
+    }
+
+    /// <summary>
+    /// تبديل التسجيل في الصدفة الحقيقيّة. يُعاد التوليد فوراً، لكنّ الأثر يظهر في <b>التيرمنالات
+    /// الجديدة</b>: ملفّ التهيئة يُقرأ لحظة بدء الصدفة، والجلسات القائمة قرأته سلفاً.
+    /// </summary>
+    private void ShellAliasCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+
+        _settings.ShellAliases = ShellAliasCheck.IsChecked == true;
+        ShellAliasBridge.Enabled = _settings.ShellAliases;
+        ShellAliasBridge.Refresh();
+        SaveSettings();
     }
 
     private void AliasAdd_Click(object sender, RoutedEventArgs e) => OpenAliasEditor(new CommandAlias());
@@ -375,6 +390,7 @@ public partial class MainWindow
         _editingAlias.Variables.RemoveAll(IsNamelessVariable);
 
         AliasStore.Shared.Save(_editingAlias);
+        ShellAliasBridge.Refresh();   // ملفّات الصدفة تتبع المخزن
         CloseAliasEditor();
         BuildAliasList();
     }

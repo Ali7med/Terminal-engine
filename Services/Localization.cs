@@ -50,6 +50,11 @@ public static class Loc
         ["splash.session"]     = ("استعادة الجلسة السابقة…", "Restoring your session…"),
 
         // قائمة «+» حين لا يوجد تيرمنال مفتوح يُورَّث مجلده: أماكن بدء مقترَحة.
+        // نقطة حالة التنفيذ في رأس التبويب (تلميح عند المرور).
+        ["tab.state.running"]  = ("يعمل الآن…", "Running…"),
+        ["tab.state.done"]     = ("انتهى بنجاح", "Finished successfully"),
+        ["tab.state.failed"]   = ("انتهى بخطأ", "Finished with an error"),
+
         ["paths.title"]        = ("افتح تيرمنال في…", "Open a terminal in…"),
         ["paths.desktop"]      = ("سطح المكتب", "Desktop"),
         ["paths.documents"]    = ("المستندات", "Documents"),
@@ -177,6 +182,7 @@ public static class Loc
         ["sug.script"]         = ("سكربت", "script"),
         ["sug.process"]        = ("عمليّة", "process"),
         ["sug.history"]        = ("سجلّ", "history"),
+        ["sug.alias"]          = ("أمر مختصر", "alias"),
         // متصفّح المجلدات (زرّ الباث فوق الإنبت).
         ["cwd.parent"]         = (".. (المجلد الأعلى)", ".. (Parent Directory)"),
         ["cwd.search"]         = ("ابحث في المجلدات…", "Search directories…"),
@@ -208,7 +214,9 @@ public static class Loc
 
         // ===== لوحة المشاريع + الدوك =====
         ["sidebar.projects"]   = ("المشاريع", "Projects"),
-        ["proj.open"]          = ("▶  فتح المشروع", "▶  Open project"),
+        ["proj.open"]          = ("تيرمنال جديد", "New terminal"),
+        ["proj.openTip"]       = ("تيرمنال جديد على باث المشروع المحدَّد (أو فارغ إن لا تحديد)",
+                                  "New terminal at the selected project's path (empty if none selected)"),
         ["proj.search"]        = ("بحث في المشاريع…", "Search projects…"),
         ["proj.new"]           = ("مشروع جديد", "New project"),
         ["proj.edit"]          = ("تعديل المشروع", "Edit project"),
@@ -225,7 +233,12 @@ public static class Loc
         ["proj.cmd.edit"]      = ("تعديل الأمر", "Edit command"),
         ["proj.cmd.labelHint"] = ("اسم الأمر (اختياريّ)", "Command name (optional)"),
         ["proj.cmd.stepsHint"] = ("أمر في كلّ سطر — تُنفَّذ بالتوالي", "One command per line — run in sequence"),
-        ["proj.cmd.folderHint"]= ("فولدر خاصّ (اختياريّ)", "Override folder (optional)"),
+        ["proj.cmd.folderHint"]= ("فولدر خاصّ (اختياريّ) — نسبيّ يُدمج مع باث المشروع",
+                                  "Override folder (optional) — a relative path merges with the project path"),
+        ["proj.cmd.terminal"]  = ("افتح تيرمنال على باث الأمر (بلا تنفيذ)",
+                                  "Open a terminal at the command's path (without running it)"),
+        ["proj.folderMissing"] = ("الفولدر «{0}» غير موجود — فُتح التيرمنال على باث المشروع.",
+                                  "Folder “{0}” does not exist — opened at the project path instead."),
         // ليبلات محرّر الأمر المضمّن (فوق كلّ حقل).
         ["proj.cmd.labelLbl"]  = ("الاسم", "Name"),
         ["proj.cmd.stepsLbl"]  = ("الأوامر", "Commands"),
@@ -582,6 +595,11 @@ public static class Loc
         ["alias.title"]        = ("الأوامر المختصرة", "Command aliases"),
         ["alias.hint"]         = ("كلمة تكتبها في صندوق الأوامر فتتوسّع إلى عدّة أوامر. المتغيّرات تأخذ قيمها من الوسائط بترتيب تعريفها: gpc \"رسالة\" يملأ أوّل متغيّر.",
                                   "A word you type in the command box that expands into several commands. Variables take their values from the arguments in declaration order: gpc \"message\" fills the first variable."),
+        ["alias.shell"]        = ("سجّلها في الصدفة نفسها (تعمل داخل التيرمنال مباشرةً)",
+                                  "Register them in the shell itself (they work inside the terminal directly)"),
+        ["alias.shellHint"]    = ("بدونها تعمل الأسماء المختصرة في صندوق الإدخال وأوامر المشاريع فقط. مع تفعيلها تُسجَّل في كلّ تيرمنال جديد (doskey لـcmd · دالّة لـPowerShell · دالّة لـbash) فتعمل حتّى لو كتبتها داخل الشاشة السوداء. لا يُعدَّل أيّ ملفّ تهيئة يخصّك. الاسم الذي يطلب تأكيداً قبل التنفيذ لا يُسجَّل — الصدفة لا تعرف حوار التأكيد. ولا تشمل WSL ولا البروفايلات المخصّصة.",
+                                  "Without it, aliases work only in the input box and project commands. With it, they are registered in every new terminal (doskey for cmd · a function for PowerShell · a function for bash) so they work even when typed inside the black screen. None of your own config files are modified. An alias that asks for confirmation is not registered — the shell knows no confirmation dialog. WSL and custom profiles are not covered."),
+        ["alias.shellFolder"]  = ("ملفّات التسجيل المولَّدة", "Generated registration files"),
         ["alias.add"]          = ("اسم مستعار جديد", "New alias"),
         ["alias.edit"]         = ("تحرير", "Edit"),
         ["alias.delete"]       = ("حذف", "Delete"),
@@ -649,6 +667,9 @@ public static class Loc
         ["ui.composerRich"]    = ("صندوق إدخال غنيّ منفصل (نمط Warp)", "Separate rich input box (Warp style)"),
         ["ui.composerRichHint"]= ("صندوق أمر واضح أسفل التيرمنال مع اقتراحات وإكمال شبحيّ. إطفاؤه يعيد الكتابة داخل الشبكة مباشرةً. يختفي تلقائياً في محرّرات كامل الشاشة.",
                                   "A clear command box under the terminal with suggestions and ghost completion. Turning it off returns typing to the grid itself. It hides automatically in full-screen editors."),
+        ["ui.interactive"]     = ("برامج تُخفي صندوق الإدخال", "Programs that hide the input box"),
+        ["ui.interactiveHint"] = ("صندوق الإدخال يبقى ظاهراً أثناء تنفيذ الأوامر العاديّة (فيمكن إيقافها بـCtrl+C)، ويختفي فقط لهذه البرامج — لأنّها تقرأ كلّ ضغطة مفتاح وتحتاج الشاشة كاملة. أسماء مفصولة بفواصل أو أسطر. اتركه فارغاً للقائمة الافتراضيّة.",
+                                  "The input box stays visible while ordinary commands run (so Ctrl+C can stop them), and hides only for these programs — they read every keystroke and need the full screen. Names separated by commas or new lines. Leave empty for the default list."),
 
         // بروفايلات الصدفات
         ["prof.title"]         = ("بروفايلات الصدفات", "Shell profiles"),

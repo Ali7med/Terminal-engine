@@ -16,6 +16,12 @@ using CoreMouseEventType = Terminal.Core.Screen.MouseEventType;
 
 namespace TerminalLauncher.Controls;
 
+/// <summary>
+/// حالة تنفيذ جزء تيرمنال واحد — ترسمها نقطة رأس التبويب: زرقاء تلمض (يعمل) ·
+/// خضراء (انتهى بنجاح) · حمراء (انتهى بخطأ) · بلا نقطة (لم يُنفّذ شيء بعد).
+/// </summary>
+public enum TerminalRunState { Idle, Running, Success, Failed }
+
 public partial class TerminalTabView : UserControl
 {
     private const double MinFontSize = 8;
@@ -92,10 +98,95 @@ public partial class TerminalTabView : UserControl
         }
     }
 
+    // ===== حالة التنفيذ (نقطة رأس التبويب) =====
+
+    /// <summary>حالة التنفيذ الظاهرة في رأس التبويب.</summary>
+    public TerminalRunState RunState { get; private set; } = TerminalRunState.Idle;
+
+    /// <summary>يُطلَق عند تغيّر <see cref="RunState"/> — يشترك فيه المُضيف ليحدّث نقطة رأس التبويب.</summary>
+    public event Action<TerminalTabView>? RunStateChanged;
+
+    /// <summary>
+    /// السطر المطلق لآخر سطر ذي محتوى لحظة إرسال الأمر. شرطه يمنع «انتهى فوراً» الكاذبة:
+    /// الأمر يُكتب في صندوق التأليف لا على الشبكة، فقبل أن تصدّره الصدفة تبقى الشاشة على الموجّه القديم
+    /// تماماً (موجّه جاهز!) لميلي ثوانٍ. فلا نقبل الانتهاء إلّا عند موجّه <b>أحدث</b> من هذا السطر.
+    /// </summary>
+    private long _runStartAbs = -1;
+
+    /// <summary>
+    /// يُعلِم ببدء تنفيذ أمر — يُستدعى من كلّ موضع يُرسِل أمراً للصدفة. من هنا <b>يبدأ العدّ</b>:
+    /// المدّة المعروضة مدّة الأمر لا عمر الجلسة (من فتح تيرمنالاً وتركه ساعة ثمّ نفّذ <c>ls</c>
+    /// يريد أن يرى ثوانيَ الـ<c>ls</c> لا ساعةً).
+    ///
+    /// <para><b>يُستدعى من خيط الـPTY أيضاً</b> (تنفيذ أمر المشروع تلقائيّاً عند أوّل إخراج في
+    /// <see cref="OnCoreData"/>)، وهذا الجسم يلمس عناصر واجهة ومؤقّت موزّع، فيُحوَّل إلى خيط الواجهة
+    /// عند اللزوم. بدونه يسقط التطبيق بـ<c>InvalidOperationException</c> من خيط القراءة.</para>
+    /// </summary>
+    private void MarkCommandStarted()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(MarkCommandStarted));
+            return;
+        }
+
+        _runStartAbs = LastContentAbs(_lastSnapshot);
+        _startTime = DateTime.Now;
+        _endTime = null;
+        _statusTimer.Start();
+        RefreshRunningStatus();
+        SetRunState(TerminalRunState.Running);
+    }
+
+    /// <summary>يختم توقيت الأمر ويوقف المؤقّت ثمّ يعرض سطر الانتهاء (مع رمز الخروج إن عُرِف).</summary>
+    private void FinishTiming(int? exitCode)
+    {
+        _endTime = DateTime.Now;
+        _statusTimer.Stop();
+        var brush = (Brush)FindResource(exitCode is null or 0 ? "Brush.Success" : "Brush.Danger");
+        SetStatus(exitCode is null
+            ? $"انتهى · ⏱ {Elapsed()}"
+            : $"انتهى · رمز {exitCode} · ⏱ {Elapsed()}", brush);
+    }
+
+    private void SetRunState(TerminalRunState state)
+    {
+        if (RunState == state) return;
+        RunState = state;
+        RunStateChanged?.Invoke(this);
+    }
+
+    /// <summary>السطر المطلق لآخر سطر ذي محتوى في اللقطة، أو <c>-1</c> إن لا لقطة بعد.</summary>
+    private static long LastContentAbs(ScreenSnapshot? snap)
+    {
+        if (snap == null) return -1;
+        for (int i = snap.Lines.Count - 1; i >= 0; i--)
+            if (LinePlainText(snap.Lines[i]).TrimEnd().Length > 0) return snap.BaseLine + i;
+        return snap.BaseLine;
+    }
+
+    /// <summary>
+    /// يحدّث حالة التنفيذ من كلّ لقطة جديدة — <b>مسار احتياطيّ</b> للأصداف بلا تكامل OSC 133:
+    /// عودة الموجّه الجاهز تعني «انتهى»، وبلا رمز خروج نعدّه نجاحاً (وهو عين اصطلاح المحرّك:
+    /// كتلة بلا رمز تُغلَق ناجحة). مع التكامل يسبقه <see cref="TrackLongCommandBlocks"/> برمز الخروج الدقيق
+    /// فلا يصل هذا المسار إلى شيء (الحالة لم تعد Running).
+    /// </summary>
+    private void UpdateRunStateFromPrompt(ScreenSnapshot snap)
+    {
+        if (RunState != TerminalRunState.Running) return;
+        if (!IsAtShellPrompt(snap)) return;
+        if (LastContentAbs(snap) <= _runStartAbs) return;   // ما زال الموجّه القديم نفسه ← لم يبدأ بعد
+        FinishTiming(null);                     // بلا تكامل الصدفة لا رمز خروج ← مدّة فقط
+        SetRunState(TerminalRunState.Success);
+    }
+
     // ===== الإكمال التلقائيّ الشبحيّ (T-205): تتبّع تقريبيّ لسطر الإدخال الحاليّ =====
     // التيرمنال خام (الصدفة تملك تحرير السطر)، فنتتبّع الإدخال محلّياً ونكون محافظين:
     // أيّ غموض في الحالة يمسح السطر والشبح (شبحٌ خاطئ أسوأ من لا شبح).
     private readonly StringBuilder _inputLine = new();
+
+    /// <summary>آخر سطر كُتب داخل الشبكة وأُرسِل بـEnter — يُقرأ بعد مسح التتبّع.</summary>
+    private string _lastTypedLine = "";
 
     // ===== صندوق التأليف (نمط Warp — الخيار B) =====
     // صندوق WPF منفصل يُكتب فيه الأمر ثمّ يُرسَل عند Enter. يظهر على الشاشة الأساس فقط ويختفي في
@@ -311,14 +402,18 @@ public partial class TerminalTabView : UserControl
             // مجلّد العمل: بروفايل الصدفة يتجاوز مسار الأمر المحفوظ إن حُدِّد (T-101.5).
             string workDir = NormalizeWorkDir(!string.IsNullOrWhiteSpace(shell.WorkingDirectory)
                 ? shell.WorkingDirectory! : (_entry.Path ?? ""));
+            // سطر التشغيل يمرّ على جسر الأسماء المستعارة: يُضاف إليه ما يُحمّلها داخل الصدفة نفسها،
+            // فتعمل حتّى حين تُكتب في الشبكة مباشرةً لا في صندوق الإدخال.
+            string commandLine = Services.Aliases.ShellAliasBridge.Decorate(shell.CommandLine);
             // متغيّرات البيئة: تُضبَط على بيئة العمليّة قبل الإطلاق (يرثها ابن ConPTY) ثم تُستعاد.
             using (ApplyProfileEnvironment(shell.EnvironmentVariables))
-                _coreSession.Start(shell.CommandLine, workDir, cols, rows);
+                _coreSession.Start(commandLine, workDir, cols, rows);
             _pid = _coreSession.ProcessId;
             _startTime = DateTime.Now;
             _endTime = null;
-            _statusTimer.Start();
-            RefreshRunningStatus();
+            // لا مؤقّت ولا نصّ حالة عند فتح الجلسة: لم يُنفّذ شيء بعد، فعدّادٌ يركض على تيرمنال ساكن
+            // يقول شيئاً غير صحيح. المؤقّت يبدأ مع أوّل أمر (MarkCommandStarted) ويقف عند انتهائه.
+            SetStatus("");
         }
         catch (Exception ex)
         {
@@ -387,15 +482,33 @@ public partial class TerminalTabView : UserControl
 
         if (Interlocked.Exchange(ref _commandSent, 1) == 0)
         {
-            // أمر المشروع قد يكون متعدّد الخطوات (سطر لكلّ خطوة) — تُنفَّذ بالتوالي.
-            foreach (var raw in (_entry.Command ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
-            {
-                var step = raw.Trim();
-                if (step.Length == 0) continue;
-                lock (_screenLock) _coreScreen?.BeginHeuristicCommand(step);
-                _coreSession?.Write(step + _newline);
-                RecordHistory(step);   // التقاط الأمر المُنفَّذ (T-106)
-            }
+            string script = _entry.Command ?? "";
+            if (script.Trim().Length == 0) return;
+
+            // نحن على خيط الـPTY؛ وطبقة الأسماء المستعارة قد تفتح حوار تأكيد أو تنبيهاً —
+            // فالتنفيذ يُحوَّل إلى خيط الواجهة. التأخير إطارٌ واحد لا يُلحَظ.
+            Dispatcher.BeginInvoke(new Action(() => RunPendingScript(script)));
+        }
+    }
+
+    /// <summary>
+    /// ينفّذ الأمر المرافق للتبويب عند أوّل بايت يصل من الصدفة (أمر مشروع أو جلسة مستعادة).
+    /// قد يكون متعدّد الخطوات (سطر لكلّ خطوة) — تُنفَّذ بالتوالي، وكلّ خطوة تمرّ على طبقة
+    /// الأسماء المستعارة أوّلاً.
+    /// </summary>
+    private void RunPendingScript(string script)
+    {
+        foreach (var raw in script.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
+        {
+            var step = raw.Trim();
+            if (step.Length == 0) continue;
+            RecordHistory(step);   // التقاط الأمر المُنفَّذ (T-106)
+            if (TryRunAlias(step)) continue;
+
+            lock (_screenLock) _coreScreen?.BeginHeuristicCommand(step);
+            MarkCommandStarted();
+            NoteLaunch(step);
+            Send(step + _newline);
         }
     }
 
@@ -449,6 +562,7 @@ public partial class TerminalTabView : UserControl
 
         CaptureCompletedBlockCommand(snap);    // التقاط أوامر كتل OSC 133 المكتملة (T-106)
         TrackLongCommandBlocks(snap);          // إشعار انتهاء الأوامر الطويلة (T-211)
+        UpdateRunStateFromPrompt(snap);        // نقطة رأس التبويب: احتياطيّ الأصداف بلا تكامل OSC 133
 
         // التطبيق يملك سطره (شاشة بديلة أو لصق مُقوَّس) ⇒ تتبّعنا غير موثوق ⇒ نظّف السطر والشبح
         // فوراً (T-205). بلا هذا يبقى الشبح مرسوماً فوق واجهة التطبيق ولا يستطيع محوَه.
@@ -586,53 +700,40 @@ public partial class TerminalTabView : UserControl
     }
 
     /// <summary>
-    /// يُظهر صندوق التأليف فقط حين تكون الصدفة <b>عند موجّه جاهز</b>؛ ويخفيه متى عمل أمر تفاعليّ
-    /// (claude/الوكيل/less/vim/أيّ برنامج يقرأ الإدخال بنفسه) فتصير الشبكة هي الإدخال تلقائياً —
-    /// فيتوافق مع تلك الأدوات. الإخفاء اليدويّ بـ Esc يبقى محترَماً.
+    /// آخر أمر أُرسِل كان برنامجاً تفاعليّاً (وكيل/محرّر/ssh…) ولم تعد الصدفة لموجّهها بعد.
+    /// يُصفَّر فور عودة الموجّه — انظر <see cref="UpdateComposerVisibility"/>.
     /// </summary>
-    private DispatcherTimer? _composerHideTimer;
+    private bool _interactiveRunning;
 
+    /// <summary>
+    /// يُبقي صندوق التأليف <b>ظاهراً أثناء تنفيذ الأوامر العاديّة</b>، ولا يخفيه إلّا لسببٍ قاطع:
+    /// شاشة بديلة (vim/less)، أو برنامج تفاعليّ معروف (<see cref="Services.InteractivePrograms"/>)،
+    /// أو إطفاءٌ من الإعدادات، أو إخفاءٌ يدويّ بـEsc.
+    ///
+    /// <para><b>لماذا تغيّر:</b> كان الشرط «أظهره فقط عند موجّه جاهز»، فيختفي مع كلّ <c>build</c> أو
+    /// اختبار طويل — فلا مكان للكتابة ولا سبيل لإيقاف التنفيذ بـ<c>Ctrl+C</c> من الصندوق. والوكيل
+    /// التفاعليّ يحتاج الإخفاء فعلاً (المساحة وكلّ ضغطة مفتاح)، وهو ما تكشفه القائمة لا شكلُ الشاشة.</para>
+    /// </summary>
     private void UpdateComposerVisibility()
     {
         bool altScreen = _lastSnapshot?.AltScreen ?? false;
-        bool wantShow = _composerEnabled && IsAtShellPrompt(_lastSnapshot) && !_composerSuppressReshow;
 
-        if (wantShow)
-        {
-            CancelComposerHide();
-            SetComposerShown(true);
-        }
-        else if (altScreen || !_composerEnabled || _composerSuppressReshow)
-        {
-            CancelComposerHide();      // إشارة قاطعة (شاشة بديلة/معطّل/Esc) ⇒ إخفاء فوريّ
-            SetComposerShown(false);
-        }
-        else
-        {
-            // ليس عند موجّه لكن ليس شاشة بديلة (أمر يعمل): إخفاء مؤجّل ~٣٥٠مي يتفادى وميض
-            // الأوامر السريعة (ls) ويُخفيه فعلاً للأدوات التفاعليّة الطويلة (claude/الوكيل).
-            ScheduleComposerHide();
-        }
+        // عودة الموجّه = خرج البرنامج التفاعليّ (لا يوجد إشعار خروج في تيرمنال خام).
+        if (IsAtShellPrompt(_lastSnapshot)) _interactiveRunning = false;
+
+        bool hide = !_composerEnabled || _composerSuppressReshow || altScreen || _interactiveRunning;
+        SetComposerShown(!hide);
     }
 
-    private void ScheduleComposerHide()
+    /// <summary>
+    /// يسجّل ما إذا كان السطر المُرسَل يشغّل برنامجاً تفاعليّاً، ويحدّث ظهور الصندوق فوراً —
+    /// فالإخفاء يحدث لحظة تشغيل الوكيل لا بعد أن يرسم شاشته.
+    /// </summary>
+    private void NoteLaunch(string commandLine)
     {
-        if (ComposerBar.Visibility != Visibility.Visible || _composerHideTimer != null) return;
-        _composerHideTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        { Interval = TimeSpan.FromMilliseconds(350) };
-        _composerHideTimer.Tick += (_, _) =>
-        {
-            CancelComposerHide();
-            if (!(_composerEnabled && IsAtShellPrompt(_lastSnapshot) && !_composerSuppressReshow))
-                SetComposerShown(false);
-        };
-        _composerHideTimer.Start();
-    }
-
-    private void CancelComposerHide()
-    {
-        _composerHideTimer?.Stop();
-        _composerHideTimer = null;
+        if (!Services.InteractivePrograms.IsInteractive(commandLine)) return;
+        _interactiveRunning = true;
+        UpdateComposerVisibility();
     }
 
     /// <summary>يُظهر/يخفي صندوق التأليف فعليّاً (مع التركيز ومؤشّر الشبكة).</summary>
@@ -772,12 +873,15 @@ public partial class TerminalTabView : UserControl
     /// <summary>
     /// يبني الاقتراحات <b>حسب دلالة الأمر لا حسب الذاكرة فقط</b>:
     /// <list type="bullet">
-    /// <item>الكلمة الأولى ⇒ أوامر الكتالوج (حسب الصدفة) + تاريخ الجلسة/السجلّ.</item>
+    /// <item>الكلمة الأولى ⇒ الأسماء المستعارة + أوامر الكتالوج (حسب الصدفة) + التاريخ.</item>
+    /// <item>الكلمة الأولى وهي <b>أمرٌ تامّ يأخذ وسيطاً</b> (<c>cd</c>) ⇒ وسائطه فوراً بلا انتظار
+    /// مسافة: من كتب <c>cd</c> يريد قائمة المجلدات لا قائمة الأوامر التي تبدأ بـ<c>cd</c>.</item>
     /// <item>بعد الأمر ⇒ ما يقبله الأمر فعلاً: <c>cd</c> ⇒ مجلدات فقط · <c>cat/vim</c> ⇒ ملفات ·
     /// <c>git checkout</c> ⇒ فروع · <c>npm run</c> ⇒ سكربتات package.json · <c>kill</c> ⇒ عمليّات ·
     /// وسيط يبدأ بـ <c>-</c> ⇒ خيارات الأمر · أمر مركَّب بلا فرعيّ ⇒ أوامره الفرعيّة.</item>
     /// </list>
-    /// الاقتراحات الدلاليّة تتصدّر دائماً، والتاريخ يأتي بعدها (لا يزاحمها).
+    /// الاقتراحات الدلاليّة تتصدّر دائماً، والتاريخ يأتي بعدها <b>محدوداً</b> بـ
+    /// <see cref="MaxHistorySuggestions"/> كي لا يبتلع القائمة.
     /// </summary>
     private List<ComposerSuggestion> BuildSuggestions(string text)
     {
@@ -799,7 +903,14 @@ public partial class TerminalTabView : UserControl
 
         if (sp < 0)
         {
-            // ===== موضع الأمر: كتالوج الأوامر أوّلاً (البادئة تسبق التطابق الجزئيّ) =====
+            // الكلمة المكتوبة أمرٌ تامّ يأخذ وسيطاً ⇒ وسائطه تتصدّر (السلوك المتوقَّع لـ«cd»).
+            var exact = Services.CommandCatalog.Find(fam, frag);
+            if (exact is not null && (exact.Arg != Services.ArgKind.None || exact.Subs is { Length: > 0 }))
+                AddArgumentSuggestions(Add, fam, frag + " ", "", exact, sub: null);
+
+            // ===== موضع الأمر: الأسماء المستعارة ثمّ الكتالوج (البادئة تسبق التطابق الجزئيّ) =====
+            AddAliases(Add, frag);
+
             var partial = new List<ComposerSuggestion>();
             foreach (var spec in Services.CommandCatalog.All(fam))
             {
@@ -826,19 +937,41 @@ public partial class TerminalTabView : UserControl
         for (int i = ci + 1; i < toks.Length; i++)
             if (!toks[i].StartsWith("-") && !toks[i].StartsWith("/")) { sub = toks[i]; break; }
 
+        AddArgumentSuggestions(Add, fam, head, frag, cmdSpec, sub);
+        AddHistory(Add, text);
+        return result;
+    }
+
+    /// <summary>
+    /// يضيف <b>ما يقبله الأمر فعلاً</b> في موضع الوسيط: خياراته حين يبدأ الوسيط بشرطة، ثمّ أوامره
+    /// الفرعيّة إن كان مركَّباً ولم يُكتَب فرعيّ، ثمّ الوسيط المناسب لعمله (مجلدات/ملفات/فروع/سكربتات/عمليّات).
+    ///
+    /// <para><b>الأمر المجهول لا يفرغ المجلد:</b> حين لا يعرف الكتالوج الأمر ولم يُكتَب جزءُ مسار بعد،
+    /// لا تُسرَد محتويات المجلد كلّها — عشرون ملفّاً بلا صلة تدفن الاقتراح المفيد. أوّل حرف يُكتب
+    /// يُعيد السرد مُرشَّحاً.</para>
+    /// </summary>
+    private void AddArgumentSuggestions(
+        Action<string, string, string, string> add,
+        Services.CommandCatalog.Family fam,
+        string head,
+        string frag,
+        Services.CommandSpec? cmdSpec,
+        string? sub)
+    {
         // خيارات الأمر حين يبدأ الوسيط بشرطة.
         if (frag.StartsWith("-") && cmdSpec?.Flags is { Length: > 0 } flags)
         {
             foreach (var f in flags)
                 if (f.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                    Add(head + f, "⚙", Services.Loc.T("sug.flag"));
+                    add(head + f, "⚙", Services.Loc.T("sug.flag"), "");
+            return;   // يكتب خياراً ⇒ لا معنى لسرد الملفّات فوقه
         }
 
         // أوامر فرعيّة (git · npm · docker …) ما دام لم يُكتَب فرعيّ بعد.
         if (sub == null && cmdSpec?.Subs is { Length: > 0 } subs)
             foreach (var s in subs)
                 if (s.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                    Add(head + s + " ", "▸", Services.Loc.T("sug.subcommand"), cmdSpec.Desc.Text);
+                    add(head + s + " ", "▸", Services.Loc.T("sug.subcommand"), cmdSpec.Desc.Text);
 
         // الوسيط المناسب لعمل الأمر.
         var kind = cmdSpec?.ArgFor(sub) ?? Services.ArgKind.Any;
@@ -846,67 +979,104 @@ public partial class TerminalTabView : UserControl
         {
             case Services.ArgKind.Directory:
                 if (frag.Length == 0 || "..".StartsWith(frag, StringComparison.Ordinal))
-                    Add(head + "..", "📁", Services.Loc.T("sug.folder"));
-                foreach (var s in PathCompletions(head, frag, dirsOnly: true)) Add(s, "📁", Services.Loc.T("sug.folder"));
+                    add(head + "..", "📁", Services.Loc.T("sug.folder"), "");
+                foreach (var s in PathCompletions(head, frag, dirsOnly: true))
+                    add(s, "📁", Services.Loc.T("sug.folder"), "");
                 break;
 
             case Services.ArgKind.File:
             case Services.ArgKind.Any:
+                if (cmdSpec is null && frag.Length == 0) break;   // أمر مجهول بلا جزء مسار ⇒ لا سرد
                 foreach (var (t, isDir) in PathEntries(head, frag, dirsOnly: false))
-                    Add(t, isDir ? "📁" : "📄",
-                        Services.Loc.T(isDir ? "sug.folder" : "sug.file"));
+                    add(t, isDir ? "📁" : "📄",
+                        Services.Loc.T(isDir ? "sug.folder" : "sug.file"), "");
                 break;
 
             case Services.ArgKind.GitRef:
                 foreach (var r in GitRefs())
                     if (r.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                        Add(head + r, "⑂", Services.Loc.T("sug.branch"));
+                        add(head + r, "⑂", Services.Loc.T("sug.branch"), "");
                 foreach (var (t, isDir) in PathEntries(head, frag, dirsOnly: false))
-                    Add(t, isDir ? "📁" : "📄", Services.Loc.T(isDir ? "sug.folder" : "sug.file"));
+                    add(t, isDir ? "📁" : "📄", Services.Loc.T(isDir ? "sug.folder" : "sug.file"), "");
                 break;
 
             case Services.ArgKind.NpmScript:
                 foreach (var (name, cmd) in NpmScripts())
                     if (name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                        Add(head + name, "▶", Services.Loc.T("sug.script"), cmd);
+                        add(head + name, "▶", Services.Loc.T("sug.script"), cmd);
                 break;
 
             case Services.ArgKind.Command:
                 foreach (var spec in Services.CommandCatalog.All(fam))
                     if (spec.Name.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                        Add(head + spec.Name + " ", "⌘", Services.Loc.T("sug.command"), spec.Desc.Text);
+                        add(head + spec.Name + " ", "⌘", Services.Loc.T("sug.command"), spec.Desc.Text);
                 break;
 
             case Services.ArgKind.Process:
                 foreach (var p in RunningProcesses())
                     if (p.StartsWith(frag, StringComparison.OrdinalIgnoreCase))
-                        Add(head + p, "⏻", Services.Loc.T("sug.process"));
+                        add(head + p, "⏻", Services.Loc.T("sug.process"), "");
                 break;
         }
+    }
 
-        AddHistory(Add, text);
-        return result;
+    /// <summary>
+    /// يضيف الأسماء المستعارة المطابقة للبادئة في موضع الأمر — فهي أوامرُ هذا التطبيق الحقيقيّة،
+    /// ولا يعرفها الكتالوج ولا التاريخ قبل أوّل استعمال. الوصف يقول ما تفعله (أو أوامرها).
+    /// </summary>
+    private void AddAliases(Action<string, string, string, string> add, string frag)
+    {
+        string shell = CurrentShellName() ?? "";
+        string kind = Services.Loc.T("sug.alias");
+
+        foreach (var alias in Services.Aliases.AliasStore.Shared.All())
+        {
+            if (!alias.Enabled) continue;
+            if (!alias.Name.StartsWith(frag, StringComparison.OrdinalIgnoreCase)) continue;
+            // الاسم المقيَّد بصدفة لا يعمل في غيرها — واقتراحه فيها كذبٌ صريح.
+            if (alias.Shell.Length > 0 && shell.IndexOf(alias.Shell, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            string desc = alias.Description.Length > 0
+                ? alias.Description
+                : string.Join(" · ", alias.Commands);
+            add(alias.Variables.Count > 0 ? alias.Name + " " : alias.Name, "⚡", kind, desc);
+        }
     }
 
     /// <summary>أغلفة تُنفِّذ أمراً آخر — يُتخطّى اسمها لاستنتاج الأمر الحقيقيّ.</summary>
     private static bool IsWrapper(string t) =>
         t is "sudo" or "time" or "watch" or "xargs" or "env" or "nohup" or "doas";
 
+    /// <summary>
+    /// أقصى عدد مدخلات تاريخ في القائمة. بلا سقفٍ يملأ التاريخُ الاثني عشر موضعاً كلّها بصيغ
+    /// متقاربة لأمرٍ واحد، فتُدفَن الاقتراحات الدلاليّة التي هي بيت القصيد.
+    /// </summary>
+    private const int MaxHistorySuggestions = 4;
+
     /// <summary>يضيف مطابقات التاريخ (الجلسة ثمّ السجلّ العامّ) بعد الاقتراحات الدلاليّة.</summary>
     private void AddHistory(Action<string, string, string, string> add, string text)
     {
         string kind = Services.Loc.T("sug.history");
-        for (int i = _sessionCommands.Count - 1; i >= 0; i--)
+        int n = 0;
+
+        for (int i = _sessionCommands.Count - 1; i >= 0 && n < MaxHistorySuggestions; i--)
         {
             var c = _sessionCommands[i].Trim();
-            if (c.StartsWith(text, StringComparison.OrdinalIgnoreCase)) add(c, "🕘", kind, "");
+            if (!c.StartsWith(text, StringComparison.OrdinalIgnoreCase)) continue;
+            add(c, "🕘", kind, "");
+            n++;
         }
+
         try
         {
             foreach (var c in _history.Recent(200))
             {
+                if (n >= MaxHistorySuggestions) break;
                 var t = c.Trim();
-                if (t.StartsWith(text, StringComparison.OrdinalIgnoreCase)) add(t, "🕘", kind, "");
+                if (!t.StartsWith(text, StringComparison.OrdinalIgnoreCase)) continue;
+                add(t, "🕘", kind, "");
+                n++;
             }
         }
         catch { /* السجلّ غير متاح — الاقتراحات الدلاليّة تكفي */ }
@@ -1336,12 +1506,21 @@ public partial class TerminalTabView : UserControl
                 break;
 
             case Key.C when ctrl:
-                if (ComposerInput.SelectionLength == 0)
+                if (ComposerInput.SelectionLength > 0) break;   // تحديد ⇒ نسخ عاديّ
+
+                // أمرٌ يعمل ⇒ مقاطعته (0x03). هذا هو <b>سبب</b> بقاء الصندوق ظاهراً أثناء التنفيذ:
+                // بلا هذا يبقى Ctrl+C يمسح صندوقاً فارغاً بينما البناء الطويل يمضي بلا مقاطع.
+                if (RunState == TerminalRunState.Running)
+                {
+                    Send("\x03");
+                    Renderer.ScrollOffset = 0;
+                }
+                else
                 {
                     ComposerInput.Clear();
                     _histIndex = -1;
-                    e.Handled = true;
                 }
+                e.Handled = true;
                 break;
 
             case Key.L when ctrl:
@@ -1432,6 +1611,8 @@ public partial class TerminalTabView : UserControl
 
         // بديل الكتلة الاستدلاليّ: بدء كتلة أمر جديدة (يُتجاهَل تحت OSC 133 الحقيقيّ).
         lock (_screenLock) _coreScreen?.BeginHeuristicCommand(trimmed);
+        MarkCommandStarted();
+        NoteLaunch(trimmed);
 
         // متعدّد الأسطر ⇒ Bracketed Paste كي تتلقّاه الصدفة كنصّ واحد لا كأوامر منفصلة، ثمّ سطر تنفيذ.
         if (text.Contains('\n'))
@@ -1452,14 +1633,40 @@ public partial class TerminalTabView : UserControl
     /// يوسّع اسماً مستعاراً ويرسل أوامره. يعيد <c>false</c> إن لم تكن أوّل كلمة اسماً مستعاراً
     /// معروفاً — فيمضي السطر إلى الصدفة كما كُتب.
     ///
-    /// <para>الاسم الناقصة متغيّراتُه <b>يُوقَف</b> برسالة تسمّي الناقص: إرسال أمر نصفه فارغ إلى
-    /// الصدفة يعطي خطأ صياغة غامضاً بدل أن يقول «ينقصك رسالة الكومِت».</para>
+    /// <para><b>طبقة لا ميزة صندوق:</b> كلّ ما يدخل الصدفة من التطبيق يمرّ من هنا — صندوق التأليف،
+    /// و<see cref="RunCommand"/> (أوامر المشاريع ولوحة الأوامر)، وأمرُ التبويب الأوّل. فالاسم
+    /// المستعار يعمل أينما نُفِّذ الأمر لا في مكان واحد.</para>
     /// </summary>
     private bool TryRunAlias(string line)
     {
+        IReadOnlyList<string>? commands = ExpandAlias(line);
+        if (commands is null) return false;     // ليس اسماً مستعاراً — يمضي إلى الصدفة كما هو
+        if (commands.Count == 0) return true;   // تولّته الطبقة ومنعته (نقص متغيّر أو إلغاء تأكيد)
+
+        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(commands[0]);
+        MarkCommandStarted();
+        foreach (string command in commands) NoteLaunch(command);
+        foreach (string command in commands) Send(command + _newline);
+
+        ClearInputTracking();
+        Renderer.ScrollOffset = 0;
+        return true;
+    }
+
+    /// <summary>
+    /// يوسّع سطراً إن كانت أوّل كلمة فيه اسماً مستعاراً معروفاً في هذه الصدفة.
+    ///
+    /// <para>يعيد <c>null</c> إن لم يكن اسماً (فيمضي السطر كما هو)، وقائمةً <b>فارغة</b> إن كان
+    /// اسماً لكنّه مُنع: الاسم الناقصة متغيّراتُه يُوقَف برسالة تسمّي الناقص — إرسال أمر نصفه فارغ
+    /// إلى الصدفة يعطي خطأ صياغة غامضاً بدل أن يقول «ينقصك رسالة الكومِت».</para>
+    ///
+    /// <para>يُستدعى على خيط الواجهة وحده: قد يفتح حوار تأكيد أو يعرض تنبيهاً.</para>
+    /// </summary>
+    private IReadOnlyList<string>? ExpandAlias(string line)
+    {
         Services.Aliases.CommandAlias? alias = Services.Aliases.AliasStore.Shared.Find(
             Services.Aliases.AliasExpander.HeadWord(line), CurrentShellName());
-        if (alias is null) return false;
+        if (alias is null) return null;
 
         List<string> args = Services.Aliases.AliasExpander.SplitArguments(line);
         if (args.Count > 0) args.RemoveAt(0);   // اسم الاسم المستعار نفسه ليس وسيطاً
@@ -1472,7 +1679,7 @@ public partial class TerminalTabView : UserControl
                 expansion.MissingVariable is null
                     ? Services.Loc.T("alias.errEmpty")
                     : string.Format(Services.Loc.T("alias.errMissing"), expansion.MissingVariable));
-            return true;   // تولّينا السطر: إرساله كما هو سيفشل بلا تفسير
+            return Array.Empty<string>();
         }
 
         if (alias.ConfirmBeforeRun)
@@ -1483,15 +1690,10 @@ public partial class TerminalTabView : UserControl
                 (Services.Loc.T("alias.run"), "run", Views.DialogButtonKind.Accent),
                 (Services.Loc.T("ai.prev.cancel"), "cancel", Views.DialogButtonKind.Neutral));
 
-            if (choice != "run") return true;
+            if (choice != "run") return Array.Empty<string>();
         }
 
-        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(expansion.Commands[0]);
-        foreach (string command in expansion.Commands) Send(command + _newline);
-
-        ClearInputTracking();
-        Renderer.ScrollOffset = 0;
-        return true;
+        return expansion.Commands;
     }
 
     /// <summary>يملأ الصندوق من تاريخ الجلسة (سهم أعلى=أقدم). يعيد false إن لا تنقّل ممكن.</summary>
@@ -1569,6 +1771,8 @@ public partial class TerminalTabView : UserControl
         _endTime = DateTime.Now;
         var brush = (Brush)FindResource(exitCode == 0 ? "Brush.Success" : "Brush.Danger");
         SetStatus($"انتهى · رمز {exitCode} · ⏱ {Elapsed()}", brush);
+        // انتهت الجلسة نفسها (خرجت الصدفة): رمز خروجها هو الحكم النهائيّ على نقطة رأس التبويب.
+        SetRunState(exitCode == 0 ? TerminalRunState.Success : TerminalRunState.Failed);
     });
 
     private void ResizeSession()
@@ -1753,6 +1957,14 @@ public partial class TerminalTabView : UserControl
             }
             else if (_runningBlocks.Remove(b.StartLine, out var done))
             {
+                // مع تكامل OSC 133: إغلاق الكتلة يحمل رمز الخروج الحقيقيّ ← نجاح/فشل دقيق.
+                // الشرط Running يمنع أن تُلوّن النقطةَ كتلةٌ فُتحت عند موجّه خامل بلا أمر أصلاً.
+                if (RunState == TerminalRunState.Running)
+                {
+                    FinishTiming(b.ExitCode);
+                    SetRunState(b.State == BlockState.Failed ? TerminalRunState.Failed : TerminalRunState.Success);
+                }
+
                 NotifyCommandFinished(b, System.Diagnostics.Stopwatch.GetElapsedTime(done.StartedAt),
                                       done.SawAlt || snap.AltScreen);
             }
@@ -2118,8 +2330,10 @@ public partial class TerminalTabView : UserControl
         // Enter: «التعلّم» — سجّل السطر المتتبَّع (إن كان غير فارغ) قبل مسحه، ثمّ نظّف الشبح.
         else if (key == Key.Enter)
         {
-            string typed = _inputLine.ToString().Trim();
-            if (typed.Length > 0) RecordHistory(typed);
+            // يُحفَظ لأنّ ClearInputTracking أدناه يفرغ السطر قبل أن يصل إليه فحصُ البرنامج
+            // التفاعليّ في نهاية هذا المعالج.
+            _lastTypedLine = _inputLine.ToString().Trim();
+            if (_lastTypedLine.Length > 0) RecordHistory(_lastTypedLine);
             ClearInputTracking();
         }
         // مفاتيح تجعل التتبّع غير موثوق ⇒ نظّف السطر والشبح (ثمّ عالِج المفتاح كالمعتاد أدناه).
@@ -2172,7 +2386,11 @@ public partial class TerminalTabView : UserControl
         {
             // بديل استدلاليّ: إرسال أمر بـ Enter يبدأ كتلة جديدة (يُتجاهَل تحت OSC 133 أو الشاشة البديلة).
             if (key == Key.Enter)
+            {
                 lock (_screenLock) _coreScreen?.BeginHeuristicCommand("");
+                MarkCommandStarted();
+                NoteLaunch(_lastTypedLine);   // الكتابة داخل الشبكة مباشرةً
+            }
             Send(seq);
             e.Handled = true;
         }
@@ -2251,15 +2469,24 @@ public partial class TerminalTabView : UserControl
     }
 
     /// <summary>
-    /// يكتب أمراً كاملاً وينفّذه في الجلسة الحيّة (يُستدعى من «لوحة أوامر المشروع»): يفتح كتلة استدلاليّة،
-    /// يكتب الأمر متبوعاً بفاصل السطر، يلتقطه في التاريخ (T-106)، ويعيد التركيز للتيرمنال.
+    /// يكتب أمراً كاملاً وينفّذه في الجلسة الحيّة (يُستدعى من «لوحة أوامر المشروع» ولوحة الأوامر):
+    /// يمرّره على طبقة الأسماء المستعارة، ثمّ يفتح كتلة استدلاليّة، يكتبه متبوعاً بفاصل السطر،
+    /// يلتقطه في التاريخ (T-106)، ويعيد التركيز للتيرمنال.
     /// </summary>
     public void RunCommand(string command)
     {
         if (string.IsNullOrWhiteSpace(command)) return;
-        lock (_screenLock) _coreScreen?.BeginHeuristicCommand(command);
-        _coreSession?.Write(command + _newline);
-        RecordHistory(command);
+        string step = command.Trim();
+        RecordHistory(step);
+
+        if (!TryRunAlias(step))
+        {
+            lock (_screenLock) _coreScreen?.BeginHeuristicCommand(step);
+            MarkCommandStarted();
+            NoteLaunch(step);
+            Send(step + _newline);
+        }
+
         FocusTerminal();
     }
 

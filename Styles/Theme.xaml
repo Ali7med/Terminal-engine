@@ -481,6 +481,34 @@
         </Setter>
     </Style>
 
+    <!-- ========== زرّ الإجراء البارز في شريط العنوان ==========
+         «تيرمنال جديد» هو الفعل الأوّل في التطبيق، وبأيقونة مكتومة بين أيقونات مكتومة لا يُرى.
+         حبّة ممتلئة بلون اللكنة تجعله أوضح عنصر في الشريط بلا أن يزيد حجمه. -->
+    <Style x:Key="ChromeAccentButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.OnAccent}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}"
+                            Background="{DynamicResource Brush.Accent}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.86"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- زرّ نصّيّ بلا كروم: للروابط داخل الأشرطة («افتح المحادثة»، «لا تُظهر ثانيةً»).
          <b>لا يُبنى على ChromeButton</b> — ذاك يفرض خطّ Segoe MDL2 Assets (خطّ أيقونات لا حروف
          فيه)، فأيّ نصّ عربيّ أو لاتينيّ عليه يظهر مربّعات فارغة. -->

@@ -39,6 +39,19 @@ public sealed class AppSettings
     /// </summary>
     public bool UseCommandComposer { get; set; } = true;
 
+    /// <summary>
+    /// أسماء البرامج التفاعليّة التي يختفي لها صندوق الإدخال (مفصولة بفواصل أو أسطر).
+    /// فارغة = القائمة الافتراضيّة في <see cref="TerminalLauncher.Services.InteractivePrograms.Defaults"/>.
+    /// </summary>
+    public string InteractivePrograms { get; set; } = "";
+
+    /// <summary>
+    /// تسجيل الأسماء المستعارة في الصدفة الحقيقيّة (doskey · دالّة PowerShell · دالّة bash)، فتعمل
+    /// حتّى حين تُكتب داخل شبكة التيرمنال مباشرةً. راجع
+    /// <see cref="TerminalLauncher.Services.Aliases.ShellAliasBridge"/>.
+    /// </summary>
+    public bool ShellAliases { get; set; } = true;
+
     /// <summary>مهجور — حارس ترقية قديم (كان يُطفئ الصندوق). يبقى لتوافق قراءة الإعدادات القديمة.</summary>
     public bool InlineInputMigrated { get; set; } = false;
 

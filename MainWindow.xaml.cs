@@ -87,6 +87,10 @@ public partial class MainWindow : Window
 
         _settings = _settingsStore.Load();
         Loc.InitFromCode(_settings.Language);
+        InteractivePrograms.UserList = _settings.InteractivePrograms;   // قبل فتح أيّ تبويب
+        // جسر الصدفة: يولّد ملفّات التسجيل قبل أوّل تيرمنال — تُقرأ عند بدء الصدفة لا بعده.
+        Services.Aliases.ShellAliasBridge.Enabled = _settings.ShellAliases;
+        Services.Aliases.ShellAliasBridge.Refresh();
         if (_settings.SyncThemeWithOs)   // المزامنة تتجاوز الثيم المختار عند الإقلاع
             _settings.ThemePresetId = ThemeManager.DefaultFor(IsOsLightTheme() ? AppThemeMode.Light : AppThemeMode.Dark);
         ThemeManager.Apply(_settings);
@@ -125,7 +129,8 @@ public partial class MainWindow : Window
         Loaded += (_, _) =>
         {
             SplashScreenHost.SetStatus(Loc.T("splash.session"));
-            RestoreSession();
+            // الإطلاق «من مكان» مهمّة عاجلة في مجلد بعينه ⇒ تبويب واحد نظيف بلا تبويبات الأمس.
+            if (!IsQuickLaunch) RestoreSession();
             OpenLaunchFolderTerminal();   // إطلاقٌ «من مكان» (المستكشف/تشغيل) يفتح تبويباً هناك
             ApplyBackground();
         };
@@ -235,6 +240,10 @@ public partial class MainWindow : Window
         _syncingUi = true;
         SyncOsCheck.IsChecked = _settings.SyncThemeWithOs;
         ComposerCheck.IsChecked = _settings.UseCommandComposer;
+        InteractiveBox.Text = _settings.InteractivePrograms.Length > 0
+            ? _settings.InteractivePrograms
+            : InteractivePrograms.Defaults;
+        ShellAliasCheck.IsChecked = _settings.ShellAliases;
         UpdateThemeSelection();
 
         FontSizeSlider.Value = _settings.TerminalFontSize;
@@ -962,6 +971,22 @@ public partial class MainWindow : Window
                     view.ComposerEnabled = _settings.UseCommandComposer;
     }
 
+    /// <summary>
+    /// قائمة البرامج التي يختفي لها صندوق الإدخال. تُحفَظ عند مغادرة الحقل لا مع كلّ حرف —
+    /// وحفظُ ما يطابق الافتراضيّ يُخزَّن فارغاً كي تصل تحديثات القائمة الافتراضيّة لمن لم يخصّص.
+    /// </summary>
+    private void InteractiveBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+
+        string text = InteractiveBox.Text.Trim();
+        _settings.InteractivePrograms =
+            string.Equals(text, InteractivePrograms.Defaults, StringComparison.Ordinal) ? "" : text;
+
+        InteractivePrograms.UserList = _settings.InteractivePrograms;
+        SaveSettings();
+    }
+
     private static Color ParseColor(string hex)
     {
         try { return (Color)ColorConverter.ConvertFromString(hex); }
@@ -1382,7 +1407,8 @@ public partial class MainWindow : Window
         TitleText.Text = Loc.T("app.title");
         SidebarHeader.Text = Loc.T("sidebar.projects");
         SidebarMenuBtn.ToolTip = Loc.T("sidebar.projects");
-        RunBtn.Content = Loc.T("proj.open");
+        RunBtnText.Text = Loc.T("proj.open");
+        RunBtn.ToolTip = Loc.T("proj.openTip");
         HintLine1.Text = Loc.T("hint.title");
         HintLine2.Text = Loc.T("hint.empty");
         HintLine3.Text = Loc.T("hint.palette");
@@ -1568,10 +1594,14 @@ public partial class MainWindow : Window
         if (_quickProject != null && QuickDock.Visibility == Visibility.Visible) BuildQuickDock();
     }
 
+    /// <summary>
+    /// زرّ أسفل لوحة المشاريع: يفتح <b>تيرمنالاً جديداً</b> على باث المشروع المحدَّد — وتيرمنالاً
+    /// فارغاً إن لا مشروع محدَّداً. (لوحة أوامر المشروع تُفتح بالنقر المزدوج على اسمه.)
+    /// </summary>
     private void RunButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is { } proj) OpenQuickDock(proj.Name);
-        else ShowAlert("تنبيه", "اختر مشروعاً من القائمة أولاً.");
+        if (Selected is { Folder.Length: > 0 } proj) OpenProjectInNewTab(proj);
+        else OpenEmptyTerminal();
     }
 
     private void EntriesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1997,12 +2027,16 @@ public partial class MainWindow : Window
         return chip;
     }
 
-    /// <summary>صفّ أمر: أيقونة تشغيل + الاسم + شارة عدد الخطوات + تعديل/حذف؛ النقر ينفّذه (تنفيذ ذكيّ).</summary>
+    /// <summary>
+    /// صفّ أمر: أيقونة تشغيل + الاسم + شارة عدد الخطوات + تيرمنال/تعديل/حذف.
+    /// النقر على الصفّ يفتح تيرمنالاً جديداً وينفّذ خطواته؛ أيقونة التيرمنال تفتحه بلا تنفيذ.
+    /// </summary>
     private Border MakeCommandRow(ProjectCommand cmd, Color color, Project proj)
     {
         var top = new Grid();
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -2041,13 +2075,25 @@ public partial class MainWindow : Window
             top.Children.Add(badge);
         }
 
+        // «افتح تيرمنالاً على باث الأمر بلا تنفيذ» — الحاجة الثانية بعد التنفيذ: تصل إلى مكان
+        // العمل الصحيح ثمّ تكتب ما تشاء بنفسك (تفحص، تعدّل الأمر، توقفه قبل أن يبدأ).
+        var term = new TextBlock
+        {
+            Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = (Brush)FindResource("Brush.TextMuted"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0),
+            Cursor = Cursors.Hand, Opacity = 0, ToolTip = Loc.T("proj.cmd.terminal"),
+        };
+        Grid.SetColumn(term, 3);
+        term.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; OpenCommandTerminal(proj, cmd); };
+        top.Children.Add(term);
+
         var edit = new TextBlock
         {
             Text = "", FontFamily = Mdl2, FontSize = 11, Foreground = (Brush)FindResource("Brush.TextMuted"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0),
             Cursor = Cursors.Hand, Opacity = 0, ToolTip = Loc.T("proj.cmd.edit"),
         };
-        Grid.SetColumn(edit, 3);
+        Grid.SetColumn(edit, 4);
         edit.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; _addingCmd = false; _editingCmd = cmd; BuildQuickDock(); };
 
         var del = new TextBlock
@@ -2056,7 +2102,7 @@ public partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
             Cursor = Cursors.Hand, Opacity = 0, ToolTip = Loc.T("quick.remove"),
         };
-        Grid.SetColumn(del, 4);
+        Grid.SetColumn(del, 5);
         del.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; ProjectService.RemoveCommand(proj.Name, cmd); };
         top.Children.Add(edit);
         top.Children.Add(del);
@@ -2082,8 +2128,8 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 0, 0, 5),
             Cursor = Cursors.Hand,
         };
-        row.MouseEnter += (_, _) => { row.BorderBrush = new SolidColorBrush(color); edit.Opacity = 1; del.Opacity = 1; };
-        row.MouseLeave += (_, _) => { row.BorderBrush = (Brush)FindResource("Brush.Border"); edit.Opacity = 0; del.Opacity = 0; };
+        row.MouseEnter += (_, _) => { row.BorderBrush = new SolidColorBrush(color); term.Opacity = 1; edit.Opacity = 1; del.Opacity = 1; };
+        row.MouseLeave += (_, _) => { row.BorderBrush = (Brush)FindResource("Brush.Border"); term.Opacity = 0; edit.Opacity = 0; del.Opacity = 0; };
         row.MouseLeftButtonUp += (_, _) => RunProjectCommand(proj, cmd);
         return row;
     }
@@ -2183,36 +2229,69 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// تنفيذ ذكيّ لأمر مشروع: إن كان التيرمنال النشط في فولدر الأمر نفسه ينفّذ خطواته فيه؛ وإلّا يفتح
-    /// تيرمنالاً جديداً في الفولدر (بصدفة المشروع) ويشغّلها. الخطوات تُنفَّذ بالتوالي.
+    /// ينفّذ أمر مشروع في <b>تيرمنال جديد دائماً</b> على الفولدر المحلول (بصدفة المشروع).
+    /// الخطوات تُنفَّذ بالتوالي.
+    ///
+    /// <para><b>لماذا تيرمنال جديد دائماً:</b> كان يعيد استعمال التبويب النشط إن تطابق فولدره،
+    /// فيُلقي الأمر فوق أمرٍ يعمل — أو فوق وكيل تفاعليّ يقرأ الإدخال. النقر على أمر يعني
+    /// «شغّله الآن»، ومكانه الطبيعيّ تبويبه الخاصّ.</para>
     /// </summary>
     private void RunProjectCommand(Project proj, ProjectCommand cmd)
     {
         if (cmd.Steps.Count == 0) return;
-        string folder = !string.IsNullOrWhiteSpace(cmd.Folder) ? cmd.Folder! : proj.Folder;
-        string shell = !string.IsNullOrWhiteSpace(proj.Shell) ? proj.Shell : ShellCatalog.DefaultKey;
 
-        var activeEntry = (TerminalTabs.SelectedItem as TabItem)?.Tag as CommandEntry;
-        var activeView = ActiveContainer?.ActiveView;
-        bool sameFolder = activeView != null && activeEntry != null && PathEquals(activeEntry.Path, folder);
-
-        if (sameFolder)
-            foreach (var step in cmd.Steps) activeView!.RunCommand(step);
-        else
-            OpenTerminal(new CommandEntry
-            {
-                Name = string.IsNullOrWhiteSpace(cmd.Label) ? proj.Name : cmd.Label,
-                Path = folder,
-                Shell = shell,
-                Command = string.Join("\n", cmd.Steps),   // OnCoreData يقسّمها وينفّذها بالتوالي
-            });
+        OpenTerminal(new CommandEntry
+        {
+            Name = string.IsNullOrWhiteSpace(cmd.Label) ? proj.Name : cmd.Label,
+            Path = ResolveCommandFolder(proj, cmd),
+            Shell = !string.IsNullOrWhiteSpace(proj.Shell) ? proj.Shell : ShellCatalog.DefaultKey,
+            Command = string.Join("\n", cmd.Steps),   // OnCoreData يقسّمها وينفّذها بالتوالي
+        });
     }
 
-    /// <summary>مقارنة مسارين بعد التطبيع (فواصل موحّدة، بلا فراغ/شرطة نهائيّة، غير حسّاسة للحالة).</summary>
-    private static bool PathEquals(string? a, string? b)
+    /// <summary>يفتح تيرمنالاً على فولدر الأمر <b>بلا تنفيذ</b> — للاطّلاع أو للعمل اليدويّ هناك.</summary>
+    private void OpenCommandTerminal(Project proj, ProjectCommand cmd)
+        => OpenTerminal(new CommandEntry
+        {
+            Name = string.IsNullOrWhiteSpace(cmd.Label) ? proj.Name : cmd.Label,
+            Path = ResolveCommandFolder(proj, cmd),
+            Shell = !string.IsNullOrWhiteSpace(proj.Shell) ? proj.Shell : ShellCatalog.DefaultKey,
+        });
+
+    /// <summary>
+    /// يحلّ فولدر تنفيذ أمر مشروع:
+    /// <list type="bullet">
+    /// <item>فارغ ⇒ فولدر المشروع (الأب).</item>
+    /// <item>نسبيّ (<c>src\api</c> · <c>.\tools</c>) ⇒ يُدمج فوق فولدر المشروع.</item>
+    /// <item>مؤهَّل بالكامل (<c>D:\x</c> · <c>\\server\x</c>) ⇒ يُستعمَل كما هو ويتجاهل المشروع.</item>
+    /// </list>
+    ///
+    /// <para>الناتج غير الموجود على القرص يُنبَّه عليه ويُرتدّ إلى فولدر المشروع: فتحُ تيرمنال في
+    /// مسار وهميّ يجعل الصدفة تبدأ في مجلد آخر بلا أن يعرف أحد لماذا فشل الأمر.</para>
+    /// </summary>
+    private static string ResolveCommandFolder(Project proj, ProjectCommand cmd)
     {
-        static string N(string? s) => (s ?? "").Trim().Replace('/', '\\').TrimEnd('\\');
-        return string.Equals(N(a), N(b), StringComparison.OrdinalIgnoreCase);
+        string parent = (proj.Folder ?? "").Trim();
+        string own = (cmd.Folder ?? "").Trim().Trim('"').Trim();
+        if (own.Length == 0) return parent;
+
+        string resolved;
+        try
+        {
+            own = Environment.ExpandEnvironmentVariables(own);
+            resolved = Path.IsPathFullyQualified(own)
+                ? Path.GetFullPath(own)
+                : parent.Length > 0 ? Path.GetFullPath(own, parent) : Path.GetFullPath(own);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            resolved = own;   // مسار لا يُحلّ — نمرّره كما هو ليقول الفحص التالي إنّه غير موجود
+        }
+
+        if (Directory.Exists(resolved)) return resolved;
+
+        NotificationService.Warning(proj.Name, string.Format(Loc.T("proj.folderMissing"), own));
+        return Directory.Exists(parent) ? parent : resolved;
     }
 
     /// <summary>«أمر جديد»: يفتح محرّراً فارغاً بأعلى قائمة الأوامر.</summary>
@@ -2696,6 +2775,7 @@ public partial class MainWindow : Window
     {
         var view = new TerminalTabView(entry, () => _store.Save(_entries), ToggleSidebarExpanded,
             _settings.TerminalFontSize, OnTerminalFontSizeChanged, () => _settings.AiAssistantEnabled, sessionId);
+        view.RunStateChanged += OnViewRunStateChanged;   // نقطة حالة التنفيذ في رأس التبويب
         view.ApplyFontSettings(_settings.TerminalFontSize, _settings.FontFamily);   // نوع الخطّ + لون الكتابة الحاليّان
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
         view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
@@ -3077,6 +3157,88 @@ public partial class MainWindow : Window
     private static Border? TabColorDot(TabItem tab)
         => tab.Header is StackPanel p ? p.Children.OfType<Border>().FirstOrDefault() : null;
 
+    // ===== نقطة حالة التنفيذ في رأس التبويب =====
+
+    /// <summary>لون «يعمل الآن». ثابت لا من الثيم: الأزرق هنا إشارة حالة لا لكنة هويّة، ويجب أن يبقى
+    /// مميَّزاً عن لكنة الثيم مهما كانت (ثيمات كثيرة لكنتها حمراء أو خضراء، فتلتبس بالنجاح/الفشل).</summary>
+    private static readonly Brush RunningDotBrush = Frozen(Color.FromRgb(0x3B, 0x82, 0xF6));
+
+    private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+    /// <summary>نقطة الحالة في رأس التبويب (الـEllipse — راجع <see cref="BuildHeader"/>).</summary>
+    private static System.Windows.Shapes.Ellipse? TabStateDot(TabItem tab)
+        => tab.Header is StackPanel p ? p.Children.OfType<System.Windows.Shapes.Ellipse>().FirstOrDefault() : null;
+
+    /// <summary>
+    /// حالة التبويب = خلاصة أجزائه: أيّ جزء يعمل ⇒ «يعمل»، وإلّا أيّ جزء فشل ⇒ «خطأ»، وإلّا أيّ جزء
+    /// انتهى ⇒ «نجاح»، وإلّا لم يبدأ شيء. فالتبويب المقسوم يعكس أسوأ/أحدث ما يجري فيه بنقطة واحدة.
+    /// </summary>
+    private static TerminalRunState AggregateRunState(TerminalPaneContainer container)
+    {
+        var state = TerminalRunState.Idle;
+        foreach (var view in container.AllViews)
+        {
+            if (view.RunState == TerminalRunState.Running) return TerminalRunState.Running;
+            if (view.RunState == TerminalRunState.Failed) state = TerminalRunState.Failed;
+            else if (view.RunState == TerminalRunState.Success && state != TerminalRunState.Failed)
+                state = TerminalRunState.Success;
+        }
+        return state;
+    }
+
+    /// <summary>يحدّث نقطة رأس التبويب المالك للجزء الذي تغيّرت حالته (الأجزاء المفصولة بلا تبويب ⇒ تُتجاهَل).</summary>
+    private void OnViewRunStateChanged(TerminalTabView view)
+    {
+        foreach (var item in TerminalTabs.Items)
+            if (item is TabItem { Content: TerminalPaneContainer c } tab && c.AllViews.Contains(view))
+            {
+                ApplyTabStateDot(tab, AggregateRunState(c));
+                return;
+            }
+    }
+
+    /// <summary>
+    /// يرسم النقطة: زرقاء نابضة أثناء العمل (حركة شفافيّة لا نصّ يتحرّك)، خضراء/حمراء ثابتة عند الانتهاء،
+    /// ومخفيّة إن لم يُنفَّذ شيء بعد. إيقاف الحركة صريحٌ عند كلّ حالة كي لا تبقى نابضةً بعد الانتهاء.
+    /// </summary>
+    private void ApplyTabStateDot(TabItem tab, TerminalRunState state)
+    {
+        if (TabStateDot(tab) is not { } dot) return;
+
+        dot.BeginAnimation(UIElement.OpacityProperty, null);
+        dot.Opacity = 1;
+
+        if (state == TerminalRunState.Idle)
+        {
+            dot.Visibility = Visibility.Collapsed;
+            dot.ToolTip = null;
+            return;
+        }
+
+        dot.Visibility = Visibility.Visible;
+        dot.Fill = state switch
+        {
+            TerminalRunState.Running => RunningDotBrush,
+            TerminalRunState.Failed  => (Brush)FindResource("Brush.Danger"),
+            _                        => (Brush)FindResource("Brush.Success"),
+        };
+        dot.ToolTip = Loc.T(state switch
+        {
+            TerminalRunState.Running => "tab.state.running",
+            TerminalRunState.Failed  => "tab.state.failed",
+            _                        => "tab.state.done",
+        });
+
+        if (state != TerminalRunState.Running) return;
+
+        dot.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1.0, 0.18, TimeSpan.FromMilliseconds(650))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        });
+    }
+
     // ===== التقسيمات (Ctrl+Shift+D عمودي · Ctrl+Shift+E أفقي · Ctrl+W إغلاق الجزء) =====
 
     /// <summary>يقسم الجزء النشط في التبويب النشط (أو يفتح تبويباً جديداً إن لا يوجد).</summary>
@@ -3115,6 +3277,16 @@ public partial class MainWindow : Window
     private StackPanel BuildHeader(string title, out Button closeButton)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
+
+        // نقطة حالة التنفيذ (زرقاء تلمض = يعمل · خضراء = نجاح · حمراء = خطأ · مخفيّة = لم يبدأ شيء).
+        // شكلها Ellipse لا Border عمداً: نقطة لون التبويب تُقرأ بـ OfType<Border>().First()، فنوع مختلف يبقيها سليمة.
+        panel.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 8, Height = 8,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+        });
         // نقطة لون التبويب: مخفيّة حتّى يختار المستخدم لوناً من قائمة التبويب. تسبق العنوان بصرياً
         // لكنّ قراءة العنوان تبحث عن أوّل TextBlock فلا تتأثّر بترتيب الأبناء.
         panel.Children.Add(new Border
@@ -3452,9 +3624,16 @@ public partial class MainWindow : Window
 
     // ===== حفظ/استرجاع الجلسة (التبويبات المفتوحة عبر التشغيلات) (T-109) =====
 
-    /// <summary>يحفظ التبويبات المفتوحة الحاليّة كلقطة جلسة واحدة (يستبدل الأقدم لمنع النموّ).</summary>
+    /// <summary>
+    /// يحفظ التبويبات المفتوحة الحاليّة كلقطة جلسة واحدة (يستبدل الأقدم لمنع النموّ).
+    ///
+    /// <para>الإطلاق السريع مستثنى: نافذةٌ فُتحت من المستكشف لمهمّة دقيقة لا يجوز أن تمحو بإغلاقها
+    /// جلسةَ عملٍ كاملة محفوظة من الإطلاق العاديّ.</para>
+    /// </summary>
     private void SaveSession()
     {
+        if (IsQuickLaunch) return;
+
         try
         {
             var tabs = new List<TabSnapshot>();
