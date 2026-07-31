@@ -1414,7 +1414,6 @@ public partial class MainWindow : Window
         HintLine3.Text = Loc.T("hint.palette");
         HintLine4.Text = Loc.T("hint.splitV");
         HintLine5.Text = Loc.T("hint.splitH");
-        SidebarSettingsText.Text     = Loc.T("settings.title");
         SettingsTitle.Text = Loc.T("settings.title");
         // أسماء فئات التنقّل
         NavAppearance.Content = Loc.T("settings.appearanceBg");

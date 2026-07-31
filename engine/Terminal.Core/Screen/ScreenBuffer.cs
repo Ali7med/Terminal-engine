@@ -38,9 +38,18 @@ public sealed class ScreenBuffer : IVtParserSink
     private int _cursorCol;
     private bool _wrapPending;   // deferred wrap: last glyph landed on the final column
 
+    // Saved cursor (DECSC/DECRC). xterm keeps ONE SLOT PER SCREEN, and so must we: a DECSC issued
+    // by a full-screen app inside the alternate screen must not clobber what ?1049h stashed on the
+    // way in. With a single shared slot, an app that saves the cursor while underline is on (Claude
+    // Code and other Ink-based TUIs do) leaves the shell underlined forever after it exits, because
+    // ?1049l then restores *the app's* style instead of the shell's.
     private int _savedRow;
     private int _savedCol;
     private TerminalStyle _savedStyle = TerminalStyle.Default;
+
+    private int _altSavedRow;
+    private int _altSavedCol;
+    private TerminalStyle _altSavedStyle = TerminalStyle.Default;
 
     private TerminalStyle _style = TerminalStyle.Default;
     private int _styleId;        // interned id of _style (0 == default)
@@ -250,9 +259,18 @@ public sealed class ScreenBuffer : IVtParserSink
         if (intermediate != '\0')
             return; // DECSTR (!p), DECSCUSR (SP q) etc. — not needed for the grid MVP
 
+        // ‏'>' '=' '<' are vendor/query prefixes, never grid commands. Dropping the prefix is not a
+        // harmless shortcut: CSI > 4 m is XTMODKEYS (xterm's modifyOtherKeys), which Claude Code and
+        // other Node TUIs emit around startup and exit. Read as SGR it says "underline on" — which
+        // is exactly what left the whole terminal striped for the rest of the session, since every
+        // later erase then filled blank cells with an underlined pen. DA2 (CSI > c) is the one '>'
+        // sequence we do answer, so it stays.
+        if (privateMarker is '>' or '=' or '<' && finalByte != 'c')
+            return;
+
         switch (finalByte)
         {
-            case 'm': SetStyle(SgrProcessor.Apply(_style, p)); break;
+            case 'm' when privateMarker == '\0': SetStyle(SgrProcessor.Apply(_style, p)); break;
 
             case 'H':
             case 'f': MoveTo(Amount(p, 0) - 1, Amount(p, 1) - 1); break;     // CUP / HVP
@@ -509,18 +527,32 @@ public sealed class ScreenBuffer : IVtParserSink
             _cursorRow--;
     }
 
+    /// <summary>DECSC — writes to the slot of the screen that is currently active.</summary>
     private void SaveCursor()
     {
+        if (_altActive)
+        {
+            _altSavedRow = _cursorRow;
+            _altSavedCol = _cursorCol;
+            _altSavedStyle = _style;
+            return;
+        }
+
         _savedRow = _cursorRow;
         _savedCol = _cursorCol;
         _savedStyle = _style;
     }
 
+    /// <summary>DECRC — reads from the slot of the screen that is currently active.</summary>
     private void RestoreCursor()
     {
-        _cursorRow = Math.Clamp(_savedRow, 0, _rows - 1);
-        _cursorCol = Math.Clamp(_savedCol, 0, _cols - 1);
-        SetStyle(_savedStyle);
+        int row = _altActive ? _altSavedRow : _savedRow;
+        int col = _altActive ? _altSavedCol : _savedCol;
+        TerminalStyle style = _altActive ? _altSavedStyle : _savedStyle;
+
+        _cursorRow = Math.Clamp(row, 0, _rows - 1);
+        _cursorCol = Math.Clamp(col, 0, _cols - 1);
+        SetStyle(style);
         _wrapPending = false;
     }
 
@@ -551,7 +583,7 @@ public sealed class ScreenBuffer : IVtParserSink
     private void EraseInLine(int mode)
     {
         var row = Active[_cursorRow];
-        var blank = new Cell(Space, _styleId);
+        var blank = EraseCell();
         switch (mode)
         {
             case 0: for (int c = _cursorCol; c < _cols; c++) row[c] = blank; break;
@@ -568,7 +600,7 @@ public sealed class ScreenBuffer : IVtParserSink
     private void EraseInDisplay(int mode)
     {
         var grid = Active;
-        var blank = new Cell(Space, _styleId);
+        var blank = EraseCell();
         switch (mode)
         {
             case 0:
@@ -594,7 +626,7 @@ public sealed class ScreenBuffer : IVtParserSink
     private void EraseChars(int n)
     {
         var row = Active[_cursorRow];
-        var blank = new Cell(Space, _styleId);
+        var blank = EraseCell();
         int end = Math.Min(_cursorCol + n, _cols);
         for (int c = _cursorCol; c < end; c++) row[c] = blank;
         _wrapPending = false;   // كما في EraseInLine
@@ -728,9 +760,14 @@ public sealed class ScreenBuffer : IVtParserSink
         if (_altActive)
             return;
         if (save)
-            SaveCursor();
+            SaveCursor();                 // still on the main screen: lands in the main slot
         _altGrid = NewGrid(_rows, _cols);
         _altActive = true;
+        // The alternate screen starts with a clean save slot: a DECRC before any DECSC must not
+        // resurrect coordinates left behind by the previous full-screen app.
+        _altSavedRow = 0;
+        _altSavedCol = 0;
+        _altSavedStyle = TerminalStyle.Default;
         _scrollTop = 0;
         _scrollBottom = _rows - 1;
         _cursorRow = 0;
@@ -743,12 +780,17 @@ public sealed class ScreenBuffer : IVtParserSink
     {
         if (!_altActive)
             return;
-        _altActive = false;
+        _altActive = false;               // before RestoreCursor: it must read the main slot
         _altGrid = null;
         _scrollTop = 0;
         _scrollBottom = _rows - 1;
         if (restore)
             RestoreCursor();
+        else
+            // ?47/?1047 carry no saved state, so a full-screen app that exits mid-attribute would
+            // bleed its styling into the shell. The screen is the app's to leave clean, but a
+            // terminal that stays underlined forever is worse than one that forgets a colour.
+            SetStyle(TerminalStyle.Default);
         _wrapPending = false;
         MarkAllDirty();
     }
@@ -909,6 +951,21 @@ public sealed class ScreenBuffer : IVtParserSink
         _styleId = _styles.Intern(style);
     }
 
+    /// <summary>
+    /// The cell an erase writes: <b>background colour only</b> (BCE), never the character
+    /// attributes of the current pen.
+    ///
+    /// <para>Filling with the full pen is what made the whole screen underlined after Claude Code
+    /// exited: an inline TUI that clears with <c>CSI 2 J</c> while underline is on would paint
+    /// every blank cell underlined, and blank cells are drawn with their decorations. Real
+    /// terminals apply only the background colour on erase — <c>ESC[4m ESC[2J</c> underlines
+    /// nothing in xterm, VTE or Windows Terminal — while <c>ESC[41m ESC[2J</c> still paints red,
+    /// which apps do rely on.</para>
+    /// </summary>
+    private Cell EraseCell() => new(
+        Space,
+        _styles.Intern(new TerminalStyle(AnsiColor.Default, _style.Background, TextStyleFlags.None)));
+
     private Cell[] BlankRow()
     {
         var row = new Cell[_cols];
@@ -930,6 +987,9 @@ public sealed class ScreenBuffer : IVtParserSink
         SetStyle(TerminalStyle.Default);
         _linkId = 0;
         _savedStyle = TerminalStyle.Default;
+        _altSavedRow = 0;
+        _altSavedCol = 0;
+        _altSavedStyle = TerminalStyle.Default;
         _scrollTop = 0;
         _scrollBottom = _rows - 1;
         _autoWrap = true;

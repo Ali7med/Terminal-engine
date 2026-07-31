@@ -78,9 +78,12 @@ public static class ShellAliasBridge
         {
             return Kind(commandLine) switch
             {
+                // ‏/K و-Command يبتلعان بقيّة السطر، فمكانهما الآخِر.
                 ShellKind.Cmd  => $"{commandLine} /K doskey /macrofile=\"{CmdFile}\"",
                 ShellKind.Pwsh => $"{commandLine} -NoExit -Command \". '{PwshFile.Replace("'", "''")}'\"",
-                ShellKind.Bash => $"{commandLine} --rcfile \"{ToPosix(BashFile)}\"",
+                // ‏bash بالعكس: خياراته الطويلة تسبق القصيرة («bash [GNU long option] [option] …»)،
+                // فإلحاق ‎--rcfile‎ بعد ‎-i‎ يجعله يقرؤه ‎--‎ ويرفض السطر كلّه بـ«‎--: invalid option».
+                ShellKind.Bash => InsertAfterExe(commandLine, $"--rcfile \"{ToPosix(BashFile)}\""),
                 _              => commandLine,
             };
         }
@@ -123,6 +126,20 @@ public static class ShellAliasBridge
         foreach (string n in needles)
             if (line.Contains(n, StringComparison.Ordinal)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// يُدخل وسيطاً مباشرةً بعد الملفّ التنفيذيّ وقبل وسائط البروفايل — لِما يشترط موضعاً مبكّراً
+    /// (خيارات bash الطويلة). يحترم اقتباس المسار: <c>"C:\Program Files\…\bash.exe" -i</c> اسمُه
+    /// التنفيذيّ ينتهي عند علامة الاقتباس المغلِقة لا عند أوّل مسافة.
+    /// </summary>
+    private static string InsertAfterExe(string commandLine, string argument)
+    {
+        string line = commandLine.TrimStart();
+        int end = line.StartsWith('"') ? line.IndexOf('"', 1) + 1 : line.IndexOf(' ');
+        if (end <= 0) return $"{line} {argument}";   // الملفّ التنفيذيّ وحده بلا وسائط
+
+        return $"{line[..end]} {argument}{line[end..]}";
     }
 
     /// <summary>‏<c>C:\Users\x\a.sh</c> ⇒ <c>/c/Users/x/a.sh</c> — الصيغة التي يفهمها bash التابع لـGit.</summary>

@@ -156,6 +156,106 @@ public class ScreenBufferMoreTests
         Assert.Equal(AnsiColor.FromPalette(1), b.StyleAt(0, 0).Foreground);
     }
 
+    /// <summary>
+    /// ‏CSI &gt; 4 m is XTMODKEYS (xterm modifyOtherKeys), not SGR — the '&gt;' prefix changes what the
+    /// final byte means. Claude Code emits it around startup/exit; parsing it as SGR 4 switched
+    /// underline on with nothing to switch it off, striping the terminal for the rest of the
+    /// session. Captured from a real ConPTY run, so this is the sequence itself, not a guess.
+    /// </summary>
+    [Theory]
+    [InlineData(">4")]      // XTMODKEYS reset — what Claude Code actually sends
+    [InlineData(">4;1")]    // XTMODKEYS set
+    [InlineData(">4;2")]
+    public void Private_prefixed_m_is_not_sgr(string body)
+    {
+        var b = new ScreenBuffer(10, 3);
+        b.FeedString(Csi(body + "m"));
+        b.FeedString("X");
+
+        Assert.False(b.StyleAt(0, 0).Has(TextStyleFlags.Underline));
+    }
+
+    /// <summary>DA2 is the one '&gt;' sequence we answer — the guard above must not swallow it.</summary>
+    [Fact]
+    public void Secondary_device_attributes_still_answers()
+    {
+        var b = new ScreenBuffer(10, 3);
+        string? reply = null;
+        b.ResponseRequested += r => reply = r;
+
+        b.FeedString(Csi(">c"));
+
+        Assert.Equal("\x1b[>0;10;1c", reply);
+    }
+
+    /// <summary>
+    /// Erasing must apply background colour only (BCE), never the pen's character attributes.
+    /// An inline TUI (Claude Code and friends) that clears with CSI 2 J while underline is on used
+    /// to paint every blank cell underlined — and blank cells are drawn with their decorations, so
+    /// the whole terminal stayed striped for the rest of the session.
+    /// </summary>
+    [Fact]
+    public void Erase_applies_background_only_not_the_pens_attributes()
+    {
+        var b = new ScreenBuffer(10, 3);
+        b.FeedString(Csi("4m"));       // underline on
+        b.FeedString(Csi("41m"));      // red background
+        b.FeedString(Csi("2J"));       // clear the screen with that pen
+
+        var erased = b.StyleAt(1, 0);
+        Assert.False(erased.Has(TextStyleFlags.Underline));         // no attribute bleed…
+        Assert.Equal(AnsiColor.FromPalette(1), erased.Background);  // …but BCE keeps the colour
+    }
+
+    /// <summary>Erasing part of a line follows the same rule as erasing the display.</summary>
+    [Fact]
+    public void Erase_in_line_does_not_carry_the_pens_attributes()
+    {
+        var b = new ScreenBuffer(10, 3);
+        b.FeedString("abcdef");
+        b.FeedString(Csi("4m"));
+        b.FeedString(Csi("1;3H"));     // back to column 3
+        b.FeedString(Csi("0K"));       // erase to end of line
+
+        Assert.False(b.StyleAt(0, 5).Has(TextStyleFlags.Underline));
+    }
+
+    /// <summary>
+    /// A full-screen app that issues DECSC while an attribute is on must not poison what ?1049h
+    /// stashed on the way in — otherwise the shell stays underlined forever after the app exits
+    /// (the exact symptom Claude Code and other Ink TUIs produced).
+    /// </summary>
+    [Fact]
+    public void Decsc_inside_alt_screen_does_not_leak_style_back_to_the_main_screen()
+    {
+        var b = new ScreenBuffer(20, 5);
+
+        b.FeedString(Csi("?1049h"));   // enter alt screen — saves the clean main cursor + pen
+        b.FeedString(Csi("4m"));       // the app switches underline on…
+        b.FeedString(ESC + "7");       // …and saves the cursor while it is on
+        b.FeedString(Csi("?1049l"));   // the app exits
+
+        b.FeedString("X");             // whatever the shell prints next
+        Assert.False(b.StyleAt(0, 0).Has(TextStyleFlags.Underline));
+    }
+
+    /// <summary>
+    /// ‏?47/?1047 carry no saved cursor, so there is nothing to restore. The pen is reset anyway:
+    /// a terminal stuck in underline is worse than one that forgets an attribute.
+    /// </summary>
+    [Fact]
+    public void Leaving_alt_screen_without_restore_resets_the_pen()
+    {
+        var b = new ScreenBuffer(20, 5);
+
+        b.FeedString(Csi("?47h"));
+        b.FeedString(Csi("4m"));
+        b.FeedString(Csi("?47l"));
+
+        b.FeedString("X");
+        Assert.False(b.StyleAt(b.CursorRow, 0).Has(TextStyleFlags.Underline));
+    }
+
     [Fact]
     public void Clear_and_ris_reset_everything()
     {

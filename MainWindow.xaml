@@ -299,24 +299,8 @@
                                      Style="{StaticResource SearchPill}"
                                      TextChanged="SidebarSearch_TextChanged"/>
 
-                            <!-- مقطع «الإعدادات» أسفل اللوحة: عنوان مكتوم صغير + صفّ واحد — نفس بنية
-                                 المقاطع في التصميم المرجعيّ (بلا خطّ فاصل). -->
-                            <StackPanel DockPanel.Dock="Bottom">
-                                <!-- بلا عنوان مقطع فوق زرّ الإعدادات: الزرّ نفسه يقول «الإعدادات»
-                                     بأيقونته ونصّه، فالعنوان تكرارٌ لكلمةٍ واحدة مرّتين متتاليتين. -->
-                                <Button x:Name="SidebarSettingsBtn" Click="SettingsButton_Click"
-                                        HorizontalContentAlignment="Stretch" Background="Transparent"
-                                        BorderThickness="0" Padding="10,8">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                                                   VerticalAlignment="Center" Margin="0,0,10,0"
-                                                   Foreground="{DynamicResource Brush.TextMuted}"/>
-                                        <TextBlock x:Name="SidebarSettingsText" Text="الإعدادات"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-
+                            <!-- لا زرّ إعدادات هنا: مدخلُه أيقونة الترس في شريط العنوان (ومعها
+                                 اختصار لوحة المفاتيح ولوحة الأوامر). لوحة المشاريع للمشاريع. -->
 
                             <!-- شريط فلترة التاكات: «الكل» + رقاقة لكل تاك — صفّ أفقيّ بسكرول مربوط بالعجلة -->
                             <ScrollViewer x:Name="ProjectFilterScroll" DockPanel.Dock="Top"

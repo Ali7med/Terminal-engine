@@ -406,7 +406,7 @@ public partial class TerminalTabView : UserControl
             // فتعمل حتّى حين تُكتب في الشبكة مباشرةً لا في صندوق الإدخال.
             string commandLine = Services.Aliases.ShellAliasBridge.Decorate(shell.CommandLine);
             // متغيّرات البيئة: تُضبَط على بيئة العمليّة قبل الإطلاق (يرثها ابن ConPTY) ثم تُستعاد.
-            using (ApplyProfileEnvironment(shell.EnvironmentVariables))
+            using (ApplyProfileEnvironment(WithTerminalIdentity(shell.EnvironmentVariables)))
                 _coreSession.Start(commandLine, workDir, cols, rows);
             _pid = _coreSession.ProcessId;
             _startTime = DateTime.Now;
@@ -425,6 +425,32 @@ public partial class TerminalTabView : UserControl
         }
     }
 
+    /// <summary>
+    /// يضيف <b>هويّة الطرفيّة</b> إلى متغيّرات البروفايل: <c>TERM</c> و<c>COLORTERM</c>
+    /// و<c>TERM_PROGRAM</c>.
+    ///
+    /// <para><b>لماذا:</b> بدونها لا تعرف الأدوات أنّها داخل طرفيّة قادرة، فتنزل إلى أدنى مستوى
+    /// ألوان أو تُطفئها — وهو ما يجعل واجهة الوكلاء (claude وما يشبهه ممّا يقوم على Ink/chalk) تظهر
+    /// بلونٍ واحد. كلّ طرفيّة حقيقيّة تعلن عن نفسها هكذا، والمحرّك هنا يفهم ٢٥٦ لوناً واللون الحقيقيّ
+    /// فعلاً — فالإعلان صادق لا تجميليّ.</para>
+    ///
+    /// <para>بروفايل المستخدم يتجاوزها: قيمُه تُكتب فوق الافتراضيّ، فمن أراد <c>TERM</c> آخر يضبطه.</para>
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> WithTerminalIdentity(
+        IReadOnlyDictionary<string, string>? profileVars)
+    {
+        var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TERM"] = "xterm-256color",
+            ["COLORTERM"] = "truecolor",
+            ["TERM_PROGRAM"] = "TerminalLauncher",
+        };
+
+        if (profileVars != null)
+            foreach (var kv in profileVars) vars[kv.Key] = kv.Value;
+
+        return vars;
+    }
     /// <summary>
     /// يضبط متغيّرات بيئة البروفايل على بيئة العمليّة الحاليّة مؤقّتاً (T-101.5): ابن ConPTY
     /// المُطلَق بـ lpEnvironment=NULL يرث بيئة الأب، فنَضبطها قُبيل الإطلاق ونستعيدها بعده عبر
