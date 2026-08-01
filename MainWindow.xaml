@@ -276,7 +276,7 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <TabControl x:Name="TerminalTabs" PreviewMouseDown="TerminalTabs_PreviewMouseDown"/>
+                    <TabControl x:Name="TerminalTabs"/>
                 </Grid>
 
                 <!-- ===== لوحة المشاريع الدائمة (الحالة الموسَّعة للشريط الجانبيّ) =====
@@ -400,7 +400,8 @@
                     <Border.Effect>
                         <DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="0" Opacity="0.4"/>
                     </Border.Effect>
-                    <DockPanel>
+                    <Grid>
+                    <DockPanel Margin="0,0,5,0">
                         <!-- الرأس: نقطة لون + اسم المشروع + تعديل + طيّ، وسطر الفولدر -->
                         <Grid DockPanel.Dock="Top" Margin="11,10,7,7">
                             <Grid.RowDefinitions>
@@ -476,6 +477,32 @@
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
+
+                        <!-- مقبض التحجيم على الحافّة اليمنى: اللوحة مرسوّة يساراً، فالسحب يميناً
+                             يوسّعها. شريط شفّاف بعرض ٥ بمؤشّر السهم المزدوج — يُرى بالمؤشّر لا
+                             بخطّ دائم يزاحم المحتوى. العرض يُحفَظ عند انتهاء السحب. -->
+                        <Thumb x:Name="QuickDockResizer" Width="5" HorizontalAlignment="Right"
+                               Cursor="SizeWE" ToolTip="{loc:T proj.dock.resize}"
+                               DragDelta="QuickDockResizer_DragDelta"
+                               DragCompleted="QuickDockResizer_DragCompleted">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Border Background="Transparent">
+                                        <Border x:Name="grip" Width="1" HorizontalAlignment="Center" Opacity="0"
+                                                Background="{DynamicResource Brush.Accent}"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="grip" Property="Opacity" Value="1"/>
+                                        </Trigger>
+                                        <Trigger Property="IsDragging" Value="True">
+                                            <Setter TargetName="grip" Property="Opacity" Value="1"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Grid>
                 </Border>
 
                 <!-- ===== محرّر المشروع (اسم/لون/فولدر/صدفة) ===== -->

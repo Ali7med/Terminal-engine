@@ -1,6 +1,7 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:theme="clr-namespace:TerminalLauncher.Theme">
+                    xmlns:theme="clr-namespace:TerminalLauncher.Theme"
+                    xmlns:ctrl="clr-namespace:TerminalLauncher.Controls">
 
     <!-- ========== خطّ ولون افتراضيان ========== -->
     <Style TargetType="{x:Type FrameworkElement}" x:Key="BaseText"/>
@@ -818,8 +819,10 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
+                        <!-- لوحة مخصّصة لا TabPanel: هي التي ترسم إطار كلّ مجموعة واسمها خلف
+                             أعضائها — رؤوس التبويبات إخوةٌ في لوحة واحدة فلا سبيل لِلَفّ بعضها. -->
                         <Border Grid.Row="0" Padding="4,4,4,8">
-                            <TabPanel IsItemsHost="True" Panel.ZIndex="1"/>
+                            <ctrl:TabStripPanel x:Name="TabStrip" IsItemsHost="True" Panel.ZIndex="1"/>
                         </Border>
                         <!-- إطار محتوى التيرمنال: بلا استدارة ولا حدّ ولا خلفيّة — الخلفيّة يرسمها العارض
                              والإنبت بنفس التعتيم، فيصيران قطعةً واحدة متّصلة بلا بنل مؤطِّر. -->
@@ -838,14 +841,25 @@
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
         <Setter Property="Margin" Value="0,0,6,0"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <!-- شفّاف صراحةً: خلفيّة القالب صارت مربوطة بـTemplateBinding لتحمل لون المجموعة، وبلا هذا
+             السطر ترث TabItem خلفيّتها الافتراضيّة من ثيم النظام (تدرّج فاتح) فتخرج التبويبات عن
+             ثيم التطبيق كلّه. اللون يعود من الكود فقط حين يختار المستخدم لوناً للمجموعة. -->
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <!-- تبويب شبح: شفّاف افتراضاً، والمحدَّد تعبئة طينيّة مخفّفة بنصّ عاديّ اللون —
-                         بدل المستطيل الممتلئ باللكنة الذي كان يسحب العين بعيداً عن التيرمنال. -->
-                    <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}" Padding="12,7"
-                            Background="Transparent" BorderThickness="0">
-                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                         بدل المستطيل الممتلئ باللكنة الذي كان يسحب العين بعيداً عن التيرمنال.
+
+                         طبقتان: «tint» تحمل لون مجموعة التبويب (يُضبَط من الكود على
+                         TabItem.Background)، و«bd» فوقها تحمل حالة التمرير/التحديد. الفصل ضروريّ:
+                         لو تشاركتا خاصّيةً واحدة لمحا مشغّلا الحالة لونَ المجموعة عند أوّل مرور فأرة. -->
+                    <Border x:Name="tint" CornerRadius="{DynamicResource Radius.Control}"
+                            Background="{TemplateBinding Background}">
+                        <Border x:Name="bd" CornerRadius="{DynamicResource Radius.Control}" Padding="12,7"
+                                Background="Transparent" BorderThickness="0">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                        </Border>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">

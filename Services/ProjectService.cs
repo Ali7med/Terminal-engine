@@ -130,26 +130,44 @@ public static class ProjectService
         => (text ?? "").Replace("\r\n", "\n").Replace("\r", "\n")
             .Split('\n').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 
+    /// <summary>نتيجة محاولة إضافة أمر — الرفض له سببان مختلفان يستحقّان رسالتين مختلفتين.</summary>
+    public enum AddResult
+    {
+        /// <summary>أُضيف فعلاً.</summary>
+        Added,
+        /// <summary>لا خطوات (الحقل فارغ) — لا شيء يُنفَّذ.</summary>
+        Empty,
+        /// <summary>أمرٌ مطابق تماماً (خطوات + فولدر + اسم) موجود سلفاً.</summary>
+        Duplicate,
+        /// <summary>لا مشروع بهذا الاسم.</summary>
+        NoProject,
+    }
+
     /// <summary>
-    /// يضيف أمراً مثبَّتاً لمشروع بعد فحص التكرار (مطابقة الخطوات المُشذَّبة). <paramref name="stepsText"/>
-    /// نصّ متعدّد الأسطر (سطر=خطوة). يعيد true إن أُضيف فعلاً. يُطلِق <see cref="Changed"/>.
+    /// يضيف أمراً مثبَّتاً لمشروع بعد فحص التكرار. <paramref name="stepsText"/> نصّ متعدّد الأسطر
+    /// (سطر=خطوة). التكرار يُقاس بالخطوات <b>والفولدر والاسم</b> معاً — انظر
+    /// <see cref="ProjectCommand.DedupKey"/>. يُطلِق <see cref="Changed"/> عند الإضافة.
     /// </summary>
-    public static bool AddCommand(string? projectName, string stepsText, string? label = null, string? folder = null)
+    public static AddResult AddCommand(string? projectName, string stepsText, string? label = null, string? folder = null)
     {
         var p = Find(projectName);
-        if (p == null) return false;
+        if (p == null) return AddResult.NoProject;
+
         var steps = SplitSteps(stepsText);
-        if (steps.Count == 0) return false;
-        string key = string.Join("\n", steps);
-        if (p.Commands.Any(c => c.DedupKey == key)) return false;
-        p.Commands.Add(new ProjectCommand
+        if (steps.Count == 0) return AddResult.Empty;
+
+        var candidate = new ProjectCommand
         {
             Label = string.IsNullOrWhiteSpace(label) ? "" : label!.Trim(),
             Steps = steps,
             Folder = string.IsNullOrWhiteSpace(folder) ? null : folder!.Trim(),
-        });
+        };
+
+        if (p.Commands.Any(c => c.DedupKey == candidate.DedupKey)) return AddResult.Duplicate;
+
+        p.Commands.Add(candidate);
         Changed?.Invoke();
-        return true;
+        return AddResult.Added;
     }
 
     /// <summary>يحدّث أمراً قائماً في مكانه (اسم/خطوات/فولدر). يُطلِق <see cref="Changed"/>.</summary>

@@ -122,6 +122,8 @@ public partial class MainWindow : Window
         UpdateHint();
         EntriesList.ContextMenu = BuildProjectContextMenu();
         SetSidebarExpanded(_settings.SidebarExpanded);   // يعود الشريط كما تركه المستخدم
+        // عرض لوحة الأوامر كما تركه المستخدم (مقصوصٌ على الحدّ الأدنى — إعدادات قديمة/تالفة).
+        QuickDock.Width = Math.Max(QuickDockMinWidth, _settings.QuickDockWidth);
         ApplyLanguage();
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
@@ -150,6 +152,9 @@ public partial class MainWindow : Window
         ContentRendered += (_, _) => { SplashScreenHost.Close(); Activate(); };
         SizeChanged += (_, _) => ApplyRounding();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        // لوحة أوامر المشروع تطفو فوق كلّ شيء، فمُستمِعُ إغلاقها بالنقر خارجها يجب أن يكون على
+        // النافذة لا على التيرمنال وحده.
+        PreviewMouseDown += Window_PreviewMouseDownForQuickDock;
     }
 
     /// <summary>
@@ -1933,13 +1938,49 @@ public partial class MainWindow : Window
     private void QuickDockClose_Click(object sender, RoutedEventArgs e) => CloseQuickDock();
 
     /// <summary>
-    /// النقر داخل منطقة التيرمنال يُغلق دوك الأوامر الطافي كي يتفرّغ العرض. لوحة المشاريع الجانبيّة
-    /// دائمة فلا تتأثّر. لا نُعلّم الحدث مُعالَجاً فيصل النقر للتيرمنال (تركيز/تحديد) طبيعيّاً.
+    /// أيّ نقرة <b>خارج</b> اللوحة الطافية تُغلقها — لا في التيرمنال وحده: هي لوحة عابرة تطفو فوق
+    /// العمل، فبقاؤها بعد أن انتقل المستخدم إلى شيء آخر يحجب ما يريد رؤيته.
+    ///
+    /// <para>لا نُعلّم الحدث مُعالَجاً: النقرة تصل إلى هدفها (تركيز التيرمنال، اختيار مشروع…)
+    /// طبيعيّاً. والنقر <b>داخل</b> اللوحة يُستثنى بفحص شجرة الآباء — وإلّا أغلقت نفسها عند كلّ
+    /// ضغطة زرّ فيها. القوائم السياقيّة والحوارات تعيش في شجرة منفصلة فلا تصل إلى هنا أصلاً.</para>
     /// </summary>
-    private void TerminalTabs_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void Window_PreviewMouseDownForQuickDock(object sender, MouseButtonEventArgs e)
     {
-        if (QuickDock.Visibility == Visibility.Visible) CloseQuickDock();
+        if (QuickDock.Visibility != Visibility.Visible) return;
+        if (e.OriginalSource is DependencyObject source && IsInsideQuickDock(source)) return;
+        CloseQuickDock();
     }
+
+    /// <summary>هل العنصر ضمن شجرة اللوحة؟ يمشي الآباء المرئيّين والمنطقيّين معاً (المحتوى مبنيّ بالكود).</summary>
+    private bool IsInsideQuickDock(DependencyObject? node)
+    {
+        while (node != null)
+        {
+            if (ReferenceEquals(node, QuickDock)) return true;
+            node = node is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+        return false;
+    }
+
+    /// <summary>سحب الحافّة اليمنى يوسّع اللوحة/يضيّقها. اللوحة مرسوّة يساراً فالدلتا تُضاف كما هي.</summary>
+    private void QuickDockResizer_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        double max = Math.Max(QuickDockMinWidth, ActualWidth - 260);   // يبقى للتيرمنال ما يُقرأ فيه
+        QuickDock.Width = Math.Clamp(QuickDock.Width + e.HorizontalChange, QuickDockMinWidth, max);
+    }
+
+    /// <summary>يُحفَظ العرض عند انتهاء السحب لا مع كلّ بكسل — كتابةُ ملفٍّ لكلّ حركة فأرة إسراف.</summary>
+    private void QuickDockResizer_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _settings.QuickDockWidth = QuickDock.Width;
+        SaveSettings();
+    }
+
+    /// <summary>أضيق عرض يبقى فيه صفّ الأمر مقروءاً (اسم + شارة خطوات + ثلاث أيقونات).</summary>
+    private const double QuickDockMinWidth = 200;
 
     /// <summary>إظهار/إخفاء اللوحة بانزلاق أفقيّ خفيف + تلاشٍ (كلوحة الأوامر الجانبيّة).</summary>
     private void ShowQuickDock(bool show)
@@ -2148,13 +2189,13 @@ public partial class MainWindow : Window
         panel.Children.Add(FieldLabel("proj.cmd.labelLbl", 0));
         var labelBox = new TextBox
         {
-            Text = cmd?.Label ?? "", FontSize = 11, Margin = new Thickness(0, 0, 0, 6),
+            Text = cmd?.Label ?? "", Margin = new Thickness(0, 0, 0, 6),
             Tag = Loc.T("proj.cmd.labelHint"), VerticalContentAlignment = VerticalAlignment.Center,
         };
         var stepsBox = new TextBox
         {
             Text = cmd?.StepsText ?? "", AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap,
-            MinHeight = 50, FontSize = 10.5, FlowDirection = FlowDirection.LeftToRight,
+            MinHeight = 50, FlowDirection = FlowDirection.LeftToRight,
             FontFamily = new FontFamily("Cascadia Mono, Consolas"),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Tag = Loc.T("proj.cmd.stepsHint"),
         };
@@ -2163,9 +2204,15 @@ public partial class MainWindow : Window
         folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var folderBox = new TextBox
         {
-            Text = cmd?.Folder ?? "", FontSize = 10.5, FlowDirection = FlowDirection.LeftToRight,
+            Text = cmd?.Folder ?? "", FlowDirection = FlowDirection.LeftToRight,
             VerticalContentAlignment = VerticalAlignment.Center, Tag = Loc.T("proj.cmd.folderHint"),
         };
+
+        // حقول المحرّر تقرأ حجمها من نفس مورد ليبلاتها (SectionLabel ⇐ Size.Small)، فتكبر وتصغر
+        // مع «حجم النصّ الثانويّ» في الإعدادات. الأرقام الثابتة (11 · 10.5) كانت تجعل الحقل أصغر
+        // من عنوانه وتتجاهل الإعداد تماماً.
+        foreach (var field in new[] { labelBox, stepsBox, folderBox })
+            field.SetResourceReference(Control.FontSizeProperty, "Size.Small");
         var browse = new Button
         {
             Content = "", FontFamily = Mdl2, Margin = new Thickness(6, 0, 0, 0),
@@ -2206,13 +2253,24 @@ public partial class MainWindow : Window
         save.Click += (_, _) =>
         {
             string steps = stepsBox.Text, lbl = labelBox.Text, folder = folderBox.Text;
-            _addingCmd = false; _editingCmd = null;
-            if (cmd == null)
+
+            if (cmd != null)
             {
-                bool ok = ProjectService.AddCommand(proj.Name, steps, lbl, folder);   // Changed → إعادة بناء
-                if (!ok) { BuildQuickDock(); NotificationService.Secondary(Loc.T("quick.duplicate"), NotificationType.Info); }
+                _addingCmd = false; _editingCmd = null;
+                ProjectService.UpdateCommand(cmd, lbl, steps, folder);
+                return;
             }
-            else ProjectService.UpdateCommand(cmd, lbl, steps, folder);
+
+            var result = ProjectService.AddCommand(proj.Name, steps, lbl, folder);   // Changed → إعادة بناء
+            if (result == ProjectService.AddResult.Added) { _addingCmd = false; _editingCmd = null; return; }
+
+            // الرفض يُبقي المحرّر مفتوحاً بما كُتب فيه: إغلاقه يفقد ما كتبه المستخدم بلا أن يُحفَظ.
+            NotificationService.Warning(Loc.T("proj.cmd.new"), Loc.T(result switch
+            {
+                ProjectService.AddResult.Empty => "quick.noSteps",
+                ProjectService.AddResult.Duplicate => "quick.duplicate",
+                _ => "proj.noProject",
+            }));
         };
 
         var box = new Border
@@ -2311,7 +2369,8 @@ public partial class MainWindow : Window
             NotificationService.Secondary(Loc.T("quick.noCurrent"), NotificationType.Warning);
             return;
         }
-        bool added = ProjectService.AddCommand(_quickProject, last);   // Changed → حفظ + إعادة بناء
+        var result = ProjectService.AddCommand(_quickProject, last);   // Changed → حفظ + إعادة بناء
+        bool added = result == ProjectService.AddResult.Added;
         NotificationService.Secondary(
             added ? Loc.T("quick.added") : Loc.T("quick.duplicate"),
             added ? NotificationType.Success : NotificationType.Info);
@@ -2818,6 +2877,7 @@ public partial class MainWindow : Window
         container.Emptied += _ => CloseTab(tab);
         closeButton.Click += (_, _) => CloseTab(tab);
         tab.ContextMenu = BuildTabContextMenu(tab);
+        AttachTabDrag(tab);   // إعادة الترتيب بسحب الرأس
         TerminalTabs.Items.Add(tab);
         TerminalTabs.SelectedItem = tab;
         UpdateHint();
@@ -2964,6 +3024,7 @@ public partial class MainWindow : Window
 
         var moveStart = Item("tabctx.moveStart", () => MoveTab(tab, -1));
         var moveEnd   = Item("tabctx.moveEnd",   () => MoveTab(tab, +1));
+        AddGroupMenu(menu, tab);
         menu.Items.Add(new Separator());
 
         Item("tabctx.close", () => CloseTab(tab));
@@ -3152,7 +3213,10 @@ public partial class MainWindow : Window
     /// <summary>لون التبويب المحفوظ (فارغ = بلا لون).</summary>
     private static string TabColor(TabItem tab) => TabColorDot(tab)?.Tag as string ?? "";
 
-    /// <summary>نقطة اللون في رأس التبويب (أوّل Border في الرأس — راجع <see cref="BuildHeader"/>).</summary>
+    /// <summary>
+    /// نقطة اللون في رأس التبويب (أوّل Border في الرأس — راجع <see cref="BuildHeader"/>).
+    /// اسم المجموعة وإطارها ترسمهما <see cref="Controls.TabStripPanel"/>، فلا عنصر إضافيّ في الرأس.
+    /// </summary>
     private static Border? TabColorDot(TabItem tab)
         => tab.Header is StackPanel p ? p.Children.OfType<Border>().FirstOrDefault() : null;
 
@@ -3643,7 +3707,8 @@ public partial class MainWindow : Window
                     // نلتقط جلسة الجزء النشط (معرّفها + آخر أمر) لاسترجاعها وإعادة تنفيذ آخر أمر.
                     var view = (tab.Content as TerminalPaneContainer)?.ActiveView;
                     tabs.Add(new TabSnapshot(HeaderTitle(tab) ?? entry.Name, entry.Shell, entry.Path,
-                        view?.SessionId, view?.LastCommand, TabColor(tab)));
+                        view?.SessionId, view?.LastCommand, TabColor(tab),
+                        GetGroup(tab), GroupColorOf(tab), GroupCollapsedOf(tab)));
                 }
 
             // لقطة واحدة أحدث دائماً: نمسح ثم نحفظ (أو نمسح فقط إن لا تبويبات).
@@ -3678,7 +3743,10 @@ public partial class MainWindow : Window
                     Command = t.LastCommand ?? "",
                 }, t.SessionId);
                 SetTabColor(tab, t.Color ?? "");   // لون التبويب يعود كما تركه المستخدم
+                RestoreGroup(tab, t.Group, t.GroupColor, t.GroupCollapsed);
             }
+
+            RefreshTabVisuals();   // الرقاقات والتلوين والطيّ بعد أن اكتملت كلّ التبويبات
         }
         catch
         {

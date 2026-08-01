@@ -114,6 +114,12 @@ public partial class TerminalTabView : UserControl
     private long _runStartAbs = -1;
 
     /// <summary>
+    /// الأمر بدأ قبل أن تُولَّد أوّل لقطة، فخطّ الأساس لم يُضبَط بعد. تضبطه أوّل لقطة تصل، وحتّى
+    /// ذلك الحين لا يُقبَل «انتهى» مهما بدا الموجّه جاهزاً.
+    /// </summary>
+    private bool _awaitingRunBaseline;
+
+    /// <summary>
     /// يُعلِم ببدء تنفيذ أمر — يُستدعى من كلّ موضع يُرسِل أمراً للصدفة. من هنا <b>يبدأ العدّ</b>:
     /// المدّة المعروضة مدّة الأمر لا عمر الجلسة (من فتح تيرمنالاً وتركه ساعة ثمّ نفّذ <c>ls</c>
     /// يريد أن يرى ثوانيَ الـ<c>ls</c> لا ساعةً).
@@ -130,7 +136,12 @@ public partial class TerminalTabView : UserControl
             return;
         }
 
+        // خطّ الأساس = آخر سطر ذي محتوى لحظة الإرسال. لكنّ الأمر المرافق للتبويب (أمر مشروع أو
+        // جلسة مستعادة) يُرسَل مع أوّل بايت يصل، وقد لا تكون أوّل لقطة قد وُلِّدت بعد — فيصير
+        // الأساس ‎-1‎، وأيّ موجّه لاحق «أحدث منه»، فتقفز النقطة إلى الأخضر «انتهى» والأمر لم يبدأ
+        // أصلاً. العلم يؤجّل ضبط الأساس إلى أوّل لقطة حقيقيّة (انظر FlushOutput).
         _runStartAbs = LastContentAbs(_lastSnapshot);
+        _awaitingRunBaseline = _lastSnapshot is null;
         _startTime = DateTime.Now;
         _endTime = null;
         _statusTimer.Start();
@@ -174,6 +185,15 @@ public partial class TerminalTabView : UserControl
     private void UpdateRunStateFromPrompt(ScreenSnapshot snap)
     {
         if (RunState != TerminalRunState.Running) return;
+
+        // أوّل لقطة بعد أمرٍ بدأ قبل وجود أيّ لقطة: هي خطّ الأساس نفسه، ولا يُقبل انتهاءٌ عندها.
+        if (_awaitingRunBaseline)
+        {
+            _runStartAbs = LastContentAbs(snap);
+            _awaitingRunBaseline = false;
+            return;
+        }
+
         if (!IsAtShellPrompt(snap)) return;
         if (LastContentAbs(snap) <= _runStartAbs) return;   // ما زال الموجّه القديم نفسه ← لم يبدأ بعد
         FinishTiming(null);                     // بلا تكامل الصدفة لا رمز خروج ← مدّة فقط
@@ -955,6 +975,10 @@ public partial class TerminalTabView : UserControl
 
         // ===== موضع الوسيط: نستنتج الأمر (مع تخطّي الأغلفة مثل sudo/time) والأمر الفرعيّ =====
         var toks = head.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // سطرٌ كلّه مسافات: فيه مسافة (فنحن في «موضع الوسيط») لكن بلا أمر قبلها. بلا هذا الحارس
+        // يرمي ‎toks[0]‎ استثناءَ خروجٍ عن المدى عند أوّل مسافة تُكتب في صندوق فارغ.
+        if (toks.Length == 0) { AddHistory(Add, text); return result; }
         int ci = 0;
         while (ci < toks.Length - 1 && IsWrapper(toks[ci])) ci++;
         string cmdName = toks[ci];
