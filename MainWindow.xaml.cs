@@ -24,6 +24,9 @@ namespace TerminalLauncher;
 public partial class MainWindow : Window
 {
     private readonly EntryStore _store = new();
+
+    /// <summary>قاموس الأوامر — مكتبةٌ شخصيّة تُفتح باختصار ويُدرَج منها في التيرمنال الحاليّ.</summary>
+    private readonly CommandDictionaryStore _dictionary = new();
     private readonly ProjectStore _projectStore = new();
     private readonly TagStore _tagStore = new();
     private readonly SettingsStore _settingsStore = new();
@@ -197,6 +200,7 @@ public partial class MainWindow : Window
             case ShortcutService.SplitVertical: SplitActivePane(Orientation.Vertical); break;
             case ShortcutService.SplitHorizontal: SplitActivePane(Orientation.Horizontal); break;
             case ShortcutService.CommandPalette: OpenCommandPalette(); break;
+            case ShortcutService.CommandDictionary: OpenCommandDictionary(); break;
             case ShortcutService.ClosePane: CloseActivePane(); break;
             case ShortcutService.AiPanel: ActiveTerminalView()?.ToggleAiPanel(); break;
             case ShortcutService.OpenSettings: ToggleSettings(true); break;
@@ -204,6 +208,20 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// يفتح قاموس الأوامر. المختار يُدرَج في صندوق التيرمنال النشط ولا يُنفَّذ — للمستخدم أن يراجعه
+    /// ويعدّله ثمّ ينفّذه بـEnter، وهو نفس عقد «اختيارٌ ثمّ تنفيذ» في اقتراحات الصندوق.
+    /// </summary>
+    /// <param name="seedCommand">أمرٌ يُفتَح القاموس على مدخلةٍ جديدة تحمله (الإضافة من التيرمنال).</param>
+    private void OpenCommandDictionary(string? seedCommand = null)
+    {
+        var win = new Views.CommandDictionaryWindow(_dictionary, seedCommand) { Owner = this };
+        win.ShowDialog();
+
+        if (win.ChosenCommand is { Length: > 0 } cmd)
+            ActiveTerminalView()?.PrefillComposer(cmd);
     }
 
     /// <summary>عرض التيرمنال النشط إن وُجد — للاختصارات التي تخصّ التبويب لا النافذة.</summary>
@@ -2829,11 +2847,14 @@ public partial class MainWindow : Window
         => (TerminalTabs.SelectedItem as TabItem)?.Content as TerminalPaneContainer;
 
     /// <summary>ينشئ عرض تيرمنال جديداً مطبّقاً عليه تفضيلات الخطّ الحاليّة. <paramref name="sessionId"/> يُمرَّر عند الاسترجاع.</summary>
-    private TerminalTabView CreateTerminalView(CommandEntry entry, string? sessionId = null)
+    private TerminalTabView CreateTerminalView(CommandEntry entry, string? sessionId = null, bool asleep = false)
     {
         var view = new TerminalTabView(entry, () => _store.Save(_entries), ToggleSidebarExpanded,
-            _settings.TerminalFontSize, OnTerminalFontSizeChanged, () => _settings.AiAssistantEnabled, sessionId);
+            _settings.TerminalFontSize, OnTerminalFontSizeChanged, () => _settings.AiAssistantEnabled, sessionId,
+            startAsleep: asleep);
         view.RunStateChanged += OnViewRunStateChanged;   // نقطة حالة التنفيذ في رأس التبويب
+        view.SleepChanged += () => { RefreshSleepMarks(); if (!_restoring) SaveSession(); };
+        view.AddToDictionaryRequested += cmd => OpenCommandDictionary(cmd);   // «أضف إلى القاموس» من صندوق الأمر
         view.ApplyFontSettings(_settings.TerminalFontSize, _settings.FontFamily);   // نوع الخطّ + لون الكتابة الحاليّان
         view.SetBackgroundAlpha(CurrentBackgroundAlpha());   // شفافيّة الخلفيّة الحاليّة (إن كانت صورة نشطة)
         view.ComposerEnabled = _settings.UseCommandComposer;   // صندوق التأليف المنفصل (نمط Warp)
@@ -2870,9 +2891,9 @@ public partial class MainWindow : Window
     /// يفتح الأمر في تبويب جديد يحمل حاوية أجزاء بجزء واحد ويعيد التبويب المُنشأ (يستعمله الاسترجاع
     /// لإعادة تطبيق لون التبويب). <paramref name="sessionId"/> يُمرَّر عند الاسترجاع.
     /// </summary>
-    private TabItem OpenTerminal(CommandEntry entry, string? sessionId = null)
+    private TabItem OpenTerminal(CommandEntry entry, string? sessionId = null, bool asleep = false)
     {
-        var container = new TerminalPaneContainer(CreateTerminalView(entry, sessionId));
+        var container = new TerminalPaneContainer(CreateTerminalView(entry, sessionId, asleep));
         var tab = new TabItem { Content = container, Header = BuildHeader(entry.Name, out var closeButton), Tag = entry };
         container.Emptied += _ => CloseTab(tab);
         closeButton.Click += (_, _) => CloseTab(tab);
@@ -3027,6 +3048,11 @@ public partial class MainWindow : Window
         AddGroupMenu(menu, tab);
         menu.Items.Add(new Separator());
 
+        var sleepThis  = Item("tabctx.sleep",      () => ToggleTabSleep(tab));
+        var sleepAll   = Item("tabctx.sleepAll",   () => SleepTabs(AllTabs()));
+        var sleepAfter = Item("tabctx.sleepAfter", () => SleepTabs(TabsAfter(tab)));
+        menu.Items.Add(new Separator());
+
         Item("tabctx.close", () => CloseTab(tab));
         var closeOthers = Item("tabctx.closeOthers", () => CloseOtherTabs(tab));
         var closeAfter  = Item("tabctx.closeAfter",  () => CloseTabsAfter(tab));
@@ -3042,6 +3068,11 @@ public partial class MainWindow : Window
             moveEnd.IsEnabled     = i >= 0 && i < n - 1;
             closeOthers.IsEnabled = n > 1;
             closeAfter.IsEnabled  = i >= 0 && i < n - 1;
+
+            // البند نفسه يُنيم ويوقظ — نصّه يتبع حالة التبويب لا العكس.
+            sleepThis.Header   = Loc.T(ViewOf(tab)?.Sleeping == true ? "tabctx.wake" : "tabctx.sleep");
+            sleepAll.IsEnabled = AllTabs().Any(t => ViewOf(t)?.Sleeping == false);
+            sleepAfter.IsEnabled = TabsAfter(tab).Any(t => ViewOf(t)?.Sleeping == false);
         };
         return menu;
     }
@@ -3185,6 +3216,77 @@ public partial class MainWindow : Window
     }
 
     /// <summary>يغلق التبويبات التالية للمعطى (من الأبعد للأقرب كي لا تتزحزح المواضع).</summary>
+    // ===== نوم التبويبات =====
+
+    /// <summary>عرضُ الجزء النشط في التبويب (أو null إن لم يُبنَ بعد).</summary>
+    private static TerminalTabView? ViewOf(TabItem tab)
+        => (tab.Content as TerminalPaneContainer)?.ActiveView;
+
+    private List<TabItem> AllTabs() => TerminalTabs.Items.OfType<TabItem>().ToList();
+
+    /// <summary>
+    /// التبويبات التي تلي المعطى في الترتيب.
+    ///
+    /// <para>الترتيب لا الجهة: الواجهة قد تكون RTL فيصير «التالي» على يسار الشاشة. المعيار موضعُه
+    /// في الشريط، وهو ما يفهمه المستخدم من «ما بعده» أيّاً كانت لغة الواجهة.</para>
+    /// </summary>
+    private List<TabItem> TabsAfter(TabItem tab)
+    {
+        int i = TerminalTabs.Items.IndexOf(tab);
+        if (i < 0) return new List<TabItem>();
+        return TerminalTabs.Items.OfType<TabItem>().Skip(i + 1).ToList();
+    }
+
+    /// <summary>يُنيم تبويباً أو يوقظه — البند الواحد يقوم بالفعلين حسب حالته.</summary>
+    private void ToggleTabSleep(TabItem tab)
+    {
+        if (ViewOf(tab) is not { } view) return;
+        if (view.Sleeping) { view.Wake(); return; }
+        SleepTabs(new List<TabItem> { tab });
+    }
+
+    /// <summary>
+    /// يُنيم مجموعة تبويبات بعد تأكيدٍ <b>إن كان فيها ما ينفّذ أمراً الآن</b> — الإنامة تُنهي الصدفة
+    /// وما يعمل فيها، ولا رجعة في ذلك. التبويبات النائمة أصلاً تُتخطّى بلا ضجيج.
+    /// </summary>
+    private void SleepTabs(IReadOnlyList<TabItem> tabs)
+    {
+        var targets = tabs.Where(t => ViewOf(t)?.Sleeping == false).ToList();
+        if (targets.Count == 0) return;
+
+        var busy = targets.Where(t => ViewOf(t)?.IsBusy == true).ToList();
+        if (busy.Count > 0)
+        {
+            string msg = busy.Count == 1
+                ? string.Format(Loc.T("sleep.confirmMsg"), HeaderTitle(busy[0]) ?? "")
+                : string.Format(Loc.T("sleep.confirmMany"), busy.Count);
+
+            string? choice = Views.AppDialog.Confirm(this, Loc.T("sleep.confirmTitle"), msg,
+                (Loc.T("tabctx.sleep"), "sleep", Views.DialogButtonKind.Danger),
+                (Loc.T("ai.prev.cancel"), "cancel", Views.DialogButtonKind.Neutral));
+            if (choice != "sleep") return;
+        }
+
+        foreach (var t in targets)
+            if (t.Content is TerminalPaneContainer c)
+                foreach (var v in c.AllViews) v.Sleep();   // كلّ أجزاء التبويب تنام معاً
+
+        RefreshSleepMarks();
+        if (!_restoring) SaveSession();
+    }
+
+    /// <summary>
+    /// يضع علامةً على رؤوس التبويبات النائمة: خفوتٌ في العتامة يميّزها بلمحة بلا زحمة أيقونات.
+    /// </summary>
+    private void RefreshSleepMarks()
+    {
+        foreach (var tab in TerminalTabs.Items.OfType<TabItem>())
+        {
+            bool asleep = ViewOf(tab)?.Sleeping == true;
+            if (tab.Header is StackPanel panel) panel.Opacity = asleep ? 0.5 : 1.0;
+        }
+    }
+
     private void CloseTabsAfter(TabItem tab)
     {
         int i = TerminalTabs.Items.IndexOf(tab);
@@ -3708,7 +3810,8 @@ public partial class MainWindow : Window
                     var view = (tab.Content as TerminalPaneContainer)?.ActiveView;
                     tabs.Add(new TabSnapshot(HeaderTitle(tab) ?? entry.Name, entry.Shell, entry.Path,
                         view?.SessionId, view?.LastCommand, TabColor(tab),
-                        GetGroup(tab), GroupColorOf(tab), GroupCollapsedOf(tab)));
+                        GetGroup(tab), GroupColorOf(tab), GroupCollapsedOf(tab),
+                        view?.Sleeping ?? false));
                 }
 
             // لقطة واحدة أحدث دائماً: نمسح ثم نحفظ (أو نمسح فقط إن لا تبويبات).
@@ -3741,12 +3844,13 @@ public partial class MainWindow : Window
                     Shell = t.ShellKey ?? ShellCatalog.DefaultKey,
                     Path = t.WorkingDirectory ?? "",
                     Command = t.LastCommand ?? "",
-                }, t.SessionId);
+                }, t.SessionId, t.Sleeping);   // النائم يعود نائماً: لا تُشغَّل صدفته حتّى يوقظه المستخدم
                 SetTabColor(tab, t.Color ?? "");   // لون التبويب يعود كما تركه المستخدم
                 RestoreGroup(tab, t.Group, t.GroupColor, t.GroupCollapsed);
             }
 
             RefreshTabVisuals();   // الرقاقات والتلوين والطيّ بعد أن اكتملت كلّ التبويبات
+            RefreshSleepMarks();
         }
         catch
         {

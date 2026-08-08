@@ -16,7 +16,8 @@ namespace Terminal.Storage;
 public sealed record TabSnapshot(
     string Title, string? ShellKey, string? WorkingDirectory,
     string? SessionId = null, string? LastCommand = null, string? Color = null,
-    string? Group = null, string? GroupColor = null, bool GroupCollapsed = false);
+    string? Group = null, string? GroupColor = null, bool GroupCollapsed = false,
+    bool Sleeping = false);
 
 /// <summary>One saved window/session: an ordered list of its tabs.</summary>
 public sealed record SessionSnapshot(IReadOnlyList<TabSnapshot> Tabs);

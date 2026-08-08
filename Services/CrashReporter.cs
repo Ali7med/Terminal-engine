@@ -117,6 +117,20 @@ public static class CrashReporter
         catch { /* التسجيل نفسه لا يجوز أن يرمي — وإلّا صار هو مصدر الانهيار */ }
     }
 
+    /// <summary>
+    /// يُلحق سطر ملاحظة تشخيصيّة بالسجلّ (بلا استثناء). للتحرّي عن سلوكٍ لا يرمي شيئاً فلا يظهر
+    /// في السجلّ أصلاً — مثل حدثٍ لا يصل، أو حسابٍ يعطي قيمةً غير متوقّعة. لا يرمي أبداً.
+    /// </summary>
+    public static void Note(string message)
+    {
+        try
+        {
+            Write("· " + DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture)
+                  + " · " + message + Environment.NewLine);
+        }
+        catch { /* التسجيل نفسه لا يجوز أن يرمي */ }
+    }
+
     /// <summary>يكتب الاستثناء وسلسلة الاستثناءات الداخليّة (مع تفريع <c>AggregateException</c>) بإزاحة حسب العمق.</summary>
     private static void AppendException(StringBuilder sb, Exception ex, int depth)
     {

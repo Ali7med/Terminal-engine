@@ -250,6 +250,18 @@ public partial class TerminalTabView : UserControl
     private (int Line, int Col)? _selAnchor;
     private bool _selecting;
 
+    /// <summary>فهرس بداية التحديد اليدويّ في صندوق الأمر (null = لا سحب جارٍ هناك).</summary>
+    private int? _composerSelAnchor;
+
+    /// <summary>
+    /// المستخدم دخل قائمة الاقتراحات بـTab فصارت الأسهم تتنقّلها.
+    ///
+    /// <para><b>لماذا وضعٌ صريح:</b> الأسهم ملكُ تاريخ الجلسة دائماً — كانت تُخطف إلى القائمة كلّما
+    /// ظهرت، فيفقد المستخدم أسرع طريق إلى أمرٍ سابق بلا أن يطلب شيئاً. الدخول إلى القائمة صار
+    /// فعلاً مقصوداً (Tab)، والخروج منها بـEsc أو بأيّ حرفٍ جديد يُغيّر الاقتراحات.</para>
+    /// </summary>
+    private bool _suggestNav;
+
     // ===== شريط التمرير — حارس ضدّ حلقات التغذية الراجعة =====
     private bool _syncingScroll;
 
@@ -273,9 +285,11 @@ public partial class TerminalTabView : UserControl
     public TerminalTabView(CommandEntry entry, Action persist, Func<bool> toggleSidebar,
         double fontSize = 13, Action<double>? persistFontSize = null, Func<bool>? aiEnabled = null,
         string? sessionId = null, global::TerminalLauncher.Terminal.ShellDef? shellOverride = null,
-        Func<global::Terminal.Core.Pty.IPtySession>? sessionFactory = null)
+        Func<global::Terminal.Core.Pty.IPtySession>? sessionFactory = null,
+        bool startAsleep = false)
     {
         InitializeComponent();
+        Sleeping = startAsleep;   // قبل كلّ شيء: TryStartSession يقرؤه عند أوّل تخطيط
         _entry = entry;
         _persist = persist;
         _toggleSidebar = toggleSidebar;
@@ -323,6 +337,43 @@ public partial class TerminalTabView : UserControl
         Loaded += OnLoaded;
         SizeChanged += (_, _) => OnViewSizeChanged();
 
+        // شبكة أمان لالتقاط الماوس: سحبُ تحديدٍ في الشبكة قد يُقطَع بلا MouseUp يصل إليها (فقدان
+        // تركيز النافذة أثناء السحب، Alt+Tab، إلخ)، فيبقى العارض ماسكاً الماوس إلى الأبد — كلّ نقرة
+        // لاحقة في أيّ مكان آخر من التبويب تُرسَل إليه بلا أثر. أيّ ضغطة زرّ يسرى جديدة تُسقط مسكاً
+        // متروكاً كهذا قبل أن يُتابَع توجيهها — سحبٌ حقيقيّ جارٍ لا يُنتج ضغطة ابتداءٍ جديدة أصلاً.
+        Renderer.LostMouseCapture += (_, _) => _selecting = false;
+        PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            // أيّ ماسكٍ متروك يُسقَط، لا العارض وحده: مسكُ الصندوق كان يوجّه نقرات الشبكة إليه
+            // فيتوقّف التأشير في التيرمنال كلّياً. ضغطةٌ جديدة تعني أنّ لا سحب جارياً على أيّ حال.
+            // مرساةُ الصندوق تُصفَّر مع كلّ ضغطةٍ جديدة أينما وقعت، ثمّ يُعيد معالجُ الصندوق ضبطَها
+            // إن كانت الضغطة فيه (التنفيل يمرّ من الجذر إلى الورقة، فترتيبُهما مضمون).
+            //
+            // بلا هذا تبقى مرساةٌ قديمة حيّةً كلّما ضاع الرفع (خارج النافذة، أو نافذةٌ فقدت التركيز
+            // أثناء السحب)، فتلتقط حركةُ الجذر سحبَ الشبكة وتحسبه سحبَ الصندوق وتعلّم الحدث
+            // مُعالَجاً — فيموت التأشير في التيرمنال بلا أثر.
+            _composerSelAnchor = null;
+
+            if (Mouse.Captured is UIElement held && (ReferenceEquals(held, Renderer) || ReferenceEquals(held, ComposerInput)))
+                held.ReleaseMouseCapture();
+        };
+
+        // تحديد يدويّ في صندوق الأمر: نمسك الماوس ونحسب حدّ الحرف بأنفسنا بدل الاعتماد على منطق
+        // TextBoxBase الداخليّ.
+        //
+        // <b>لماذا على الجذر لا على الحقل:</b> كشف القياسُ أنّ النزول يصل والفهرس يُحسَب صحيحاً
+        // والمسك ينجح، ثمّ <b>يُفقَد المسك أثناء السحب</b> — وكانت المرساة تُصفَّر عنده فتموت
+        // السحبة صامتةً: كلّ سحبة طويلة ضائعة والقصيرة وحدها تنجو. فلم تعد السحبة معلَّقةً على
+        // مسكٍ لا ضمان له — الحركة والرفع على الجذر يصلان ما دام المؤشّر في التبويب، بمسكٍ أو بغيره.
+        ComposerInput.PreviewMouseLeftButtonDown += ComposerInput_PreviewMouseLeftButtonDown;
+        PreviewMouseMove += ComposerInput_PreviewMouseMove;
+        PreviewMouseLeftButtonUp += ComposerInput_PreviewMouseLeftButtonUp;
+        ComposerInput.ContextMenu = BuildComposerContextMenu();
+
+        // يبقى التظليل مرئيّاً وإن انتقل تركيز لوحة المفاتيح إلى غير الصندوق. الافتراضيّ في WPF
+        // إخفاؤه تماماً حينئذٍ — فتحديدٌ قائمٌ فعلاً يبدو كأن لا تحديد، وهو بعينه ما يشتكيه المستخدم.
+        ComposerInput.IsInactiveSelectionHighlightEnabled = true;
+
         // لوحة تحرير الملفّ (T-7): عند طلبها الإغلاق نطوي عمود المحرّر ونعيد التيرمنال لكامل العرض.
         EditorPanel.CloseRequested += CollapseEditor;
     }
@@ -347,7 +398,11 @@ public partial class TerminalTabView : UserControl
         };
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e) => TryStartSession();
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (Sleeping) ApplySleepVisuals();   // مُستعادٌ نائماً: تظهر لوحته أوّل ما يُعرَض
+        TryStartSession();
+    }
 
     /// <summary>يبدأ الجلسة أو يعيد قياسها عند تغيّر حجم العرض (يبدؤها متأخّراً إن لم يكن الحجم جاهزاً بعد).</summary>
     private void OnViewSizeChanged()
@@ -363,12 +418,85 @@ public partial class TerminalTabView : UserControl
     /// </summary>
     private void TryStartSession()
     {
-        if (_started || !HasRenderableSize()) return;
+        if (Sleeping || _started || !HasRenderableSize()) return;
         _started = true;
         StartSession();
         _refresh.Start();
         _blinkTimer.Start();
         Renderer.Focus();
+    }
+
+    // ===== النوم =====
+
+    /// <summary>
+    /// التبويب نائم: لم تُشغَّل صدفته ولن تُشغَّل بمجرّد فتحه أو استعادته — حتّى يوقظه المستخدم صراحةً.
+    ///
+    /// <para><b>لماذا الإيقاظ فعلٌ صريح:</b> لو أيقظه مجرّدُ الدخول إلى التبويب لَما بقي للنوم معنى؛
+    /// المرور على التبويبات وحده يوقظها جميعاً. وبعد الإيقاظ يُنسى العلم فيعود التبويب عاديّاً تماماً.</para>
+    /// </summary>
+    public bool Sleeping { get; private set; }
+
+    /// <summary>يُطلَق عند تبدّل حالة النوم — يحفظ المُضيف الجلسة ويحدّث علامة الرأس.</summary>
+    public event Action? SleepChanged;
+
+    /// <summary>هل في التبويب أمرٌ يعمل الآن؟ يقرؤه المُضيف قبل الإنامة الجماعيّة ليؤكّد.</summary>
+    public bool IsBusy => RunState == TerminalRunState.Running;
+
+    /// <summary>
+    /// يُنيم التبويب: يُنهي الصدفة وما يعمل فيها فوراً ويغطّي الشبكة بلوحة النوم. التأكيد — إن لزم —
+    /// مسؤوليّة المُضيف، فهو وحده يعرف كم تبويباً سيُنيم دفعةً واحدة.
+    /// </summary>
+    public void Sleep()
+    {
+        if (Sleeping) return;
+        Sleeping = true;
+
+        _statusTimer.Stop();
+        _refresh.Stop();
+        _blinkTimer.Stop();
+
+        if (_coreSession != null)
+        {
+            _coreSession.DataReceived -= OnCoreData;
+            _coreSession.Exited -= OnExited;
+            _coreSession.Dispose();
+            _coreSession = null;
+        }
+
+        // يُصفَّر كي يبدأ الإيقاظُ جلسةً نظيفة لا يمنعها حارسُ «بدأنا مرّة».
+        _started = false;
+        _pid = 0;
+
+        ApplySleepVisuals();
+        SleepChanged?.Invoke();
+    }
+
+    /// <summary>يوقظ التبويب ويُنسي علمَ النوم — فيعود بعدها عاديّاً كأن لم ينم.</summary>
+    public void Wake()
+    {
+        if (!Sleeping) return;
+        Sleeping = false;
+        ApplySleepVisuals();
+        TryStartSession();
+        SleepChanged?.Invoke();
+    }
+
+    private void SleepWake_Click(object sender, RoutedEventArgs e) => Wake();
+
+    /// <summary>يُظهر/يُخفي لوحة النوم ويحدّث نصوصها باللغة الحاليّة.</summary>
+    private void ApplySleepVisuals()
+    {
+        SleepOverlay.Visibility = Sleeping ? Visibility.Visible : Visibility.Collapsed;
+        SleepOverlay.FlowDirection = Services.Loc.Flow;
+        SleepTitle.Text = Services.Loc.T("sleep.title");
+        SleepHint.Text = Services.Loc.T("sleep.hint");
+        SleepWakeButton.Content = Services.Loc.T("sleep.run");
+
+        if (Sleeping)
+        {
+            SetStatus(Services.Loc.T("sleep.title"));
+            UpdateComposerVisibility();
+        }
     }
 
     /// <summary>هل اكتمل تخطيط العرض بحجم صالح (لا صفر) يسمح بقياس أعمدة/أسطر حقيقيّة؟</summary>
@@ -767,7 +895,8 @@ public partial class TerminalTabView : UserControl
         // عودة الموجّه = خرج البرنامج التفاعليّ (لا يوجد إشعار خروج في تيرمنال خام).
         if (IsAtShellPrompt(_lastSnapshot)) _interactiveRunning = false;
 
-        bool hide = !_composerEnabled || _composerSuppressReshow || altScreen || _interactiveRunning;
+        // النائم بلا صدفة أصلاً، فصندوقُ أمرٍ لا مُرسَل إليه خداعٌ بصريّ.
+        bool hide = Sleeping || !_composerEnabled || _composerSuppressReshow || altScreen || _interactiveRunning;
         SetComposerShown(!hide);
     }
 
@@ -859,6 +988,8 @@ public partial class TerminalTabView : UserControl
             return;
         }
 
+        // كتابةُ حرفٍ تُبدّل الاقتراحات، فالبقاء «داخل» قائمةٍ تغيّرت تحت اليد لا معنى له.
+        _suggestNav = false;
         SuggestList.ItemsSource = matches;
         SuggestList.SelectedIndex = 0;
         SuggestPanel.Visibility = Visibility.Visible;
@@ -1321,6 +1452,7 @@ public partial class TerminalTabView : UserControl
     {
         SuggestPanel.Visibility = Visibility.Collapsed;
         SuggestList.ItemsSource = null;
+        _suggestNav = false;   // القائمة اختفت، فلا معنى لبقاء الأسهم مخطوفةً إليها
     }
 
     // ===== متصفّح المجلدات (زرّ الباث فوق الإنبت) =====
@@ -1466,6 +1598,37 @@ public partial class TerminalTabView : UserControl
         ComposerInput.Focus();
     }
 
+    /// <summary>
+    /// يضع أمراً في صندوق التأليف بلا تنفيذ، ويُظهر الصندوق ويركّزه.
+    ///
+    /// <para>يستعمله قاموس الأوامر: المدرَج يُقرأ ويُعدَّل ثمّ يُنفَّذ بـEnter — لا بضغطةٍ واحدة تسبق
+    /// المراجعة، فأمرٌ محفوظٌ منذ شهرٍ قد يحمل مساراً أو وسيطاً لم يعد صالحاً.</para>
+    /// </summary>
+    public void PrefillComposer(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return;
+
+        _composerSuppressReshow = false;
+        if (Sleeping) Wake();       // الإدراج نيّةُ عملٍ لا تصفّح، فيوقظ التبويب النائم
+        UpdateComposerVisibility();
+
+        ComposerInput.Text = command;
+        ComposerInput.CaretIndex = command.Length;
+        ClearGhost();
+        HideSuggestions();
+        Dispatcher.BeginInvoke(new Action(() => ComposerInput.Focus()), DispatcherPriority.Input);
+    }
+
+    /// <summary>نصّ الصندوق المرشَّح للقاموس: التحديد إن وُجد، وإلّا السطر كلّه.</summary>
+    public string ComposerTextForDictionary()
+    {
+        string selected = ComposerInput.SelectedText;
+        return (selected.Length > 0 ? selected : ComposerInput.Text).Trim();
+    }
+
+    /// <summary>يُطلَق حين يطلب المستخدم إضافة نصّ الصندوق إلى قاموس الأوامر.</summary>
+    public event Action<string>? AddToDictionaryRequested;
+
     /// <summary>يقبل اقتراحاً: يستبدل نصّ الصندوق به ويضع المؤشّر في نهايته ويُخفي القائمة.</summary>
     private void AcceptSuggestion(string cmd)
     {
@@ -1506,17 +1669,30 @@ public partial class TerminalTabView : UserControl
 
         switch (e.Key)
         {
-            // Tab / السهم الأيمن عند النهاية: يقبل الشبح (الاقتراح الأعلى) — نمط Warp.
+            // Tab: بابُ قائمة الاقتراحات. أوّل ضغطةٍ تدخلها وما بعدها ينزل فيها بنداً بنداً.
+            // بلا قائمةٍ يبقى Tab قابلاً للشبح كما كان (نمط Warp).
             case Key.Tab when !shift:
-            case Key.Right when ComposerInput.CaretIndex == ComposerInput.Text.Length
-                             && _ghostSuggestion != null:
-                if (_ghostSuggestion != null) { AcceptSuggestion(_ghostSuggestion); e.Handled = true; }
-                else if (suggesting && SuggestList.SelectedItem is ComposerSuggestion s1) { AcceptSuggestion(s1.Text); e.Handled = true; }
+                if (suggesting)
+                {
+                    if (!_suggestNav) { _suggestNav = true; SuggestList.SelectedIndex = 0; }
+                    else SuggestList.SelectedIndex = (SuggestList.SelectedIndex + 1) % SuggestList.Items.Count;
+                    SuggestList.ScrollIntoView(SuggestList.SelectedItem);
+                    SyncGhostToSelection();
+                    e.Handled = true;
+                }
+                else if (_ghostSuggestion != null) { AcceptSuggestion(_ghostSuggestion); e.Handled = true; }
                 break;
 
-            // الأسهم تتنقّل قائمة الاقتراحات إن كانت ظاهرة، وإلّا تاريخ الجلسة.
+            // السهم الأيمن عند نهاية النصّ يقبل الشبح — إكمالٌ في مكانه بلا دخول القائمة.
+            case Key.Right when ComposerInput.CaretIndex == ComposerInput.Text.Length
+                             && _ghostSuggestion != null && !_suggestNav:
+                AcceptSuggestion(_ghostSuggestion);
+                e.Handled = true;
+                break;
+
+            // الأسهم لتاريخ الجلسة دائماً — إلّا إذا كان المستخدم قد دخل القائمة بـTab.
             case Key.Down:
-                if (suggesting)
+                if (_suggestNav && suggesting)
                 {
                     SuggestList.SelectedIndex = Math.Min(SuggestList.SelectedIndex + 1, SuggestList.Items.Count - 1);
                     SuggestList.ScrollIntoView(SuggestList.SelectedItem);
@@ -1526,7 +1702,7 @@ public partial class TerminalTabView : UserControl
                 else if (!ComposerIsMultiline() && NavigateComposerHistory(older: false)) e.Handled = true;
                 break;
             case Key.Up:
-                if (suggesting)
+                if (_suggestNav && suggesting)
                 {
                     SuggestList.SelectedIndex = Math.Max(SuggestList.SelectedIndex - 1, 0);
                     SuggestList.ScrollIntoView(SuggestList.SelectedItem);
@@ -1537,9 +1713,9 @@ public partial class TerminalTabView : UserControl
                 break;
 
             case Key.Enter when !shift:
-                // اقتراح مُحدَّد بالأسهم (غير الأوّل) ⇒ Enter يقبله بدل الإرسال؛ وإلّا يُرسل.
-                if (suggesting && SuggestList.SelectedIndex > 0
-                    && SuggestList.SelectedItem is ComposerSuggestion s2)
+                // داخل القائمة: Enter ينقل المحدَّد إلى الصندوق ولا يُنفّذه — للمستخدم أن يعدّله،
+                // وEnter الثانية (وقد خرجنا من القائمة) هي التي تُنفّذ. اختيارٌ ثمّ تنفيذ، لا الاثنان معاً.
+                if (_suggestNav && suggesting && SuggestList.SelectedItem is ComposerSuggestion s2)
                     AcceptSuggestion(s2.Text);
                 else
                     SubmitComposer();
@@ -1547,7 +1723,7 @@ public partial class TerminalTabView : UserControl
                 break;
 
             case Key.Escape:
-                if (suggesting) { HideSuggestions(); ClearGhost(); e.Handled = true; break; }
+                if (_suggestNav || suggesting) { _suggestNav = false; HideSuggestions(); ClearGhost(); e.Handled = true; break; }
                 _composerSuppressReshow = true;   // إخفاء يدويّ حتّى تركيز/Enter لاحق
                 ComposerBar.Visibility = Visibility.Collapsed;
                 Renderer.SuppressCursor = false;
@@ -3192,6 +3368,116 @@ public partial class TerminalTabView : UserControl
         var item = new MenuItem { Header = header };
         item.Click += (_, _) => action();
         return item;
+    }
+
+    // ===== تحديد يدويّ + قائمة سياق صندوق الأمر =====
+
+    /// <summary>
+    /// موضع المؤشّر النصّيّ عند نقطة ماوس: <b>حدُّ</b> الحرف الأقرب لا فهرسُ الحرف تحته.
+    ///
+    /// <para><c>GetCharacterIndexFromPoint</c> يعيد الحرف الذي تقع النقطة داخل صندوقه، فالوقوف على
+    /// آخر حرف يعطي فهرسه دائماً — أي بدايته — فيتعذّر ضمُّه إلى التحديد مهما سُحب المؤشّر. المنتصف
+    /// هو الحدّ: ما تجاوزه ينتمي لِما بعد الحرف. هكذا يتصرّف كلّ حقل نصّ في النظام.</para>
+    /// </summary>
+    private int CaretIndexFromPoint(Point pt)
+    {
+        int idx = ComposerInput.GetCharacterIndexFromPoint(pt, true);
+        if (idx < 0 || idx >= ComposerInput.Text.Length) return idx;
+
+        Rect lead = ComposerInput.GetRectFromCharacterIndex(idx, false);
+        Rect trail = ComposerInput.GetRectFromCharacterIndex(idx, true);
+        if (lead.IsEmpty || trail.IsEmpty) return idx;
+
+        return pt.X > (lead.X + trail.X) / 2 ? idx + 1 : idx;
+    }
+
+    private void ComposerInput_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 1) return;
+
+        int idx = CaretIndexFromPoint(e.GetPosition(ComposerInput));
+        if (idx < 0) return;
+
+        _composerSelAnchor = idx;
+        ComposerInput.Focus();
+        ComposerInput.Select(idx, 0);
+        // بلا CaptureMouse عمداً: الحركة والرفع على جذر العرض يصلان بلا مسك، والمسكُ هنا كان
+        // يبتلع نقرات شبكة التيرمنال بعد كلّ تحديد في الصندوق فيوقف التأشير فيها.
+        e.Handled = true;
+    }
+
+    private void ComposerInput_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_composerSelAnchor is not { } anchor) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { _composerSelAnchor = null; return; }
+
+        int idx = CaretIndexFromPoint(e.GetPosition(ComposerInput));
+        if (idx < 0) return;
+
+        ComposerInput.Select(Math.Min(anchor, idx), Math.Abs(idx - anchor));
+        e.Handled = true;
+    }
+
+    private void ComposerInput_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_composerSelAnchor is null) return;
+        _composerSelAnchor = null;
+        if (ComposerInput.IsMouseCaptured) ComposerInput.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// قائمة سياق صندوق الأمر: قصّ · نسخ · لصق · تحديد الكلّ · مسح — بثيم التطبيق.
+    ///
+    /// <para>البنود تُبنى <b>الآن</b> لا داخل <c>Opened</c>: قائمةٌ فارغة لا تُفتح أصلاً في WPF
+    /// (<c>HasItems == false</c>)، فلا يُطلَق <c>Opened</c> ولا تظهر القائمة أبداً. يبقى في
+    /// <c>Opened</c> تحديثُ التفعيل والنصّ وحدهما حسب حالة التحديد والحافظة واللغة.</para>
+    /// </summary>
+    private ContextMenu BuildComposerContextMenu()
+    {
+        var menu = new ContextMenu { FlowDirection = Services.Loc.Flow };
+
+        var cut = MenuItemFor(Services.Loc.T("ctx.cut"), () => ComposerInput.Cut());
+        var copy = MenuItemFor(Services.Loc.T("ctx.copy"), () => ComposerInput.Copy());
+        var paste = MenuItemFor(Services.Loc.T("ctx.paste"), () => ComposerInput.Paste());
+        var selectAll = MenuItemFor(Services.Loc.T("ctx.selectAll"), () => ComposerInput.SelectAll());
+        var clear = MenuItemFor(Services.Loc.T("ctx.clear"), () => ComposerInput.Clear());
+        var toDict = MenuItemFor(Services.Loc.T("dict.addFrom"),
+            () => AddToDictionaryRequested?.Invoke(ComposerTextForDictionary()));
+
+        menu.Items.Add(cut);
+        menu.Items.Add(copy);
+        menu.Items.Add(paste);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(selectAll);
+        menu.Items.Add(clear);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(toDict);
+
+        menu.Opened += (_, _) =>
+        {
+            bool hasSel = ComposerInput.SelectionLength > 0;
+            bool hasText = ComposerInput.Text.Length > 0;
+            bool hasClip = false;
+            try { hasClip = Clipboard.ContainsText(); } catch { }
+
+            menu.FlowDirection = Services.Loc.Flow;
+            cut.Header = Services.Loc.T("ctx.cut");
+            copy.Header = Services.Loc.T("ctx.copy");
+            paste.Header = Services.Loc.T("ctx.paste");
+            selectAll.Header = Services.Loc.T("ctx.selectAll");
+            clear.Header = Services.Loc.T("ctx.clear");
+            toDict.Header = Services.Loc.T("dict.addFrom");
+
+            cut.IsEnabled = hasSel;
+            copy.IsEnabled = hasSel;
+            paste.IsEnabled = hasClip;
+            selectAll.IsEnabled = hasText;
+            clear.IsEnabled = hasText;
+            toDict.IsEnabled = hasText;   // يحفظ التحديد إن وُجد، وإلّا السطر كلّه
+        };
+
+        return menu;
     }
 
     // ===== تكبير/تصغير الخط =====

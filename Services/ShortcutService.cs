@@ -48,6 +48,9 @@ public static class ShortcutService
     /// <summary>فتح لوحة الإعدادات.</summary>
     public const string OpenSettings = "settings.open";
 
+    /// <summary>قاموس الأوامر (مكتبة الأوامر الشخصيّة).</summary>
+    public const string CommandDictionary = "dict.open";
+
     private static readonly ShortcutAction[] Registry =
     {
         new(NewTerminal,     "Ctrl+Shift+T", "keys.newTerminal"),
@@ -55,6 +58,7 @@ public static class ShortcutService
         new(SplitHorizontal, "Ctrl+Shift+E", "keys.splitH"),
         new(ClosePane,       "Ctrl+W",       "keys.closePane"),
         new(CommandPalette,  "Ctrl+Shift+P", "keys.palette"),
+        new(CommandDictionary, "Ctrl+Shift+K", "keys.dictionary"),
         new(AiPanel,         "Ctrl+P",       "keys.aiPanel"),
         new(AiComposerMode,  "Ctrl+I",       "keys.aiMode"),
         new(SearchOutput,    "Ctrl+F",       "keys.search"),

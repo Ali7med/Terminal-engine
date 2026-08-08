@@ -175,12 +175,17 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <!-- شريط أيقونات موحَّد: ثمانية أزرار بحجمٍ واحد (13) — إمّا محرفٌ نصّيّ عاديّ
+                         («✦» و«⏱») يتبع لون النصّ وحجمه كبقيّة الواجهة، أو Segoe MDL2 Assets. كانت
+                         مزيجاً من رموز تعبيريّة ملوّنة («✨» «🕘» «🧹») ونصّيّة افتراضيّة («↻» «■» «✕»)
+                         وأيقونتَي MDL2 بحجمٍ أصغر (12) — فبدت غير متناسقة حجماً ونمطاً. -->
+
                     <!-- نقطة الدخول الموحّدة لمساعد الـAI: ميزة خلف قائمة سياق لا يجدها أحد. -->
                     <ToggleButton x:Name="AiToggleButton" Style="{StaticResource IconToggle}"
-                                  Content="✨" Click="AiToggleButton_Click"/>
+                                  Content="✦" FontSize="13" Click="AiToggleButton_Click"/>
                     <!-- سجلّ الأوامر (T-106): زرّ يفتح Popup بقائمة الأوامر الأخيرة -->
-                    <Button x:Name="HistoryButton" Style="{StaticResource IconButton}" Content="🕘"
-                            Click="HistoryButton_Click"/>
+                    <Button x:Name="HistoryButton" Style="{StaticResource IconButton}" Content="⏱"
+                            FontSize="13" Click="HistoryButton_Click"/>
                     <Popup x:Name="HistoryPopup" PlacementTarget="{Binding ElementName=HistoryButton}"
                            Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                            FlowDirection="{Binding FlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
@@ -225,21 +230,21 @@
                             </DockPanel>
                         </Border>
                     </Popup>
-                    <Button Style="{StaticResource IconButton}" Content="↻" Click="RestartButton_Click"
+                    <Button Style="{StaticResource IconButton}" Content="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="RestartButton_Click"
                             ToolTip="{loc:T term.restart}"/>
-                    <Button Style="{StaticResource IconButton}" Content="■" Click="StopButton_Click"
+                    <Button Style="{StaticResource IconButton}" Content="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="StopButton_Click"
                             ToolTip="{loc:T term.stop}"/>
-                    <Button Style="{StaticResource IconButton}" Content="🧹" Click="ClearButton_Click"
+                    <Button Style="{StaticResource IconButton}" Content="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="ClearButton_Click"
                             ToolTip="{loc:T term.clear}"/>
                     <!-- فصل: نقرة → نافذة مستقلّة · Shift+نقرة → تيرمنال خارجيّ بنفس المسار (E8A7 = OpenInNewWindow) -->
                     <Button x:Name="DetachButton" Style="{StaticResource IconButton}"
-                            Content="&#xE8A7;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                            Content="&#xE8A7;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                             Click="DetachButton_Click"
                             ToolTip="فتح في نافذة مستقلّة · Shift: تيرمنال خارجيّ بنفس المسار"/>
                     <ToggleButton x:Name="ExpandToggle" Style="{StaticResource IconToggle}"
-                                  Content="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                  Content="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                                   Click="ExpandToggle_Click" ToolTip="توسيع مساحة العمل"/>
-                    <Button Style="{StaticResource IconButton}" Content="✕" Click="CloseButton_Click"
+                    <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="CloseButton_Click"
                             ToolTip="{loc:T term.closePane}"/>
                 </StackPanel>
             </Grid>
@@ -304,6 +309,27 @@
                                     Click="SearchNext_Click" ToolTip="{loc:T find.next}"/>
                             <Button Style="{StaticResource IconButton}" Content="✕"
                                     Click="SearchClose_Click" ToolTip="{loc:T find.close}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- لوحة النوم: تغطّي الشبكة ما دام التبويب نائماً. الإيقاظ فعلٌ صريح (زرّ) لا
+                         مجرّد دخولٍ إلى التبويب — وإلّا لم يبقَ للنوم معنى، إذ يكفي المرور عليه لِيُشغَّل. -->
+                    <Border x:Name="SleepOverlay" Visibility="Collapsed"
+                            Background="{DynamicResource Brush.TerminalBg}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+                            <!-- E708 = QuietHours (هلال) -->
+                            <TextBlock Text="&#xE708;" FontFamily="Segoe MDL2 Assets" FontSize="34"
+                                       HorizontalAlignment="Center" Opacity="0.55"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <TextBlock x:Name="SleepTitle" Margin="0,14,0,0" HorizontalAlignment="Center"
+                                       FontSize="{DynamicResource Size.Heading}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Text}"/>
+                            <TextBlock x:Name="SleepHint" Margin="0,7,0,0" HorizontalAlignment="Center"
+                                       TextAlignment="Center" TextWrapping="Wrap" Opacity="0.75"
+                                       FontSize="{DynamicResource Size.Ui}"
+                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <Button x:Name="SleepWakeButton" Margin="0,18,0,0" Padding="18,7"
+                                    HorizontalAlignment="Center" Click="SleepWake_Click"/>
                         </StackPanel>
                     </Border>
 

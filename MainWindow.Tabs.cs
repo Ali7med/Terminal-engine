@@ -339,9 +339,22 @@ public partial class MainWindow
         RefreshTabVisuals();
     }
 
+    /// <summary>
+    /// بدء تتبّع سحب رأس تبويب — <b>إن وقعت الضغطة في الرأس نفسه</b>.
+    ///
+    /// <para><b>لماذا الفحص:</b> قالب <c>TabItem</c> لا يحوي إلّا رأسه، ومحتوى التبويب يُعرَض
+    /// خارجه في قالب <c>TabControl</c>. لكنّ <c>TabItem</c> هو الأب <b>المنطقيّ</b> لذلك المحتوى،
+    /// وWPF يمرّر أحداث المحتوى المستضاف في <c>ContentPresenter</c> عبر أبيه المنطقيّ — فكانت كلّ
+    /// ضغطةٍ في شبكة التيرمنال أو في صندوق الأمر تصل إلى هنا، فتبدأ سحب التبويب وتخطف الماوس
+    /// (<c>CaptureMouse</c>) وتزيح الرأس تحت الإصبع: يتزحزح التبويب ويموت التأشير في الاثنين معاً.</para>
+    /// </summary>
     private void TabHeader_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not TabItem tab) return;
+
+        Point local = e.GetPosition(tab);
+        if (local.X < 0 || local.Y < 0 || local.X > tab.ActualWidth || local.Y > tab.ActualHeight) return;
+
         _dragTab = tab;
         _dragStart = e.GetPosition(TerminalTabs);
         _dragging = false;
