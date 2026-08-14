@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TerminalLauncher.Controls;
@@ -310,6 +311,8 @@ public partial class MainWindow : Window
 
         BgOpacitySlider.Value = _settings.BackgroundOpacity;
         BgOpacityValue.Text = _settings.BackgroundOpacity.ToString("0.00");
+        BgBlurSlider.Value = _settings.BgBlurRadius;
+        BgBlurValue.Text = ((int)_settings.BgBlurRadius).ToString();
         UpdateBackgroundUi();
         UpdateBackgroundSelection();
         UpdateBgSlideshowUi();
@@ -357,7 +360,22 @@ public partial class MainWindow : Window
         SetTerminalContentBorderTransparent(nonTheme);
         SetSidebarScrim(nonTheme);
         SetAppHeaderScrim(nonTheme);
+        SetBlurBackdrops(nonTheme);
         PushBackgroundAlphaToAllTabs(alpha);
+    }
+
+    /// <summary>
+    /// يفعّل/يعطّل ضبابيّة الخلفيّة خلف التيرمنال ولوحة المشاريع. الخلفيّتان (<c>TerminalBgBlur</c>
+    /// و<c>SidebarBgBlur</c>) تعكسان لون/صورة <c>RootBorder</c> عبر Binding في XAML تلقائيّاً — بما
+    /// فيها أثناء انتقال شرائح الخلفيّة؛ هنا فقط نبدّل تأثير التمويه (BlurEffect) عند خلفيّة مخصّصة، كي
+    /// لا تتشوَّش الكتابة فوقها بتفاصيل الصورة الحادّة، بينما خلفيّة الثيم المسطّحة لا تحتاج تمويهاً.
+    /// </summary>
+    private void SetBlurBackdrops(bool nonTheme)
+    {
+        double radius = _settings.BgBlurRadius;
+        Effect? effect = nonTheme && radius > 0 ? new BlurEffect { Radius = radius, KernelType = KernelType.Gaussian } : null;
+        TerminalBgBlur.Effect = effect;
+        SidebarBgBlur.Effect = effect is null ? null : new BlurEffect { Radius = radius, KernelType = KernelType.Gaussian };
     }
 
     /// <summary>
@@ -836,6 +854,16 @@ public partial class MainWindow : Window
         _settings.BackgroundOpacity = Math.Round(e.NewValue, 2);
         BgOpacityValue.Text = _settings.BackgroundOpacity.ToString("0.00");
         // يؤثّر فقط حين تكون خلفيّة غير الثيم نشطة؛ ApplyBackground يقرّر الشفافيّة الفعليّة.
+        ApplyBackground();
+        SaveSettings();
+    }
+
+    private void BgBlurSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_syncingUi) return;
+        _settings.BgBlurRadius = Math.Round(e.NewValue);
+        BgBlurValue.Text = ((int)_settings.BgBlurRadius).ToString();
+        // يؤثّر فقط حين تكون خلفيّة غير الثيم نشطة؛ ApplyBackground يقرّر التمويه الفعليّ.
         ApplyBackground();
         SaveSettings();
     }
@@ -1786,6 +1814,7 @@ public partial class MainWindow : Window
         BgChooseButton.Content = Loc.T("bg.choose");
         BgClearButton.Content = Loc.T("bg.clear");
         BgOpacityLabel.Text = Loc.T("bg.opacity");
+        BgBlurLabel.Text = Loc.T("bg.blur");
         BgSlideshowLabel.Text = Loc.T("bg.slideshow.section");
         BgSlideshowEnableCheck.Content = Loc.T("bg.slideshow.enable");
         BgSlideshowFolderButton.Content = Loc.T("bg.slideshow.chooseFolder");

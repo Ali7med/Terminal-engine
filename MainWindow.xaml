@@ -160,6 +160,13 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- خلفيّة ضبابيّة خلف الشريط الجانبيّ (الرصّ والمشاريع معاً — يتبادلان الظهور بالعمود
+                     نفسه): نسخة مموَّهة (Blur) من خلفيّة النافذة، فوقها زجاج الشريط (Glass) — يمنع تفاصيل
+                     الصورة الحادّة من التشويش على نصوص المشاريع مع بقاء الشفافيّة. تُفعَّل الضبابيّة من
+                     الكود فقط عند خلفيّة مخصّصة (غير خلفيّة الثيم). -->
+                <Border x:Name="SidebarBgBlur" Grid.Column="0" IsHitTestVisible="False"
+                        Background="{Binding Background, ElementName=RootBorder}"/>
+
                 <!-- الحالة المطويّة للشريط الجانبيّ: أيقونات فقط (60px). تتبادل الظهور مع SidebarPanel
                      الموسَّع في العمود نفسه — لا تظهران معاً. الشريط يطفو فوق الخلفيّة بلا بطاقة ولا حدّ. -->
                 <Border x:Name="SidebarRail" Grid.Column="0" Background="Transparent"
@@ -209,6 +216,12 @@
 
                 <!-- منطقة التيرمنالات -->
                 <Grid Grid.Column="2">
+                    <!-- خلفيّة ضبابيّة خلف التيرمنال: نفس فكرة SidebarBgBlur — نسخة مموَّهة من خلفيّة
+                         النافذة خلف زجاج التيرمنال (شفافيّته من BgOpacitySlider)، فتبرز الكتابة بلا
+                         تشويش من تفاصيل الصورة الحادّة خلفها. -->
+                    <Border x:Name="TerminalBgBlur" IsHitTestVisible="False"
+                            Background="{Binding Background, ElementName=RootBorder}"/>
+
                     <!-- لوحة البداية: بطاقة مرسوّة أسفل منطقة التيرمنال (لا في وسطها) تسرد اختصارات
                          البدء صفّاً صفّاً برقاقات كيبورد — كما في التصميم المرجعيّ. تختفي مع أوّل تبويب. -->
                     <Border x:Name="EmptyHintCard" Style="{StaticResource Card}"
@@ -694,6 +707,22 @@
                                                         Minimum="0.30" Maximum="1.00"
                                                         ValueChanged="BgOpacitySlider_ValueChanged"/>
                                                 <TextBlock x:Name="BgOpacityValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" TextAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                            </Grid>
+
+                                            <TextBlock x:Name="BgBlurLabel" Text="ضبابيّة الخلفيّة خلف التيرمنال والمشاريع"
+                                                       Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                            <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider x:Name="BgBlurSlider" VerticalAlignment="Center"
+                                                        Style="{StaticResource AccentSlider}"
+                                                        Minimum="0" Maximum="40" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                        ValueChanged="BgBlurSlider_ValueChanged"/>
+                                                <TextBlock x:Name="BgBlurValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
                                                            VerticalAlignment="Center" TextAlignment="Center"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>

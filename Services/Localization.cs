@@ -169,6 +169,7 @@ public static class Loc
         ["bg.choose"]          = ("اختر صورة", "Choose image"),
         ["bg.clear"]           = ("إزالة", "Remove"),
         ["bg.opacity"]         = ("شفافية التيرمنال", "Terminal opacity"),
+        ["bg.blur"]            = ("ضبابيّة الخلفيّة خلف التيرمنال والمشاريع", "Blur behind terminal & projects"),
 
         // ===== شرائح الخلفيّة (تبديل تلقائيّ من مجلّد) =====
         ["bg.slideshow.section"]    = ("شرائح الخلفيّة", "Background slideshow"),

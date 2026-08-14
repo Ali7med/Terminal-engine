@@ -154,4 +154,9 @@ public sealed class AppSettings
 
     /// <summary>ترتيب عرض الصور عشوائيّ (true) أم أبجديّ (false).</summary>
     public bool BgSlideshowShuffle { get; set; } = true;
+
+    /// <summary>
+    /// نصف قطر التمويه (بكسل) خلف التيرمنال ولوحة المشاريع عند خلفيّة مخصّصة (صورة/تدرّج/شرائح). صفر = بلا تمويه.
+    /// </summary>
+    public double BgBlurRadius { get; set; } = 26;
 }
