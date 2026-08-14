@@ -136,4 +136,22 @@ public sealed class AppSettings
     /// للمشروع. يُضبط true بعد أوّل ترحيل فلا يتكرّر.
     /// </summary>
     public bool ProjectsTagMigratedV2 { get; set; } = false;
+
+    /// <summary>تفعيل شرائح الخلفيّة: تبديل تلقائيّ دوريّ لصورة الخلفيّة من مجلّد.</summary>
+    public bool BgSlideshowEnabled { get; set; } = false;
+
+    /// <summary>مجلّد صور الشرائح (فارغ = غير مضبوط، لا تبديل رغم التفعيل).</summary>
+    public string BgSlideshowFolder { get; set; } = "";
+
+    /// <summary>الفترة بين صورةٍ وأخرى بالدقائق.</summary>
+    public int BgSlideshowIntervalMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// نوع حركة الانتقال بين الصور: "fade" (تلاشٍ متبادل)، "fadeBlack" (تلاشٍ عبر الأسود)،
+    /// "slide" (تنقّل أفقيّ)، "zoom" (تكبير مع تلاشٍ)، "none" (تبديل فوريّ بلا حركة).
+    /// </summary>
+    public string BgSlideshowTransition { get; set; } = "fade";
+
+    /// <summary>ترتيب عرض الصور عشوائيّ (true) أم أبجديّ (false).</summary>
+    public bool BgSlideshowShuffle { get; set; } = true;
 }

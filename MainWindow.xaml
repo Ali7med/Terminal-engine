@@ -27,6 +27,12 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
+            <!-- طبقة انتقال الخلفيّة: تحمل الصورة الجديدة أثناء حركة التبديل (فيد/تنقل/تكبير) فوق
+                 خلفيّة RootBorder الحاليّة، ثمّ تُطبَّق الصورة على RootBorder وتُخفى هذه الطبقة عند
+                 اكتمال الحركة (AnimateBg* في MainWindow.xaml.cs). غير قابلة للنقر كي لا تعترض الواجهة. -->
+            <Border x:Name="BgTransitionOverlay" Grid.Row="0" Grid.RowSpan="2"
+                    Opacity="0" Visibility="Collapsed" IsHitTestVisible="False"/>
+
             <!-- طبقة تعتيم شريط العنوان: شبه شفّافة حسب الثيم كي يبقى العنوان/الأزرار ظاهرين فوق صورة
                  الخلفيّة. تُفعَّل فقط مع خلفيّة مخصّصة (تُضبَط في ApplyBackground)، وإلّا شفّافة تماماً. -->
             <Border x:Name="AppHeaderScrim" Grid.Row="0" Background="Transparent"/>
@@ -691,6 +697,55 @@
                                                            VerticalAlignment="Center" TextAlignment="Center"
                                                            Foreground="{DynamicResource Brush.TextMuted}"/>
                                             </Grid>
+
+                                            <!-- ===== شرائح الخلفيّة: تبديل تلقائيّ من مجلّد صور ===== -->
+                                            <TextBlock x:Name="BgSlideshowLabel" Text="شرائح الخلفيّة"
+                                                       Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
+                                            <CheckBox x:Name="BgSlideshowEnableCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="تبديل الخلفيّة تلقائيّاً من صور مجلّد" Margin="2,0,0,0"
+                                                      Checked="BgSlideshowEnableCheck_Changed" Unchecked="BgSlideshowEnableCheck_Changed"/>
+
+                                            <StackPanel x:Name="BgSlideshowOptionsPanel" Margin="0,10,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button x:Name="BgSlideshowFolderButton" Content="اختر مجلّداً" Padding="14,7"
+                                                            Click="BgSlideshowFolderButton_Click"/>
+                                                    <Button x:Name="BgSlideshowFolderClearButton" Content="إزالة" Padding="14,7" Margin="8,0,0,0"
+                                                            Click="BgSlideshowFolderClearButton_Click"/>
+                                                </StackPanel>
+                                                <TextBlock x:Name="BgSlideshowFolderText" FontSize="{DynamicResource Size.Tiny}" Margin="2,6,2,0"
+                                                           TextTrimming="CharacterEllipsis" FlowDirection="LeftToRight"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                <TextBlock x:Name="BgSlideshowEmptyText" Margin="2,6,2,0"
+                                                           FontSize="{DynamicResource Size.Small}" Visibility="Collapsed"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"/>
+
+                                                <TextBlock x:Name="BgSlideshowTransitionLabel" Text="نوع الحركة"
+                                                           Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                                <ComboBox x:Name="BgSlideshowTransitionCombo" MaxWidth="260" HorizontalAlignment="Left"
+                                                          MinWidth="200"
+                                                          DisplayMemberPath="Display" SelectedValuePath="Value"
+                                                          SelectionChanged="BgSlideshowTransitionCombo_SelectionChanged"/>
+
+                                                <TextBlock x:Name="BgSlideshowIntervalLabel" Text="مدّة كلّ صورة (دقائق)"
+                                                           Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
+                                                <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider x:Name="BgSlideshowIntervalSlider" VerticalAlignment="Center"
+                                                            Style="{StaticResource AccentSlider}"
+                                                            Minimum="1" Maximum="120" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                            ValueChanged="BgSlideshowIntervalSlider_ValueChanged"/>
+                                                    <TextBlock x:Name="BgSlideshowIntervalValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                               VerticalAlignment="Center" TextAlignment="Center"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                </Grid>
+
+                                                <CheckBox x:Name="BgSlideshowShuffleCheck" Style="{StaticResource AppCheckBox}"
+                                                          Content="ترتيب عشوائيّ" Margin="2,16,0,0"
+                                                          Checked="BgSlideshowShuffleCheck_Changed" Unchecked="BgSlideshowShuffleCheck_Changed"/>
+                                            </StackPanel>
                                         </StackPanel>
 
                                         <!-- ===== فئة: اللغة ===== -->

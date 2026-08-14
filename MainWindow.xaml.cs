@@ -131,6 +131,7 @@ public partial class MainWindow : Window
         ShowCategory("appearance");   // يطبّق رؤية الفئة الابتدائيّة (حدث Checked المبكّر يُتجاهَل)
 
         Loaded += (_, _) => ApplyRounding();
+        Loaded += (_, _) => WireTabStripScroll();
         Loaded += (_, _) =>
         {
             SplashScreenHost.SetStatus(Loc.T("splash.session"));
@@ -138,6 +139,7 @@ public partial class MainWindow : Window
             if (!IsQuickLaunch) RestoreSession();
             OpenLaunchFolderTerminal();   // إطلاقٌ «من مكان» (المستكشف/تشغيل) يفتح تبويباً هناك
             ApplyBackground();
+            if (_settings.BgSlideshowEnabled) StartBgSlideshow();
         };
         // لوحة «ما الجديد» تلقائياً مرّة واحدة عند الترقية — بعد ظهور الواجهة (مغلّفة بـ try/catch داخلها).
         Loaded += (_, _) => Views.WhatsNewWindow.ShowIfNew(this, _settings, _settingsStore);
@@ -310,6 +312,7 @@ public partial class MainWindow : Window
         BgOpacityValue.Text = _settings.BackgroundOpacity.ToString("0.00");
         UpdateBackgroundUi();
         UpdateBackgroundSelection();
+        UpdateBgSlideshowUi();
         _syncingUi = false;
     }
 
@@ -388,8 +391,16 @@ public partial class MainWindow : Window
     /// <summary>يطبّق صورة الخلفيّة (UniformToFill، تُحمَّل بلا قفل الملفّ). يعيد true عند النجاح.</summary>
     private bool TryApplyImageBackground()
     {
-        string path = _settings.BackgroundImagePath;
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
+        var brush = LoadImageBrush(_settings.BackgroundImagePath);
+        if (brush is null) return false;
+        RootBorder.Background = brush;
+        return true;
+    }
+
+    /// <summary>يحمّل صورةً كـImageBrush (UniformToFill، بلا قفل الملفّ، مجمَّدة للاستعمال عبر الخيوط). null عند الفشل.</summary>
+    private static ImageBrush? LoadImageBrush(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
         try
         {
             var bmp = new BitmapImage();
@@ -399,10 +410,11 @@ public partial class MainWindow : Window
             bmp.UriSource = new Uri(path, UriKind.Absolute);
             bmp.EndInit();
             bmp.Freeze();
-            RootBorder.Background = new ImageBrush(bmp) { Stretch = Stretch.UniformToFill };
-            return true;
+            var brush = new ImageBrush(bmp) { Stretch = Stretch.UniformToFill };
+            brush.Freeze();
+            return brush;
         }
-        catch { return false; }
+        catch { return null; }
     }
 
     /// <summary>يطبّق لوناً مصمتاً من hex. يعيد true عند صلاحيّة اللون.</summary>
@@ -424,6 +436,13 @@ public partial class MainWindow : Window
         if (tpl is null) return false;
         RootBorder.Background = tpl.CreateBrush();
         return true;
+    }
+
+    /// <summary>يربط عجلة الماوس بالتمرير الأفقيّ لرأس التبويبات (داخل قالب الـ TabControl).</summary>
+    private void WireTabStripScroll()
+    {
+        if (TerminalTabs.Template?.FindName("TabStripScroll", TerminalTabs) is ScrollViewer sv)
+            sv.PreviewMouseWheel += HorizontalChips_PreviewMouseWheel;
     }
 
     /// <summary>يُشفِّف (أو يعيد) خلفيّة حدود محتوى الـ TabControl (داخل قالبه) لتظهر صورة النافذة خلف التيرمنال.</summary>
@@ -456,6 +475,314 @@ public partial class MainWindow : Window
             if (item is TabItem { Content: TerminalPaneContainer container })
                 foreach (var view in container.AllViews)
                     view.SetBackgroundAlpha(alpha);
+    }
+
+    // ===== شرائح الخلفيّة: تبديل تلقائيّ من مجلّد =====
+
+    private DispatcherTimer? _bgSlideshowTimer;
+    private List<string> _bgSlideshowQueue = new();
+    private int _bgSlideshowPos = -1;
+
+    private static readonly string[] BgSlideshowExtensions = { ".jpg", ".jpeg", ".png", ".bmp", ".webp" };
+
+    public sealed record TransitionOption(string Display, string Value)
+    {
+        public override string ToString() => Display;
+    }
+
+    /// <summary>يبني قائمة خيارات نوع الحركة (تُعاد عند تغيير اللغة كي تتبع أسماؤها).</summary>
+    private void BuildBgTransitionChoices()
+    {
+        string? current = (string?)BgSlideshowTransitionCombo.SelectedValue ?? _settings.BgSlideshowTransition;
+        BgSlideshowTransitionCombo.ItemsSource = new[]
+        {
+            new TransitionOption(Loc.T("bg.slideshow.tr.fade"), "fade"),
+            new TransitionOption(Loc.T("bg.slideshow.tr.fadeBlack"), "fadeBlack"),
+            new TransitionOption(Loc.T("bg.slideshow.tr.slide"), "slide"),
+            new TransitionOption(Loc.T("bg.slideshow.tr.zoom"), "zoom"),
+            new TransitionOption(Loc.T("bg.slideshow.tr.none"), "none"),
+        };
+        BgSlideshowTransitionCombo.SelectedValue = current;
+    }
+
+    /// <summary>يزامن عناصر لوحة شرائح الخلفيّة مع الإعدادات (يُستدعى من SyncSettingsUi تحت غطاء _syncingUi).</summary>
+    private void UpdateBgSlideshowUi()
+    {
+        BgSlideshowEnableCheck.IsChecked = _settings.BgSlideshowEnabled;
+        BgSlideshowOptionsPanel.IsEnabled = _settings.BgSlideshowEnabled;
+        bool hasFolder = !string.IsNullOrWhiteSpace(_settings.BgSlideshowFolder);
+        BgSlideshowFolderText.Text = hasFolder ? _settings.BgSlideshowFolder : "";
+        BgSlideshowFolderClearButton.IsEnabled = hasFolder;
+        if (BgSlideshowTransitionCombo.ItemsSource is null) BuildBgTransitionChoices();
+        BgSlideshowTransitionCombo.SelectedValue = _settings.BgSlideshowTransition;
+        BgSlideshowIntervalSlider.Value = _settings.BgSlideshowIntervalMinutes;
+        BgSlideshowIntervalValue.Text = _settings.BgSlideshowIntervalMinutes.ToString();
+        BgSlideshowShuffleCheck.IsChecked = _settings.BgSlideshowShuffle;
+        BgSlideshowEmptyText.Visibility = hasFolder && Directory.Exists(_settings.BgSlideshowFolder)
+            && !Directory.EnumerateFiles(_settings.BgSlideshowFolder)
+                .Any(f => BgSlideshowExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BgSlideshowEnableCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+        _settings.BgSlideshowEnabled = BgSlideshowEnableCheck.IsChecked == true;
+        BgSlideshowOptionsPanel.IsEnabled = _settings.BgSlideshowEnabled;
+        UpdateBgSlideshowUi();
+        SaveSettings();
+        if (_settings.BgSlideshowEnabled) StartBgSlideshow();
+        else StopBgSlideshow();
+    }
+
+    private void BgSlideshowFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = Loc.T("bg.slideshow.chooseFolder") };
+        if (!string.IsNullOrWhiteSpace(_settings.BgSlideshowFolder) && Directory.Exists(_settings.BgSlideshowFolder))
+            dlg.InitialDirectory = _settings.BgSlideshowFolder;
+        if (dlg.ShowDialog() != true) return;
+
+        _settings.BgSlideshowFolder = dlg.FolderName;
+        UpdateBgSlideshowUi();
+        SaveSettings();
+        if (_settings.BgSlideshowEnabled) StartBgSlideshow();
+    }
+
+    private void BgSlideshowFolderClearButton_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.BgSlideshowFolder = "";
+        StopBgSlideshow();
+        UpdateBgSlideshowUi();
+        SaveSettings();
+    }
+
+    private void BgSlideshowTransitionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingUi) return;
+        if (BgSlideshowTransitionCombo.SelectedValue is not string value) return;
+        _settings.BgSlideshowTransition = value;
+        SaveSettings();
+    }
+
+    private void BgSlideshowIntervalSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_syncingUi) return;
+        _settings.BgSlideshowIntervalMinutes = Math.Clamp((int)Math.Round(e.NewValue), 1, 120);
+        BgSlideshowIntervalValue.Text = _settings.BgSlideshowIntervalMinutes.ToString();
+        SaveSettings();
+        RestartBgSlideshowTimer();
+    }
+
+    private void BgSlideshowShuffleCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+        _settings.BgSlideshowShuffle = BgSlideshowShuffleCheck.IsChecked == true;
+        SaveSettings();
+        if (_settings.BgSlideshowEnabled) StartBgSlideshow();   // إعادة بناء القائمة بالترتيب الجديد
+    }
+
+    /// <summary>يبدأ (أو يعيد بناء) دورة الشرائح: صورة أولى فوراً ثمّ مؤقّت دوريّ.</summary>
+    private void StartBgSlideshow()
+    {
+        StopBgSlideshow();
+        if (!_settings.BgSlideshowEnabled) return;
+        if (string.IsNullOrWhiteSpace(_settings.BgSlideshowFolder) || !Directory.Exists(_settings.BgSlideshowFolder)) return;
+
+        BuildBgSlideshowQueue();
+        if (_bgSlideshowQueue.Count == 0) return;
+
+        AdvanceBgSlideshow();
+        _bgSlideshowTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.BgSlideshowIntervalMinutes, 1, 120)),
+        };
+        _bgSlideshowTimer.Tick += (_, _) => AdvanceBgSlideshow();
+        _bgSlideshowTimer.Start();
+    }
+
+    private void RestartBgSlideshowTimer()
+    {
+        if (_bgSlideshowTimer is null) return;   // لم تُشغَّل بعد — ستأخذ القيمة الجديدة عند أوّل بدء
+        _bgSlideshowTimer.Stop();
+        _bgSlideshowTimer.Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.BgSlideshowIntervalMinutes, 1, 120));
+        _bgSlideshowTimer.Start();
+    }
+
+    private void StopBgSlideshow()
+    {
+        if (_bgSlideshowTimer is null) return;
+        _bgSlideshowTimer.Stop();
+        _bgSlideshowTimer = null;
+    }
+
+    private void BuildBgSlideshowQueue()
+    {
+        try
+        {
+            var files = Directory.EnumerateFiles(_settings.BgSlideshowFolder)
+                .Where(f => BgSlideshowExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                .ToList();
+            if (_settings.BgSlideshowShuffle)
+            {
+                for (int i = files.Count - 1; i > 0; i--)
+                {
+                    int j = Random.Shared.Next(i + 1);
+                    (files[i], files[j]) = (files[j], files[i]);
+                }
+            }
+            else
+            {
+                files.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+            _bgSlideshowQueue = files;
+        }
+        catch { _bgSlideshowQueue = new(); }
+        _bgSlideshowPos = -1;
+    }
+
+    /// <summary>ينتقل إلى الصورة التالية (يعيد بناء القائمة عند إتمام دورة أو فراغها). محاولتان كحدّ أقصى
+    /// كي لا يتكرّر التكرار بلا نهاية إن حُذف المجلّد بالكامل بين تحديثين.</summary>
+    private void AdvanceBgSlideshow()
+    {
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            if (_bgSlideshowQueue.Count == 0) BuildBgSlideshowQueue();
+            if (_bgSlideshowQueue.Count == 0) return;
+
+            _bgSlideshowPos++;
+            if (_bgSlideshowPos >= _bgSlideshowQueue.Count)
+            {
+                BuildBgSlideshowQueue();
+                _bgSlideshowPos = 0;
+                if (_bgSlideshowQueue.Count == 0) return;
+            }
+
+            string path = _bgSlideshowQueue[_bgSlideshowPos];
+            if (!File.Exists(path)) { _bgSlideshowQueue.Clear(); continue; }
+
+            _settings.BackgroundImagePath = path;
+            _settings.BackgroundKind = "image";
+            ApplyImageBackgroundWithTransition(path, _settings.BgSlideshowTransition);
+            SaveSettings();
+            return;
+        }
+    }
+
+    // ===== حركات انتقال الخلفيّة =====
+
+    private const double BgTransitionSeconds = 1.1;
+
+    /// <summary>يطبّق صورةً جديدةً بحركة انتقال فوق الخلفيّة الحاليّة (RootBorder.Background).</summary>
+    private void ApplyImageBackgroundWithTransition(string path, string transition)
+    {
+        var newBrush = LoadImageBrush(path);
+        if (newBrush is null) return;
+
+        if (transition == "none" || RootBorder.Background is not ImageBrush)
+        {
+            RootBorder.Background = newBrush;
+            return;
+        }
+
+        switch (transition)
+        {
+            case "fadeBlack": AnimateBgFadeThroughBlack(newBrush); break;
+            case "slide": AnimateBgSlide(newBrush); break;
+            case "zoom": AnimateBgZoom(newBrush); break;
+            default: AnimateBgFade(newBrush); break;
+        }
+    }
+
+    /// <summary>يعيد طبقة الانتقال إلى حالتها الساكنة بعد اكتمال أيّ حركة.</summary>
+    private void ResetBgTransitionOverlay()
+    {
+        BgTransitionOverlay.Opacity = 0;
+        BgTransitionOverlay.Background = null;
+        BgTransitionOverlay.RenderTransform = null;
+        BgTransitionOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void AnimateBgFade(ImageBrush newBrush)
+    {
+        var overlay = BgTransitionOverlay;
+        overlay.RenderTransform = null;
+        overlay.Background = newBrush;
+        overlay.Opacity = 0;
+        overlay.Visibility = Visibility.Visible;
+
+        var anim = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(BgTransitionSeconds))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
+        anim.Completed += (_, _) =>
+        {
+            RootBorder.Background = newBrush;
+            ResetBgTransitionOverlay();
+        };
+        overlay.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
+
+    private void AnimateBgFadeThroughBlack(ImageBrush newBrush)
+    {
+        var overlay = BgTransitionOverlay;
+        overlay.RenderTransform = null;
+        overlay.Background = Brushes.Black;
+        overlay.Opacity = 0;
+        overlay.Visibility = Visibility.Visible;
+
+        var toBlack = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(BgTransitionSeconds / 2))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        toBlack.Completed += (_, _) =>
+        {
+            RootBorder.Background = newBrush;
+            var fromBlack = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(BgTransitionSeconds / 2))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            fromBlack.Completed += (_, _) => ResetBgTransitionOverlay();
+            overlay.BeginAnimation(UIElement.OpacityProperty, fromBlack);
+        };
+        overlay.BeginAnimation(UIElement.OpacityProperty, toBlack);
+    }
+
+    private void AnimateBgSlide(ImageBrush newBrush)
+    {
+        var overlay = BgTransitionOverlay;
+        overlay.Background = newBrush;
+        overlay.Opacity = 1;
+        double from = Math.Max(overlay.ActualWidth, ActualWidth);
+        var transform = new TranslateTransform(from, 0);
+        overlay.RenderTransform = transform;
+        overlay.Visibility = Visibility.Visible;
+
+        var anim = new DoubleAnimation(from, 0, TimeSpan.FromSeconds(BgTransitionSeconds))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        anim.Completed += (_, _) =>
+        {
+            RootBorder.Background = newBrush;
+            ResetBgTransitionOverlay();
+        };
+        transform.BeginAnimation(TranslateTransform.XProperty, anim);
+    }
+
+    private void AnimateBgZoom(ImageBrush newBrush)
+    {
+        var overlay = BgTransitionOverlay;
+        overlay.Background = newBrush;
+        overlay.Opacity = 0;
+        var scale = new ScaleTransform(1.12, 1.12);
+        overlay.RenderTransformOrigin = new Point(0.5, 0.5);
+        overlay.RenderTransform = scale;
+        overlay.Visibility = Visibility.Visible;
+
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(BgTransitionSeconds))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
+        var zoom = new DoubleAnimation(1.12, 1.0, TimeSpan.FromSeconds(BgTransitionSeconds))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        fade.Completed += (_, _) =>
+        {
+            RootBorder.Background = newBrush;
+            ResetBgTransitionOverlay();
+        };
+        overlay.BeginAnimation(UIElement.OpacityProperty, fade);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, zoom);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, zoom);
     }
 
     private void BgChooseButton_Click(object sender, RoutedEventArgs e)
@@ -1459,6 +1786,15 @@ public partial class MainWindow : Window
         BgChooseButton.Content = Loc.T("bg.choose");
         BgClearButton.Content = Loc.T("bg.clear");
         BgOpacityLabel.Text = Loc.T("bg.opacity");
+        BgSlideshowLabel.Text = Loc.T("bg.slideshow.section");
+        BgSlideshowEnableCheck.Content = Loc.T("bg.slideshow.enable");
+        BgSlideshowFolderButton.Content = Loc.T("bg.slideshow.chooseFolder");
+        BgSlideshowFolderClearButton.Content = Loc.T("bg.slideshow.clearFolder");
+        BgSlideshowEmptyText.Text = Loc.T("bg.slideshow.empty");
+        BgSlideshowTransitionLabel.Text = Loc.T("bg.slideshow.transition");
+        BgSlideshowIntervalLabel.Text = Loc.T("bg.slideshow.interval");
+        BgSlideshowShuffleCheck.Content = Loc.T("bg.slideshow.shuffle");
+        BuildBgTransitionChoices();   // الأسماء تتبع اللغة
         AutoSaveLabel.Text = Loc.T("settings.autosave");
         NewTabButton.ToolTip = Loc.T("tip.newtab");
         SettingsButton.ToolTip = Loc.T("tip.settings");

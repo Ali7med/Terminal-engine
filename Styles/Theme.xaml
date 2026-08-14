@@ -806,6 +806,48 @@
         </Setter>
     </Style>
 
+    <!-- شريط تمرير أفقيّ نحيل لرأس التبويبات. محلّيّ لا BasedOn=ThemedScrollBar للسبب نفسه
+         أعلاه (App.xaml يُدمَج بعد هذا الملفّ فلا يراه StaticResource من هنا). -->
+    <Style x:Key="TabStripScrollBar" TargetType="ScrollBar">
+        <Setter Property="Height" Value="7"/>
+        <Setter Property="MinHeight" Value="7"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" Orientation="Horizontal">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageLeftCommand" Focusable="False" Background="Transparent" BorderThickness="0">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageRightCommand" Focusable="False" Background="Transparent" BorderThickness="0">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb MinWidth="24">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="Th" CornerRadius="3" Margin="0,1" Background="{DynamicResource Brush.Border}"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Th" Property="Background" Value="{DynamicResource Brush.Accent}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ========== تبويبات ========== -->
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="Transparent"/>
@@ -820,9 +862,20 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <!-- لوحة مخصّصة لا TabPanel: هي التي ترسم إطار كلّ مجموعة واسمها خلف
-                             أعضائها — رؤوس التبويبات إخوةٌ في لوحة واحدة فلا سبيل لِلَفّ بعضها. -->
-                        <Border Grid.Row="0" Padding="4,4,4,8">
-                            <ctrl:TabStripPanel x:Name="TabStrip" IsItemsHost="True" Panel.ZIndex="1"/>
+                             أعضائها — رؤوس التبويبات إخوةٌ في لوحة واحدة فلا سبيل لِلَفّ بعضها.
+                             ScrollViewer حول اللوحة: كثرة التابات تفيض عن عرض الهدر بلا هذا، ولا سبيل
+                             للوصول إليها. -->
+                        <!-- خلفيّة زجاجيّة كثيفة: عند خلفيّة صورة/تدرّج خلف النافذة يبقى الهدر شفّافاً بلا هذا
+                             فتضيع رؤوس التبويبات فيه — GlassStrong تجعله يبرز بغضّ النظر عن نوع الخلفيّة. -->
+                        <Border Grid.Row="0" Padding="4,4,4,8" Background="{DynamicResource Brush.GlassStrong}">
+                            <ScrollViewer x:Name="TabStripScroll" Focusable="False"
+                                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          PanningMode="HorizontalOnly">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource TabStripScrollBar}"/>
+                                </ScrollViewer.Resources>
+                                <ctrl:TabStripPanel x:Name="TabStrip" IsItemsHost="True" Panel.ZIndex="1"/>
+                            </ScrollViewer>
                         </Border>
                         <!-- إطار محتوى التيرمنال: بلا استدارة ولا حدّ ولا خلفيّة — الخلفيّة يرسمها العارض
                              والإنبت بنفس التعتيم، فيصيران قطعةً واحدة متّصلة بلا بنل مؤطِّر. -->
