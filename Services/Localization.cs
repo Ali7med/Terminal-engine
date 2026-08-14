@@ -90,6 +90,8 @@ public static class Loc
         ["settings.themehint"] = ("اختر ثيماً — يُطبَّق فوراً", "Pick a theme — applied instantly"),
         ["settings.showAllThemes"] = ("عرض كل الثيمات", "Show all themes"),
         ["settings.allThemes"] = ("كل الثيمات", "All themes"),
+        ["theme.rotation.enable"]   = ("تبديل الثيم عشوائيّاً", "Rotate theme randomly"),
+        ["theme.rotation.interval"] = ("مدّة كلّ ثيم (دقائق)", "Duration per theme (minutes)"),
         ["tip.toggleSidebar"]  = ("إظهار/إخفاء الأوامر المحفوظة", "Show/hide saved commands"),
         ["settings.syncos"]    = ("مزامنة الفاتح/الداكن مع النظام", "Sync light/dark with OS"),
         ["settings.dark"]      = ("داكن", "Dark"),

@@ -26,6 +26,12 @@ public sealed class AppSettings
     /// <summary>معرّف الثيم المُسمّى المختار (مثل "helium-dark"). راجع <see cref="ThemeManager.Presets"/>.</summary>
     public string ThemePresetId { get; set; } = "cozy-dark";
 
+    /// <summary>تفعيل تبديل الثيم عشوائيّاً دوريّاً (بين كلّ الثيمات المتاحة).</summary>
+    public bool ThemeRotationEnabled { get; set; } = false;
+
+    /// <summary>الفترة بين ثيمٍ وآخر بالدقائق.</summary>
+    public int ThemeRotationIntervalMinutes { get; set; } = 10;
+
     /// <summary>مزامنة الفاتح/الداكن مع وضع نظام ويندوز (يتجاوز الثيم المختار عند التفعيل).</summary>
     public bool SyncThemeWithOs { get; set; } = false;
 

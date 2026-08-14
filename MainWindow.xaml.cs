@@ -141,6 +141,7 @@ public partial class MainWindow : Window
             OpenLaunchFolderTerminal();   // إطلاقٌ «من مكان» (المستكشف/تشغيل) يفتح تبويباً هناك
             ApplyBackground();
             if (_settings.BgSlideshowEnabled) StartBgSlideshow();
+            if (_settings.ThemeRotationEnabled) StartThemeRotation();
         };
         // لوحة «ما الجديد» تلقائياً مرّة واحدة عند الترقية — بعد ظهور الواجهة (مغلّفة بـ try/catch داخلها).
         Loaded += (_, _) => Views.WhatsNewWindow.ShowIfNew(this, _settings, _settingsStore);
@@ -316,6 +317,7 @@ public partial class MainWindow : Window
         UpdateBackgroundUi();
         UpdateBackgroundSelection();
         UpdateBgSlideshowUi();
+        UpdateThemeRotationUi();
         _syncingUi = false;
     }
 
@@ -684,6 +686,83 @@ public partial class MainWindow : Window
             SaveSettings();
             return;
         }
+    }
+
+    // ===== تبديل الثيم عشوائيّاً =====
+
+    private DispatcherTimer? _themeRotationTimer;
+
+    /// <summary>يزامن عناصر لوحة تبديل الثيم مع الإعدادات (يُستدعى من SyncSettingsUi تحت غطاء _syncingUi).</summary>
+    private void UpdateThemeRotationUi()
+    {
+        ThemeRotationEnableCheck.IsChecked = _settings.ThemeRotationEnabled;
+        ThemeRotationOptionsPanel.IsEnabled = _settings.ThemeRotationEnabled;
+        ThemeRotationIntervalSlider.Value = _settings.ThemeRotationIntervalMinutes;
+        ThemeRotationIntervalValue.Text = _settings.ThemeRotationIntervalMinutes.ToString();
+    }
+
+    private void ThemeRotationEnableCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi) return;
+        _settings.ThemeRotationEnabled = ThemeRotationEnableCheck.IsChecked == true;
+        ThemeRotationOptionsPanel.IsEnabled = _settings.ThemeRotationEnabled;
+        SaveSettings();
+        if (_settings.ThemeRotationEnabled) StartThemeRotation();
+        else StopThemeRotation();
+    }
+
+    private void ThemeRotationIntervalSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_syncingUi) return;
+        _settings.ThemeRotationIntervalMinutes = Math.Clamp((int)Math.Round(e.NewValue), 1, 120);
+        ThemeRotationIntervalValue.Text = _settings.ThemeRotationIntervalMinutes.ToString();
+        SaveSettings();
+        RestartThemeRotationTimer();
+    }
+
+    /// <summary>يبدأ (أو يعيد بناء) دورة تبديل الثيم: ثيم جديد فوراً ثمّ مؤقّت دوريّ.</summary>
+    private void StartThemeRotation()
+    {
+        StopThemeRotation();
+        if (!_settings.ThemeRotationEnabled) return;
+        if (ThemeManager.Presets.Length < 2) return;
+
+        AdvanceThemeRotation();
+        _themeRotationTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.ThemeRotationIntervalMinutes, 1, 120)),
+        };
+        _themeRotationTimer.Tick += (_, _) => AdvanceThemeRotation();
+        _themeRotationTimer.Start();
+    }
+
+    private void RestartThemeRotationTimer()
+    {
+        if (_themeRotationTimer is null) return;   // لم يُشغَّل بعد — سيأخذ القيمة الجديدة عند أوّل بدء
+        _themeRotationTimer.Stop();
+        _themeRotationTimer.Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.ThemeRotationIntervalMinutes, 1, 120));
+        _themeRotationTimer.Start();
+    }
+
+    private void StopThemeRotation()
+    {
+        if (_themeRotationTimer is null) return;
+        _themeRotationTimer.Stop();
+        _themeRotationTimer = null;
+    }
+
+    /// <summary>يختار ثيماً عشوائيّاً غير الحاليّ ويطبّقه. لا شيء عند مزامنة النظام (الثيم مقفلٌ عليها).</summary>
+    private void AdvanceThemeRotation()
+    {
+        if (_settings.SyncThemeWithOs) return;
+        var presets = ThemeManager.Presets;
+        if (presets.Length < 2) return;
+
+        string next;
+        do { next = presets[Random.Shared.Next(presets.Length)].Id; }
+        while (next == _settings.ThemePresetId);
+
+        SetPreset(next);
     }
 
     // ===== حركات انتقال الخلفيّة =====
@@ -1813,6 +1892,8 @@ public partial class MainWindow : Window
         BgCustomLabel.Text = Loc.T("bg.custom");
         BgChooseButton.Content = Loc.T("bg.choose");
         BgClearButton.Content = Loc.T("bg.clear");
+        ThemeRotationEnableCheck.Content = Loc.T("theme.rotation.enable");
+        ThemeRotationIntervalLabel.Text = Loc.T("theme.rotation.interval");
         BgOpacityLabel.Text = Loc.T("bg.opacity");
         BgBlurLabel.Text = Loc.T("bg.blur");
         BgSlideshowLabel.Text = Loc.T("bg.slideshow.section");

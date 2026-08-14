@@ -672,6 +672,28 @@
                                                       Content="مزامنة الفاتح/الداكن مع النظام" Margin="2,10,2,0"
                                                       Checked="SyncOsCheck_Changed" Unchecked="SyncOsCheck_Changed"/>
 
+                                            <!-- تبديل الثيم عشوائيّاً كلّ فترة — نفس فكرة شرائح الخلفيّة لكن للثيمات. -->
+                                            <CheckBox x:Name="ThemeRotationEnableCheck" Style="{StaticResource AppCheckBox}"
+                                                      Content="تبديل الثيم عشوائيّاً" Margin="2,10,2,0"
+                                                      Checked="ThemeRotationEnableCheck_Changed" Unchecked="ThemeRotationEnableCheck_Changed"/>
+                                            <StackPanel x:Name="ThemeRotationOptionsPanel" Margin="0,10,0,0">
+                                                <TextBlock x:Name="ThemeRotationIntervalLabel" Text="مدّة كلّ ثيم (دقائق)"
+                                                           Style="{StaticResource SectionLabel}" Margin="2,0,2,8"/>
+                                                <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider x:Name="ThemeRotationIntervalSlider" VerticalAlignment="Center"
+                                                            Style="{StaticResource AccentSlider}"
+                                                            Minimum="1" Maximum="120" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                            ValueChanged="ThemeRotationIntervalSlider_ValueChanged"/>
+                                                    <TextBlock x:Name="ThemeRotationIntervalValue" Grid.Column="1" MinWidth="34" Margin="10,0,0,0"
+                                                               VerticalAlignment="Center" TextAlignment="Center"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"/>
+                                                </Grid>
+                                            </StackPanel>
+
                                             <TextBlock x:Name="TextColorLabel" Text="لون الكتابة" Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
                                             <WrapPanel x:Name="TextColorPanel"/>
                                         </StackPanel>
