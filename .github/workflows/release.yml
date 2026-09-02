@@ -19,17 +19,17 @@ jobs:
 
     steps:
       # التاريخ والوسوم كاملةً: يفيد التشخيص ويتيح قراءة سياق الوسم.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
@@ -97,7 +97,7 @@ jobs:
 
       # يُرفع دائماً — يجعل التشغيل اليدويّ تجربةً جافّة مفيدة، ويحفظ المخرجات عند فشل النشر.
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: velopack-${{ steps.version.outputs.version }}
           path: Releases
@@ -107,7 +107,7 @@ jobs:
       # Releases/* يلتقط Setup.exe و.nupkg وملفّات RELEASES مهما تغيّرت تسمياتها.
       - name: Publish GitHub Release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: TerminalLauncher ${{ steps.version.outputs.version }}
