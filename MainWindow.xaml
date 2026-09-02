@@ -586,6 +586,20 @@
                             CornerRadius="{DynamicResource Radius.Card}" Background="{DynamicResource Brush.SurfaceGlass}"
                             BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
                             RenderTransformOrigin="0.5,0.5" MouseLeftButtonDown="SettingsPanel_MouseDown">
+                        <!-- نظام «فلوينت» الخاصّ بالإعدادات (Fluent.*): مُدمَج هنا فقط — لا يغيّر شكل أيّ
+                             عنصر خارج هذه اللوحة. راجع Styles/FluentSettings.xaml. -->
+                        <Border.Resources>
+                            <ResourceDictionary>
+                                <ResourceDictionary.MergedDictionaries>
+                                    <ResourceDictionary Source="Styles/FluentSettings.xaml"/>
+                                </ResourceDictionary.MergedDictionaries>
+                            </ResourceDictionary>
+                        </Border.Resources>
+                        <!-- ظلّ ناعم كبير الانتشار خافت العتامة: يمنح لوحة الإعدادات (حوار طافٍ) عمقاً
+                             أوضح من البطاقات العاديّة — القسم ٢٣/٢٧ من مواصفة الفلوينت. -->
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="40" ShadowDepth="8" Opacity="0.32"/>
+                        </Border.Effect>
                         <Border.RenderTransform>
                             <ScaleTransform x:Name="SettingsPanelTransform" ScaleX="0.96" ScaleY="0.96"/>
                         </Border.RenderTransform>
@@ -598,7 +612,7 @@
                                         Content="&#xE8BB;" Click="CloseSettings_Click"/>
                             </Grid>
                             <Border DockPanel.Dock="Top" Height="1" Margin="0,0,0,0"
-                                    Background="{DynamicResource Brush.Border}"/>
+                                    Background="{DynamicResource Brush.Hairline}"/>
 
                             <TextBlock x:Name="AutoSaveLabel" DockPanel.Dock="Bottom" VerticalAlignment="Bottom"
                                        Text="تُحفظ التفضيلات تلقائياً" FontSize="{DynamicResource Size.Tiny}" Margin="24,10,24,14"
@@ -615,29 +629,29 @@
                                 <!-- قائمة الفئات (RadioButton مجموعة واحدة → اختيار حصريّ) -->
                                 <StackPanel x:Name="CategoryList" Grid.Column="0" Margin="14,16,14,0">
                                     <RadioButton x:Name="NavAppearance" GroupName="SettingsCat"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="appearance"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="appearance"
                                                  Content="المظهر والخلفية" Checked="CategoryNav_Checked" IsChecked="True"/>
                                     <RadioButton x:Name="NavBackground" GroupName="SettingsCat" Visibility="Collapsed"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="background"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="background"
                                                  Content="الخلفية" Checked="CategoryNav_Checked"/>
                                     <RadioButton x:Name="NavLanguage" GroupName="SettingsCat"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="language"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="language"
                                                  Content="اللغة والخطّ" Checked="CategoryNav_Checked"/>
                                     <RadioButton x:Name="NavFont" GroupName="SettingsCat" Visibility="Collapsed"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="font"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="font"
                                                  Content="الخطّ" Checked="CategoryNav_Checked"/>
                                     <RadioButton x:Name="NavAi" GroupName="SettingsCat"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="ai"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="ai"
                                                  Content="{loc:T ai.set.title}" Checked="CategoryNav_Checked"/>
                                     <RadioButton x:Name="NavKeys" GroupName="SettingsCat"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="keys"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="keys"
                                                  Content="{loc:T keys.nav}" Checked="CategoryNav_Checked"/>
                                     <RadioButton x:Name="NavAliases" GroupName="SettingsCat"
-                                                 Style="{StaticResource SettingsNavButton}" Tag="aliases"
+                                                 Style="{StaticResource Fluent.NavItem}" Tag="aliases"
                                                  Content="{loc:T alias.nav}" Checked="CategoryNav_Checked"/>
                                 </StackPanel>
 
-                                <Border Grid.Column="1" Background="{DynamicResource Brush.Border}"/>
+                                <Border Grid.Column="1" Background="{DynamicResource Brush.Hairline}"/>
 
                                 <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
                                               HorizontalScrollBarVisibility="Disabled"
@@ -650,6 +664,8 @@
                                     <StackPanel>
                                         <!-- ===== فئة: المظهر ===== -->
                                         <StackPanel x:Name="CatAppearance">
+                                        <Border Style="{StaticResource Card}" Padding="20,18">
+                                        <StackPanel>
                                             <Grid Width="420" HorizontalAlignment="Left" Margin="0,0,0,8">
                                                 <Button Content="{loc:T docs.open}" ToolTip="{loc:T docs.tip}"
                                                         Style="{StaticResource GuideButton}" Tag="appearance"
@@ -668,12 +684,12 @@
                                                     Click="ThemeMoreButton_Click"/>
 
                                             <!-- مزامنة الفاتح/الداكن مع النظام -->
-                                            <CheckBox x:Name="SyncOsCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="SyncOsCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="مزامنة الفاتح/الداكن مع النظام" Margin="2,10,2,0"
                                                       Checked="SyncOsCheck_Changed" Unchecked="SyncOsCheck_Changed"/>
 
                                             <!-- تبديل الثيم عشوائيّاً كلّ فترة — نفس فكرة شرائح الخلفيّة لكن للثيمات. -->
-                                            <CheckBox x:Name="ThemeRotationEnableCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="ThemeRotationEnableCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="تبديل الثيم عشوائيّاً" Margin="2,10,2,0"
                                                       Checked="ThemeRotationEnableCheck_Changed" Unchecked="ThemeRotationEnableCheck_Changed"/>
                                             <StackPanel x:Name="ThemeRotationOptionsPanel" Margin="0,10,0,0">
@@ -697,9 +713,12 @@
                                             <TextBlock x:Name="TextColorLabel" Text="لون الكتابة" Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
                                             <WrapPanel x:Name="TextColorPanel"/>
                                         </StackPanel>
+                                        </Border>
+                                        </StackPanel>
 
                                         <!-- ===== فئة: الخلفية ===== -->
                                         <StackPanel x:Name="CatBackground" Visibility="Collapsed" Margin="0,22,0,0">
+                                        <Border Style="{StaticResource Card}" Padding="20,18"><StackPanel>
                                             <TextBlock x:Name="BgTemplatesLabel" Text="قوالب"
                                                        Style="{StaticResource SectionLabel}"/>
                                             <!-- معرض القوالب يُبنى في الكود (BuildBackgroundGallery) -->
@@ -752,7 +771,7 @@
                                             <!-- ===== شرائح الخلفيّة: تبديل تلقائيّ من مجلّد صور ===== -->
                                             <TextBlock x:Name="BgSlideshowLabel" Text="شرائح الخلفيّة"
                                                        Style="{StaticResource SectionLabel}" Margin="2,22,2,8"/>
-                                            <CheckBox x:Name="BgSlideshowEnableCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="BgSlideshowEnableCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="تبديل الخلفيّة تلقائيّاً من صور مجلّد" Margin="2,0,0,0"
                                                       Checked="BgSlideshowEnableCheck_Changed" Unchecked="BgSlideshowEnableCheck_Changed"/>
 
@@ -772,8 +791,8 @@
 
                                                 <TextBlock x:Name="BgSlideshowTransitionLabel" Text="نوع الحركة"
                                                            Style="{StaticResource SectionLabel}" Margin="2,18,2,8"/>
-                                                <ComboBox x:Name="BgSlideshowTransitionCombo" MaxWidth="260" HorizontalAlignment="Left"
-                                                          MinWidth="200"
+                                                <ComboBox x:Name="BgSlideshowTransitionCombo" Style="{StaticResource Fluent.ComboBox}"
+                                                          MaxWidth="260" HorizontalAlignment="Left" MinWidth="200"
                                                           DisplayMemberPath="Display" SelectedValuePath="Value"
                                                           SelectionChanged="BgSlideshowTransitionCombo_SelectionChanged"/>
 
@@ -793,10 +812,12 @@
                                                                Foreground="{DynamicResource Brush.TextMuted}"/>
                                                 </Grid>
 
-                                                <CheckBox x:Name="BgSlideshowShuffleCheck" Style="{StaticResource AppCheckBox}"
+                                                <CheckBox x:Name="BgSlideshowShuffleCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                           Content="ترتيب عشوائيّ" Margin="2,16,0,0"
                                                           Checked="BgSlideshowShuffleCheck_Changed" Unchecked="BgSlideshowShuffleCheck_Changed"/>
                                             </StackPanel>
+                                        </StackPanel>
+                                        </Border>
                                         </StackPanel>
 
                                         <!-- ===== فئة: اللغة ===== -->
@@ -827,7 +848,7 @@
                                         <!-- ===== فئة: الخطّ ===== -->
                                         <StackPanel x:Name="CatFont" Visibility="Collapsed" Margin="0,22,0,0">
                                             <!-- صندوق التأليف المنفصل (نمط Warp) -->
-                                            <CheckBox x:Name="ComposerCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="ComposerCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ui.composerRich}" Margin="2,0,2,4"
                                                       Checked="ComposerCheck_Changed" Unchecked="ComposerCheck_Changed"/>
                                             <TextBlock Text="{loc:T ui.composerRichHint}"
@@ -954,7 +975,7 @@
 
                                             <!-- حجم النصّ الثانويّ (Size.Small): تلقائيّ = نصّ الواجهة − 2، أو قيمة صريحة -->
                                             <TextBlock Text="{loc:T settings.smallSize}" Style="{StaticResource SectionLabel}" Margin="2,14,2,6"/>
-                                            <CheckBox x:Name="SmallAutoCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="SmallAutoCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T settings.smallAuto}" Margin="2,0,2,6"
                                                       Checked="SmallAutoCheck_Changed" Unchecked="SmallAutoCheck_Changed"/>
                                             <Grid FlowDirection="LeftToRight" Width="360" HorizontalAlignment="Left">
@@ -975,7 +996,7 @@
                                             <TextBlock Text="{loc:T settings.rolesHint}" TextWrapping="Wrap" MaxWidth="380"
                                                        HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Foreground="{DynamicResource Brush.TextMuted}" Margin="2,0,2,8"/>
-                                            <CheckBox x:Name="DerivedSizesCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="DerivedSizesCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T settings.rolesAuto}" Margin="2,0,2,10"
                                                       Checked="DerivedSizes_Changed" Unchecked="DerivedSizes_Changed"/>
 
@@ -1091,7 +1112,7 @@
                                             </Grid>
                                             <StackPanel Orientation="Horizontal" Margin="2,8,2,0"
                                                         HorizontalAlignment="Left" FlowDirection="LeftToRight">
-                                                <CheckBox x:Name="AiFreeOnlyCheck" Style="{StaticResource AppCheckBox}"
+                                                <CheckBox x:Name="AiFreeOnlyCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                           VerticalAlignment="Center"
                                                           Content="{loc:T ai.set.freeOnly}"
                                                           Checked="AiFreeOnly_Changed" Unchecked="AiFreeOnly_Changed"/>
@@ -1200,7 +1221,7 @@
                                                        Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,6,2,0" Foreground="{DynamicResource Brush.TextMuted}"/>
 
-                                            <CheckBox x:Name="AiAutoRunCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiAutoRunCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.autoRun}" Margin="2,18,2,4"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <TextBlock Text="{loc:T ai.set.autoRunHint}" TextWrapping="Wrap"
@@ -1214,23 +1235,23 @@
                                             <TextBlock Text="{loc:T ai.set.grpPrivacy}" Style="{StaticResource Caption}"
                                                        Margin="2,0,2,10"/>
 
-                                            <CheckBox x:Name="AiLearningCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiLearningCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.learning}" Margin="2,0,2,4"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <TextBlock Text="{loc:T ai.set.learningHint}" TextWrapping="Wrap"
                                                        Width="420" HorizontalAlignment="Left" FontSize="{DynamicResource Size.Small}"
                                                        Margin="2,0,2,14" Foreground="{DynamicResource Brush.TextMuted}"/>
 
-                                            <CheckBox x:Name="AiAmbientCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiAmbientCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.ambient}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
-                                            <CheckBox x:Name="AiPreviewCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiPreviewCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.preview}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
-                                            <CheckBox x:Name="AiQuietCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiQuietCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.quiet}" Margin="2,0,2,8"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
-                                            <CheckBox x:Name="AiSaveChatsCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="AiSaveChatsCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T ai.set.saveChats}" Margin="2,0,2,4"
                                                       Checked="AiToggles_Changed" Unchecked="AiToggles_Changed"/>
                                             <TextBlock Text="{loc:T ai.set.saveChatsHint}" TextWrapping="Wrap"
@@ -1322,7 +1343,7 @@
 
                                             <!-- التسجيل في الصدفة الحقيقيّة: يجعل الاسم المختصر يعمل
                                                  حتّى حين يُكتب داخل شبكة التيرمنال لا في صندوق الإدخال. -->
-                                            <CheckBox x:Name="ShellAliasCheck" Style="{StaticResource AppCheckBox}"
+                                            <CheckBox x:Name="ShellAliasCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                       Content="{loc:T alias.shell}" Margin="2,0,2,4"
                                                       Checked="ShellAliasCheck_Changed" Unchecked="ShellAliasCheck_Changed"/>
                                             <TextBlock Text="{loc:T alias.shellHint}" TextWrapping="Wrap"
@@ -1388,9 +1409,9 @@
                                                              FontFamily="Cascadia Mono, Consolas"
                                                              theme:Placeholder.Text="{loc:T alias.shellPh}"/>
 
-                                                    <CheckBox x:Name="AliasConfirmCheck" Style="{StaticResource AppCheckBox}"
+                                                    <CheckBox x:Name="AliasConfirmCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                               Content="{loc:T alias.confirm}" Margin="2,16,2,8"/>
-                                                    <CheckBox x:Name="AliasEnabledCheck" Style="{StaticResource AppCheckBox}"
+                                                    <CheckBox x:Name="AliasEnabledCheck" Style="{StaticResource Fluent.ToggleSwitch}"
                                                               Content="{loc:T alias.enabled}" Margin="2,0,2,0"/>
 
                                                     <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
