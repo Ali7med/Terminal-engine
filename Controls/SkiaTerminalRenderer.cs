@@ -844,6 +844,10 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
             // Dim: مزج المقدّمة نحو الخلفية (~0.5).
             if (dim) fgWpf = AnsiPalette.Blend(fgWpf, bgWpf, 0.5);
 
+            // أرضيّة تباين — للخلايا ذات الخلفيّة الصريحة وحدها: النصّ فوق خلفيّة التيرمنال
+            // الافتراضيّة يبقى بلون البرنامج تماماً كما أرسله، فلا نمسّ مخرجاته العاديّة.
+            if (hasBg) fgWpf = AnsiPalette.EnsureContrast(fgWpf, bgWpf);
+
             SKColor fg = ToSk(fgWpf);
             SKColor bg = ToSk(bgWpf);
 
@@ -947,8 +951,10 @@ public sealed class SkiaTerminalRenderer : FrameworkElement, IRenderer
                     float sx = spanRight - runW;
                     if (sx < pad + spanStartCol * cellW) sx = pad + spanStartCol * cellW;
                     paint.Style = SKPaintStyle.Fill;
-                    paint.Color = ToSk(AnsiPalette.ResolveForeground(span.Style.Fg,
-                        (span.Style.Attr & CharAttr.Bold) != 0));
+                    // اللون المحسوب للمقطع لا إعادةُ حلٍّ من الصفر: الأخيرة كانت تُسقط العكس
+                    // (Inverse) والخفوت (Dim) وأرضيّةَ التباين، فيُرسم النصّ العربيّ بلونٍ يخالف
+                    // بقيّة السطر — وقد يختفي فوق خلفيّة صريحة.
+                    paint.Color = fg;
                     canvas.DrawShapedText(ShaperFor(atf), text, sx, y + ascent, afont, paint);
                 }
             }

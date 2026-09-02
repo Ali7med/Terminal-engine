@@ -486,11 +486,17 @@ public partial class TerminalTabView
         ComposerInput.Focus();
     }
 
-    /// <summary>النصّ الإرشاديّ يظهر ما دام الصندوق فارغاً، ونصّه يتبع الوضع.</summary>
+    /// <summary>
+    /// النصّ الإرشاديّ يظهر ما دام الصندوق فارغاً، ونصّه يتبع الوضع. حين يقرأ برنامجٌ عاملٌ المفاتيحَ
+    /// بنفسه يقول ذلك صراحةً — وإلّا بدا الصندوق كأنّه ينتظر أمراً بينما مفاتيحه تذهب للبرنامج.
+    /// </summary>
     private void UpdateComposerPlaceholder(string text)
     {
         if (ComposerPlaceholder is null) return;
-        ComposerPlaceholder.Text = Loc.T(ComposerAiMode ? "ai.cmp.hintAi" : "ai.cmp.hintCommand");
+        ComposerPlaceholder.Text = Loc.T(
+            ComposerAiMode ? "ai.cmp.hintAi"
+            : AppDrawsOwnUi() ? "ai.cmp.hintProgram"
+            : "ai.cmp.hintCommand");
         ComposerPlaceholder.Visibility = text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

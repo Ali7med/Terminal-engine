@@ -52,8 +52,19 @@ public partial class ContainerExplorerWindow : Window
     // ===== حالة تخطيط الكونسول =====
     private enum ConsoleState { Split, Collapsed, Maximized }
     private ConsoleState _consoleState = ConsoleState.Split;
-    private Orientation _consoleOrientation = Orientation.Vertical;   // Vertical = أسفل الملفّات
-    private GridLength _savedConsoleLen = new(240);
+
+    /// <summary>
+    /// الاتّجاه الافتراضيّ: الكونسول <b>جانباً</b> (يمين قائمة الملفّات) لا أسفلها. مخرجات أوامر
+    /// الخادم أسطرٌ طويلة (‏migrate · docker · logs)، وشريطٌ سفليّ بارتفاع ٢٤٠px يلفّها ويقصّ
+    /// جدولَها فلا يُقرأ. القسمة العموديّة تعطيه ارتفاع النافذة كاملاً وعرضاً يكفي السطر.
+    /// </summary>
+    private Orientation _consoleOrientation = Orientation.Horizontal;
+
+    // طولٌ محفوظ <b>لكلّ اتّجاه على حدة</b>: قيمة تصلح ارتفاعاً لا تصلح عرضاً (والعكس)، وحقلٌ
+    // واحد كان ينقل بكسلات أحدهما للآخر عند التبديل. الافتراضيّ نسبةٌ نجميّة فيتبع حجم النافذة،
+    // ويصير بكسلات بعد أوّل سحبٍ للفاصل.
+    private GridLength _savedConsoleWidth = new(1.6, GridUnitType.Star);   // جانبيّ ⇒ ‎~62%‎ من العرض
+    private GridLength _savedConsoleLen = new(240);                        // سفليّ ⇒ ارتفاع ثابت
 
     public ContainerExplorerWindow(SshConnectionInfo info, string containerId, string displayName, bool sudo)
     {
@@ -617,10 +628,10 @@ public partial class ContainerExplorerWindow : Window
             double h = SplitHost.RowDefinitions[2].ActualHeight;
             if (h > 20) _savedConsoleLen = new GridLength(h);
         }
-        else if (SplitHost.ColumnDefinitions.Count == 3)
+        else if (_consoleOrientation == Orientation.Horizontal && SplitHost.ColumnDefinitions.Count == 3)
         {
             double w = SplitHost.ColumnDefinitions[2].ActualWidth;
-            if (w > 20) _savedConsoleLen = new GridLength(w);
+            if (w > 20) _savedConsoleWidth = new GridLength(w);
         }
     }
 
@@ -641,9 +652,10 @@ public partial class ContainerExplorerWindow : Window
         GridLength consoleLen =
             !showConsole ? new GridLength(0)
             : _consoleState == ConsoleState.Maximized ? new GridLength(1, GridUnitType.Star)
-            : _savedConsoleLen;
-        double consoleMin = (showConsole && _consoleState == ConsoleState.Split) ? (vert ? 70 : 120) : 0;
-        double fileMin = showFiles ? (vert ? 80 : 120) : 0;
+            : vert ? _savedConsoleLen : _savedConsoleWidth;
+        // حدٌّ أدنى جانبيّ أوسع: ‎120px‎ عرضاً ≈ ١٥ عموداً — سطرُ أمرٍ واحد يلتفّ ثلاث مرّات.
+        double consoleMin = (showConsole && _consoleState == ConsoleState.Split) ? (vert ? 70 : 340) : 0;
+        double fileMin = showFiles ? (vert ? 80 : 180) : 0;
 
         SplitHost.RowDefinitions.Clear();
         SplitHost.ColumnDefinitions.Clear();

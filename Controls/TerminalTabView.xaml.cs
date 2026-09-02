@@ -74,6 +74,19 @@ public partial class TerminalTabView : UserControl
     private int _histIndex = -1;          // موضع التنقّل في _sessionCommands (-1 = عند السطر الحيّ)
     private string _histSavedLine = "";   // السطر الحيّ المحفوظ قبل بدء التنقّل
 
+    /// <summary>
+    /// بادئة البحث المثبَّتة لحظة بدء التنقّل — نمط fish/zsh: من كتب <c>git</c> ثمّ ضغط سهماً
+    /// يتنقّل بين أوامر <c>git</c> وحدها لا كلّ التاريخ. فارغة = تاريخ كامل (سلوك bash).
+    /// </summary>
+    private string _histPrefix = "";
+
+    /// <summary>
+    /// كتابةٌ برمجيّة صادرة عن تنقّل التاريخ نفسه. بدونه كان <see cref="Composer_TextChanged"/>
+    /// يصفّر <see cref="_histIndex"/> عند كلّ خطوة — فالسهم يعيد البدء من النهاية أبداً، ويستبدل
+    /// <see cref="_histSavedLine"/> بالأمر المستدعى فيضيع ما كان يكتبه المستخدم.
+    /// </summary>
+    private bool _histNavigating;
+
     /// <summary>معرّف الجلسة (يربطها بتاريخها المخزَّن)؛ يُعاد استعماله عند الاسترجاع.</summary>
     public string SessionId { get; }
 
@@ -154,10 +167,12 @@ public partial class TerminalTabView : UserControl
     {
         _endTime = DateTime.Now;
         _statusTimer.Stop();
-        var brush = (Brush)FindResource(exitCode is null or 0 ? "Brush.Success" : "Brush.Danger");
-        SetStatus(exitCode is null
-            ? $"انتهى · ⏱ {Elapsed()}"
-            : $"انتهى · رمز {exitCode} · ⏱ {Elapsed()}", brush);
+        bool ok = exitCode is null or 0;
+        var brush = (Brush)FindResource(ok ? "Brush.Success" : "Brush.Danger");
+        // العبارة تتبع النتيجة فعلاً: رمزُ خروجٍ غير صفريّ «فشل» لا «انتهى».
+        string label = Services.Loc.T(ok ? "term.st.done" : "term.st.failed");
+        string code = exitCode is null or 0 ? "" : $" · {Services.Loc.T("term.st.exit")} {exitCode}";
+        SetStatus($"{label}{code} · {Elapsed()}", brush);
     }
 
     private void SetRunState(TerminalRunState state)
@@ -306,6 +321,15 @@ public partial class TerminalTabView : UserControl
         ShellCombo.SelectedItem = ShellCatalog.Get(_entry.Shell);
         // شِل حاوية عبر ssh: نُخفي الكومبو — تبديل الصدفة يشغّل StartSession بكتالوج الصدفات فيكسر جلسة ssh.
         if (_shellOverride != null) ShellCombo.Visibility = Visibility.Collapsed;
+
+        // الجلسة البعيدة: رقاقة المسار تعرض موجّه الطرف الآخر، لكنّ متصفّح المجلدات خلفها محلّيّ —
+        // اختيار مجلد منه يُرسل ‎cd "C:\..."‎ إلى صدفة لينكس. نُبقي الرقاقة عرضاً ونُطفئ فتحها.
+        if (IsRemoteSession)
+        {
+            CwdPickerButton.IsHitTestVisible = false;
+            CwdPickerButton.Cursor = System.Windows.Input.Cursors.Arrow;
+            CwdPickerChevron.Visibility = Visibility.Collapsed;
+        }
         _initializing = false;
 
         HistoryButton.ToolTip = Services.Loc.T("tip.history");   // تلميح مُعرَّب (T-106)
@@ -569,7 +593,7 @@ public partial class TerminalTabView : UserControl
             lock (_screenLock) _coreScreen?.FeedString(msg);
             MarkDirty();
             _statusTimer.Stop();
-            SetStatus("خطأ", (Brush)FindResource("Brush.Danger"));
+            SetStatus(Services.Loc.T("term.st.error"), (Brush)FindResource("Brush.Danger"));
         }
     }
 
@@ -784,11 +808,25 @@ public partial class TerminalTabView : UserControl
                 cwd = ExtractCwd(LinePlainText(snap.Lines[i]));
         }
         TrackLiveCwd(cwd);   // الاقتراحات تتبع cd الحقيقيّ لا مجلد البدء
-        // قبل أوّل موجّه ملتقَط: مجلد العمل الفعليّ لا <c>_entry.Path</c> وحده — فالأخير فارغ في التبويبات
-        // الفارغة، فكان المسار يظهر فارغاً في الصندوق حتّى يُطبَع أوّل موجّه.
-        cwd ??= CurrentWorkDir();
+        if (cwd != null) _lastPromptCwd = cwd;
+
+        // الجلسة البعيدة (شِل حاوية/خادم فوق SSH) لا مجلد عمل محلّيّاً لها: الارتداد إلى
+        // <see cref="CurrentWorkDir"/> كان يعرض مسار ويندوز الخاصّ بالتطبيق فوق موجّه لينكس —
+        // مسارٌ لا وجود له في الطرف الآخر. نُبقي آخر مسارٍ التقطناه من الموجّه، وإلّا لا شيء.
+        // قبل أوّل موجّه ملتقَط محلّيّاً: مجلد العمل الفعليّ لا <c>_entry.Path</c> وحده — فالأخير فارغ في
+        // التبويبات الفارغة، فكان المسار يظهر فارغاً في الصندوق حتّى يُطبَع أوّل موجّه.
+        cwd ??= _lastPromptCwd ?? (IsRemoteSession ? "" : CurrentWorkDir());
         ComposerCwd.Text = ShortenPath(cwd);
     }
+
+    /// <summary>آخر مسار قُرئ من الموجّه (يشمل مسارات لينكس البعيدة) — يبقى معروضاً أثناء المخرجات.</summary>
+    private string? _lastPromptCwd;
+
+    /// <summary>
+    /// جلسة غير محلّيّة: الـPTY يأتي من مصنع خارجيّ (<c>SshShellSession</c> لشِل الحاوية) لا من
+    /// ConPTY محلّيّ. عندها لا يعني مجلد العمل المحلّيّ ولا متصفّح المجلدات المحلّيّ شيئاً.
+    /// </summary>
+    private bool IsRemoteSession => _sessionFactory != null;
 
     /// <summary>مجلد العمل الحيّ المستخرَج من الموجّه (مسار ويندوز موجود فعلاً)، أو null قبل أوّل التقاط.</summary>
     private string? _liveCwd;
@@ -815,6 +853,15 @@ public partial class TerminalTabView : UserControl
         catch { /* مسار غير صالح — نبقي السابق */ }
     }
 
+    /// <summary>
+    /// موجّه POSIX: مسارٌ بعد ':' يليه رمز الموجّه ثمّ نهاية السطر أو مسافة —
+    /// ‎root@host:/app#‎ · ‎user@host:~/src$‎ · ‎host:/#‎. اشتراط ':' قبله واشتراط خلوّه من المسافات
+    /// يمنع التقاط سطر مخرجات يشبه الشكل صدفةً (فيُوهم أنّ الموجّه عاد وينتهي توقيت الأمر مبكّراً).
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex PosixPromptRx =
+        new(@":(?<p>[~/][^\s]*?)\s?[$#%❯](?:\s|$)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
     /// <summary>يستخرج مجلد العمل من نصّ الموجّه (cmd: ...&gt; · pwsh: PS ...&gt; · bash: توكِن مسار).</summary>
     private static string? ExtractCwd(string prompt)
     {
@@ -829,6 +876,16 @@ public partial class TerminalTabView : UserControl
             if (p.Length is > 1 and < 260 && (p.Contains(":\\") || p.StartsWith("/") || p.StartsWith("~")))
                 return p;
         }
+
+        // POSIX (‏bash/zsh/sh، وهو نمط موجّه الحاويات الافتراضيّ): ‎user@host:path$‎ · ‎user@host:path#‎.
+        // بدونه كان موجّه ‎root@9c859c6e73c5:/app#‎ لا يُقرأ أبداً: لا ينتهي بـ'>' ولا يحمل توكِناً
+        // مستقلّاً يبدأ بـ'/'، فيرتدّ الصندوق لمجلد ويندوز المحلّيّ.
+        //
+        // يُطابَق <b>في وسط السطر</b> لا في آخره فقط: بعد إرسال الأمر يصير سطر الموجّه
+        // ‎root@9c859c6e73c5:/app# php artisan migrate‎ — وهو آخر سطر موجّه على الشاشة، فلو
+        // اشترطنا انتهاءه برمز الموجّه لضاع المسار طوال تنفيذ الأمر.
+        if (PosixPromptRx.Match(prompt) is { Success: true } m)
+            return m.Groups["p"].Value;
 
         // bash/zsh: أوّل توكِن يشبه مساراً (/c/... أو ~/...).
         foreach (var tok in prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries))
@@ -898,6 +955,14 @@ public partial class TerminalTabView : UserControl
         // النائم بلا صدفة أصلاً، فصندوقُ أمرٍ لا مُرسَل إليه خداعٌ بصريّ.
         bool hide = Sleeping || !_composerEnabled || _composerSuppressReshow || altScreen || _interactiveRunning;
         SetComposerShown(!hide);
+
+        // مؤشّر الشبكة مكتوم ما دام الصندوق مالكَ الإدخال. حين يقرأ برنامجٌ المفاتيح بنفسه يصير
+        // موضعُ مؤشّره هو المعلومة المهمّة (أيّ خيارٍ محدَّد الآن) ⇒ نُظهره ولو بقي الصندوق ظاهراً.
+        if (ComposerBar.Visibility == Visibility.Visible)
+        {
+            Renderer.SuppressCursor = !AppDrawsOwnUi();
+            UpdateComposerPlaceholder(ComposerInput.Text);   // النصّ الإرشاديّ يتبع من يملك المفاتيح
+        }
     }
 
     /// <summary>
@@ -962,7 +1027,16 @@ public partial class TerminalTabView : UserControl
     /// <summary>يعيد بناء قائمة الاقتراحات والشبح من نصّ الصندوق الحاليّ.</summary>
     private void Composer_TextChanged(object sender, TextChangedEventArgs e)
     {
-        _histIndex = -1;   // الكتابة تُنهي تنقّل التاريخ
+        // كتابةُ التنقّل نفسه ليست «كتابةَ مستخدم»: لا تُنهي التنقّل ولا تفتح قائمة اقتراحات فوق
+        // أمرٍ مستدعًى — التيرمنال الاعتياديّ لا يقترح شيئاً وأنت تتصفّح تاريخك.
+        if (_histNavigating)
+        {
+            UpdateComposerPlaceholder(ComposerInput.Text);
+            if (ComposerInput.IsKeyboardFocusWithin) { ShowComposerCaret(true); PositionComposerCaret(); }
+            return;
+        }
+
+        ResetHistoryNav();   // الكتابة تُنهي تنقّل التاريخ
         if (ComposerInput.IsKeyboardFocusWithin) { ShowComposerCaret(true); PositionComposerCaret(); }
         string text = ComposerInput.Text;
         UpdateComposerPlaceholder(text);
@@ -1009,7 +1083,10 @@ public partial class TerminalTabView : UserControl
                && suggestion.Length > typed.Length;
         if (!ok)
         {
+            // ‏_ghostSuggestion يُصفَّر مع الإخفاء: إبقاؤه كان يترك «شبحاً غير مرئيّ» يقبله Tab
+            // والسهم الأيمن، فيُستبدَل السطر كلّه باقتراحٍ قديم لا يراه أحد على الشاشة.
             ComposerGhostPanel.Visibility = Visibility.Collapsed;
+            _ghostSuggestion = null;
             return;
         }
 
@@ -1022,6 +1099,13 @@ public partial class TerminalTabView : UserControl
     }
 
     private string? _ghostSuggestion;
+
+    /// <summary>
+    /// شبحٌ <b>معروض فعلاً</b> وقابل للقبول. الاعتماد على <see cref="_ghostSuggestion"/> وحده كان
+    /// يقبل اقتراحاً لا يظهر على الشاشة — والقاعدة: لا يُقبَل بـTab أو بالسهم إلّا ما يُرى.
+    /// </summary>
+    private bool GhostVisible =>
+        _ghostSuggestion != null && ComposerGhostPanel.Visibility == Visibility.Visible;
 
     /// <summary>يضع طبقة الشبح عند نهاية النصّ المكتوب رأسيّاً ووسطاً.</summary>
     private void PositionGhost()
@@ -1480,6 +1564,7 @@ public partial class TerminalTabView : UserControl
 
     private void CwdPicker_Click(object sender, RoutedEventArgs e)
     {
+        if (IsRemoteSession) return;   // متصفّح مجلدات محلّيّ فوق جلسة بعيدة = مسارات لا وجود لها هناك
         if (CwdPickerPanel.Visibility == Visibility.Visible) { CloseCwdPicker(); return; }
 
         HideSuggestions();
@@ -1636,6 +1721,7 @@ public partial class TerminalTabView : UserControl
         ComposerInput.CaretIndex = cmd.Length;
         ClearGhost();
         HideSuggestions();
+        ResetHistoryNav();   // السطر صار اقتراحاً مقبولاً — رحلة الأسهم التالية تبدأ من جديد
         ComposerInput.Focus();
     }
 
@@ -1667,6 +1753,36 @@ public partial class TerminalTabView : UserControl
             return;
         }
 
+        // برنامجٌ يعمل ويطلب تحكّماً (قائمة نعم/لا · منتقٍ · محرّر سطرٍ خاصّ به): مفاتيح التنقّل
+        // والتأكيد تخصّه لا الصندوق — تُترجَم إلى تسلسلات VT وتُرسَل كما لو كُتبت في الشبكة.
+        // ‏Esc مستثنًى: يبقى «أخفِ الصندوق وسلّم التركيز للشبكة» (ومن هناك يصل Esc للبرنامج).
+        if (!ctrl && (mods & ModifierKeys.Alt) == 0 && !suggesting && !ComposerAiMode && AppWantsRawKeys())
+        {
+            bool empty = ComposerInput.Text.Length == 0;
+            string? raw = e.Key switch
+            {
+                // الأسهم الرأسيّة للبرنامج <b>دائماً</b>: تنقّل تاريخ الجلسة بلا معنًى وأمرٌ يعمل،
+                // وهي عين ما ينتظره المنتقي. هذا هو مفتاح ثبات السلوك — بلا اشتراط فراغ الصندوق.
+                Key.Up or Key.Down or Key.PageUp or Key.PageDown
+                    => MapSpecialKey(e.Key, AppCursorKeys()),
+
+                // بقيّة المفاتيح تخصّ تحرير نصّ الصندوق حين يكون فيه نصّ، وتخصّ البرنامج حين يفرغ.
+                Key.Left or Key.Right or Key.Home or Key.End or Key.Tab or Key.Delete or Key.Back
+                    when empty => MapSpecialKey(e.Key, AppCursorKeys()),
+                Key.Space when empty => " ",
+                // ‏CR لا <c>_newline</c>: البرامج التفاعليّة في الوضع الخام تنتظر \r لتُنفّذ الاختيار.
+                Key.Enter when !shift && empty => "\r",
+                _ => null,
+            };
+            if (raw != null)
+            {
+                Send(raw);
+                Renderer.ScrollOffset = 0;
+                e.Handled = true;
+                return;
+            }
+        }
+
         switch (e.Key)
         {
             // Tab: بابُ قائمة الاقتراحات. أوّل ضغطةٍ تدخلها وما بعدها ينزل فيها بنداً بنداً.
@@ -1680,13 +1796,17 @@ public partial class TerminalTabView : UserControl
                     SyncGhostToSelection();
                     e.Handled = true;
                 }
-                else if (_ghostSuggestion != null) { AcceptSuggestion(_ghostSuggestion); e.Handled = true; }
+                else if (GhostVisible) { AcceptSuggestion(_ghostSuggestion!); e.Handled = true; }
                 break;
 
-            // السهم الأيمن عند نهاية النصّ يقبل الشبح — إكمالٌ في مكانه بلا دخول القائمة.
+            // السهم الأيمن عند نهاية النصّ يقبل الشبح — إكمالٌ في مكانه بلا دخول القائمة (نمط fish).
+            // شرط <c>SelectionLength == 0</c>: مع تحديدٍ قائم يكون السهم الأيمن «اطوِ التحديد إلى
+            // نهايته» — وموضع المؤشّر عندها هو نهاية النصّ، فكان يبتلع الضغطة ويستبدل السطر بدلها.
+            // وشرط ظهور الطبقة: لا نقبل إلّا شبحاً <b>يراه المستخدم</b>.
             case Key.Right when ComposerInput.CaretIndex == ComposerInput.Text.Length
-                             && _ghostSuggestion != null && !_suggestNav:
-                AcceptSuggestion(_ghostSuggestion);
+                             && ComposerInput.SelectionLength == 0
+                             && GhostVisible && !_suggestNav:
+                AcceptSuggestion(_ghostSuggestion!);
                 e.Handled = true;
                 break;
 
@@ -1744,7 +1864,7 @@ public partial class TerminalTabView : UserControl
                 else
                 {
                     ComposerInput.Clear();
-                    _histIndex = -1;
+                    ResetHistoryNav();
                 }
                 e.Handled = true;
                 break;
@@ -1768,6 +1888,17 @@ public partial class TerminalTabView : UserControl
     {
         ComposerGhostPanel.Visibility = Visibility.Collapsed;
         _ghostSuggestion = null;
+    }
+
+    /// <summary>
+    /// يُبطِل تنقّل التاريخ الجاري (بادئةً وموضعاً) — يُستدعى حين يصير السطر شيئاً آخر: قبولُ
+    /// اقتراح، أو إرسالُ أمر. بدونه تبقى بادئةٌ قديمة تحكم رحلة الأسهم التالية.
+    /// </summary>
+    private void ResetHistoryNav()
+    {
+        _histIndex = -1;
+        _histPrefix = "";
+        _histSavedLine = "";
     }
 
     /// <summary>تركيز الصندوق يلغي كتم إعادة الإظهار (المستخدم عاد إليه بإرادته بعد Esc) ويُظهر المؤشّر.</summary>
@@ -1813,6 +1944,13 @@ public partial class TerminalTabView : UserControl
         }), DispatcherPriority.Loaded);
     }
 
+    /// <summary>زرّ التنفيذ بجانب الصندوق: يفعل ما تفعله Enter تماماً ثمّ يعيد التركيز للصندوق.</summary>
+    private void ComposerSend_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitComposer();
+        ComposerInput.Focus();
+    }
+
     /// <summary>هل نصّ الصندوق متعدّد الأسطر فعلاً؟ (عندئذ الأسهم تحرّك المؤشّر لا التاريخ).</summary>
     private bool ComposerIsMultiline() => ComposerInput.Text.Contains('\n');
 
@@ -1827,7 +1965,7 @@ public partial class TerminalTabView : UserControl
         ComposerInput.Clear();
         ClearGhost();
         HideSuggestions();
-        _histIndex = -1;
+        ResetHistoryNav();
 
         string trimmed = text.Trim();
         if (trimmed.Length > 0) RecordHistory(trimmed);
@@ -1837,7 +1975,9 @@ public partial class TerminalTabView : UserControl
 
         // بديل الكتلة الاستدلاليّ: بدء كتلة أمر جديدة (يُتجاهَل تحت OSC 133 الحقيقيّ).
         lock (_screenLock) _coreScreen?.BeginHeuristicCommand(trimmed);
-        MarkCommandStarted();
+        // سطرٌ فارغ ليس أمراً: كان يشغّل المؤقّت ويكتب «يعمل» على تيرمنال ساكن، ويبقى كذلك حتّى
+        // يُلتقَط موجّهٌ «أحدث» — وقد لا يُلتقَط أبداً. ضغطةُ Enter على فراغ لا توقيت لها.
+        if (trimmed.Length > 0) MarkCommandStarted();
         NoteLaunch(trimmed);
 
         // متعدّد الأسطر ⇒ Bracketed Paste كي تتلقّاه الصدفة كنصّ واحد لا كأوامر منفصلة، ثمّ سطر تنفيذ.
@@ -1922,7 +2062,12 @@ public partial class TerminalTabView : UserControl
         return expansion.Commands;
     }
 
-    /// <summary>يملأ الصندوق من تاريخ الجلسة (سهم أعلى=أقدم). يعيد false إن لا تنقّل ممكن.</summary>
+    /// <summary>
+    /// يملأ الصندوق من تاريخ الجلسة (سهم أعلى=أقدم). يعيد false إن لا تنقّل ممكن.
+    ///
+    /// <para>بحثٌ ببادئة كما في fish/zsh: ما كان مكتوباً لحظة أوّل ضغطة يصير مرشِّحاً ثابتاً طوال
+    /// الرحلة — من كتب <c>git</c> يتنقّل بين أوامر <c>git</c> وحدها. الصندوق الفارغ ⇒ التاريخ كلّه.</para>
+    /// </summary>
     private bool NavigateComposerHistory(bool older)
     {
         if (_sessionCommands.Count == 0) return false;
@@ -1931,23 +2076,52 @@ public partial class TerminalTabView : UserControl
         {
             if (!older) return false;              // Down بلا تنقّل نشط ⇒ لا شيء
             _histSavedLine = ComposerInput.Text;   // احفظ السطر الحيّ قبل الاستبدال
+            _histPrefix = _histSavedLine.TrimStart();
             _histIndex = _sessionCommands.Count;
         }
 
-        int next = older ? _histIndex - 1 : _histIndex + 1;
-        if (next < 0) return true;                 // تجاوزنا الأقدم ⇒ ابقَ (ابتلاع السهم)
-        if (next >= _sessionCommands.Count)
+        // نتخطّى ما لا يطابق البادئة بدل أن نتوقّف عنده — وإلّا بقي السهم عالقاً عند أوّل أمرٍ مختلف.
+        int next = _histIndex;
+        while (true)
         {
-            _histIndex = -1;                       // تجاوزنا الأحدث ⇒ استعد السطر الحيّ
-            ComposerInput.Text = _histSavedLine ?? "";
-            ComposerInput.CaretIndex = ComposerInput.Text.Length;
-            return true;
+            next += older ? -1 : +1;
+            if (next < 0) return true;                     // تجاوزنا الأقدم ⇒ ابقَ (ابتلاع السهم)
+            if (next >= _sessionCommands.Count)
+            {
+                _histIndex = -1;                           // تجاوزنا الأحدث ⇒ استعد السطر الحيّ
+                SetComposerTextFromHistory(_histSavedLine);
+                return true;
+            }
+            if (MatchesHistPrefix(_sessionCommands[next])) break;
         }
 
         _histIndex = next;
-        ComposerInput.Text = _sessionCommands[_histIndex];
-        ComposerInput.CaretIndex = ComposerInput.Text.Length;
+        SetComposerTextFromHistory(_sessionCommands[next]);
         return true;
+    }
+
+    /// <summary>هل يطابق الأمرُ بادئةَ البحث المثبَّتة؟ (بادئة فارغة ⇒ الكلّ).</summary>
+    private bool MatchesHistPrefix(string command)
+        => _histPrefix.Length == 0
+        || command.StartsWith(_histPrefix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// يكتب نصّ التاريخ في الصندوق دون أن يُفسَّر ككتابة مستخدم: يحفظ موضع التنقّل، ويُغلق
+    /// الاقتراحات والشبح — فلا تُعرَض قائمةُ إكمالٍ فوق أمرٍ مستدعًى ولا ذيلٌ شبحيّ يلتصق به.
+    /// </summary>
+    private void SetComposerTextFromHistory(string text)
+    {
+        _histNavigating = true;
+        try
+        {
+            ComposerInput.Text = text;
+            ComposerInput.CaretIndex = text.Length;
+        }
+        finally { _histNavigating = false; }
+
+        _suggestNav = false;
+        HideSuggestions();
+        ClearGhost();
     }
 
     /// <summary>يُزامن شريط التمرير مع هندسة العارض (الأعلى=التمرير للأعلى) دون إطلاق حلقة تغذية.</summary>
@@ -1995,8 +2169,11 @@ public partial class TerminalTabView : UserControl
     {
         _statusTimer.Stop();
         _endTime = DateTime.Now;
-        var brush = (Brush)FindResource(exitCode == 0 ? "Brush.Success" : "Brush.Danger");
-        SetStatus($"انتهى · رمز {exitCode} · ⏱ {Elapsed()}", brush);
+        // خروج الصدفة نفسها ⇒ التيرمنال لم يعد يستقبل شيئاً. نقولها صراحةً بدل «انتهى · رمز 0»
+        // التي تُقرأ كأنّ أمراً انتهى والجلسة بخير، فيبقى المستخدم يكتب أوامر لا تصل إلى أحد.
+        var brush = (Brush)FindResource(exitCode == 0 ? "Brush.TextMuted" : "Brush.Danger");
+        string code = exitCode == 0 ? "" : $" · {Services.Loc.T("term.st.exit")} {exitCode}";
+        SetStatus($"{Services.Loc.T("term.st.ended")}{code}", brush);
         // انتهت الجلسة نفسها (خرجت الصدفة): رمز خروجها هو الحكم النهائيّ على نقطة رأس التبويب.
         SetRunState(exitCode == 0 ? TerminalRunState.Success : TerminalRunState.Failed);
     });
@@ -2012,7 +2189,13 @@ public partial class TerminalTabView : UserControl
 
     /// <summary>يحدّث الحالة أثناء التشغيل (PID + المدّة المنقضية) كل ثانية.</summary>
     private void RefreshRunningStatus()
-        => SetStatus($"يعمل · PID {_pid} · ⏱ {Elapsed()}", (Brush)FindResource("Brush.TextMuted"));
+    {
+        // ‏«يعمل» بلا رمز ساعة: الساعة كانت تتكرّر مع أيقونة زرّ السجلّ في الشريط نفسه.
+        // ‏PID 0 = جلسة بعيدة بلا عمليّة محلّيّة ⇒ لا معنى لعرضه.
+        string pid = _pid > 0 ? $" · PID {_pid}" : "";
+        SetStatus($"{Services.Loc.T("term.st.running")}{pid} · {Elapsed()}",
+                  (Brush)FindResource("Brush.TextMuted"));
+    }
 
     /// <summary>المدّة المنقضية (mm:ss أو h:mm:ss) حتى الانتهاء أو اللحظة الحاليّة.</summary>
     private string Elapsed()
@@ -2055,13 +2238,31 @@ public partial class TerminalTabView : UserControl
         Renderer.Focus();
     }
 
+    /// <summary>
+    /// زرّ الإيقاف = <b>مقاطعة الأمر العامل</b> (‏0x03 = Ctrl+C)، لا قتل الجلسة.
+    ///
+    /// <para><b>لماذا تغيّر:</b> كان يستدعي <c>_coreSession.Dispose()</c> ويصفّره — فالشاشة تبقى
+    /// كما هي (لا شيء يتغيّر ظاهريّاً ⇒ «الزرّ لا يعمل»)، بينما الجلسة ماتت فعلاً و<see cref="Send"/>
+    /// صار لا-عمليّة ⇒ كلّ أمر يُكتب بعدها «لا يؤخَذ» بلا أيّ رسالة. زرّ إيقافٍ في تيرمنال يقاطع
+    /// الأمر ويبقي الصدفة، وإنهاءُ الجلسة له زرّ الإغلاق وإعادةُ بنائها زرّ إعادة التشغيل.</para>
+    /// </summary>
     private void StopButton_Click(object sender, RoutedEventArgs e)
     {
-        _statusTimer.Stop();
-        _endTime = DateTime.Now;
-        _coreSession?.Dispose();
-        _coreSession = null;
-        SetStatus($"متوقف · ⏱ {Elapsed()}");
+        // جلسة منتهية أصلاً ⇒ الزرّ يعيد بناءها بدل أن يبدو معطّلاً.
+        if (_coreSession is null || _coreSession.HasExited) { RestartButton_Click(sender, e); return; }
+
+        Send("\x03");
+        Renderer.ScrollOffset = 0;
+
+        if (RunState == TerminalRunState.Running)
+        {
+            _endTime = DateTime.Now;
+            _statusTimer.Stop();
+            SetStatus($"{Services.Loc.T("term.st.stopped")} · {Elapsed()}",
+                      (Brush)FindResource("Brush.TextMuted"));
+            SetRunState(TerminalRunState.Idle);
+        }
+        FocusTerminal();
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -2074,6 +2275,9 @@ public partial class TerminalTabView : UserControl
     {
         bool expanded = _toggleSidebar();
         ExpandToggle.IsChecked = expanded;
+        // ‏E73F = BackToWindow · E740 = FullScreen — الأيقونة تقول الفعل التالي لا الحالة الحاليّة.
+        ExpandToggle.Content = expanded ? "\uE73F" : "\uE740";
+        ExpandToggle.ToolTip = Services.Loc.T(expanded ? "term.collapse" : "term.expand");
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this);
@@ -2132,7 +2336,7 @@ public partial class TerminalTabView : UserControl
             _sessionCommands.Add(cmd);
             try { _sessionHistory.Append(SessionId, cmd); } catch { }
         }
-        _histIndex = -1;   // أمرٌ جديد نُفِّذ ⇒ يبدأ التنقّل التالي من النهاية
+        ResetHistoryNav();   // أمرٌ جديد نُفِّذ ⇒ يبدأ التنقّل التالي من النهاية بلا بادئة قديمة
     }
 
     /// <summary>
@@ -2348,8 +2552,10 @@ public partial class TerminalTabView : UserControl
 
     private void Renderer_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
-        // الصندوق نشط ⇒ يملك إدخال الأوامر: نوجّه الكتابة إليه (نقر الشبكة ثمّ الكتابة يقفز للصندوق).
-        if (ComposerActive)
+        // الصندوق نشط ⇒ يملك إدخال الأوامر: نوجّه الكتابة إليه (نقر الشبكة ثمّ الكتابة يقفز للصندوق)
+        // — إلّا حين يرسم برنامجٌ واجهته ويقرأ المفاتيح (سؤال y/n مثلاً) والتركيز في الشبكة: حرفه له.
+        // الإشارة القويّة وحدها هنا (لا مجرّد «أمرٌ يعمل»): الكتابة أثناء بناءٍ طويل تبقى للصندوق.
+        if (ComposerActive && !AppDrawsOwnUi())
         {
             ComposerInput.Focus();
             int caret = ComposerInput.CaretIndex;
@@ -2362,7 +2568,7 @@ public partial class TerminalTabView : UserControl
         Send(e.Text);
         // تتبّع الإدخال المطبوع (T-205): نُلحق الأحرف القابلة للطباعة ثمّ نحدّث الشبح.
         AppendTypedText(e.Text);
-        _histIndex = -1;   // الكتابة الفعليّة تُنهي تنقّل التاريخ
+        ResetHistoryNav();   // الكتابة الفعليّة تُنهي تنقّل التاريخ
         UpdateGhost();
         e.Handled = true;
     }
@@ -2380,7 +2586,7 @@ public partial class TerminalTabView : UserControl
     {
         _inputLine.Clear();
         Renderer.GhostText = null;
-        _histIndex = -1;   // إنهاء تنقّل التاريخ
+        ResetHistoryNav();   // إنهاء تنقّل التاريخ (موضعاً وبادئةً)
     }
 
     /// <summary>
@@ -2397,22 +2603,27 @@ public partial class TerminalTabView : UserControl
         {
             if (!older) return false;              // Down بلا تنقّل نشط ⇒ مرّر للصدفة
             _histSavedLine = _inputLine.ToString();
+            _histPrefix = _histSavedLine.TrimStart();   // بحث ببادئة كما في الصندوق
             _histIndex = count;                    // عند السطر الحيّ (النهاية)
         }
 
-        if (older)
+        // نفس منطق الصندوق: نتخطّى غير المطابق بدل التوقّف عنده.
+        int next = _histIndex;
+        while (true)
         {
-            if (_histIndex == 0) { ReplaceInputLine(_sessionCommands[0]); return true; }   // عند الأقدم: ثبات
-            _histIndex--;
-            ReplaceInputLine(_sessionCommands[_histIndex]);
+            next += older ? -1 : +1;
+            if (next < 0) return true;              // عند الأقدم: ثبات
+            if (next >= count)
+            {
+                _histIndex = -1;
+                ReplaceInputLine(_histSavedLine);   // عودة للسطر الحيّ
+                return true;
+            }
+            if (MatchesHistPrefix(_sessionCommands[next])) break;
         }
-        else
-        {
-            if (_histIndex >= count) return true;   // فوق الأحدث بالفعل
-            _histIndex++;
-            if (_histIndex >= count) { ReplaceInputLine(_histSavedLine); _histIndex = -1; }  // عودة للسطر الحيّ
-            else ReplaceInputLine(_sessionCommands[_histIndex]);
-        }
+
+        _histIndex = next;
+        ReplaceInputLine(_sessionCommands[next]);
         return true;
     }
 
@@ -2446,6 +2657,42 @@ public partial class TerminalTabView : UserControl
     {
         if (_lastSnapshot?.AltScreen ?? false) return true;
         lock (_screenLock) return _coreScreen?.BracketedPaste ?? false;
+    }
+
+    /// <summary>
+    /// برنامجٌ يرسم واجهته بنفسه على الشاشة الأساس — بصمته: <b>إخفاء مؤشّر الطرفيّة</b>. كلّ منتقٍ
+    /// (‏laravel/prompts · inquirer · gum · dialoguer) يخفي المؤشّر ليرسم مؤشّر اختياره هو
+    /// (<c>○ نعم / ● لا</c>). إشارة مباشرة من التطبيق نفسه لا استنتاج من شكل الشاشة.
+    /// </summary>
+    private bool AppDrawsOwnUi()
+    {
+        if (_lastSnapshot is not { } snap) return false;
+        // ‏BracketedPaste مستبعَد عمداً: readline تفعّله عند <b>كلّ</b> موجّه في bash 5.1+ (git-bash
+        // منها)، فاعتباره «برنامجٌ يقرأ المفاتيح» كان يسرق الأسهم من تاريخ الصندوق عند كلّ موجّه
+        // جاهز ويُبقي النصّ الإرشاديّ يقول «البرنامج ينتظر مفاتيحك» والصدفة ساكنة.
+        return snap.AltScreen || !snap.CursorVisible;
+    }
+
+    /// <summary>
+    /// هل المفاتيح الآن ملكُ البرنامج العامل لا صندوق التأليف؟ الأمر الذي يسأل «هل أنت متأكّد؟
+    /// ○ نعم / ● لا» يقرأ الأسهم و<c>Enter</c> بنفسه، بينما الصندوق كان يبتلعها (الأسهم = تاريخ
+    /// الجلسة) فلا يصل للبرنامج شيء ولا يتحرّك المؤشّر على الشاشة — بلا شاشة بديلة تُخفي الصندوق.
+    ///
+    /// <para><b>لا يشترط أن يكون الصندوق فارغاً</b> (شرطٌ كان يجعل السلوك متقطّعاً: ضغطةُ سهمٍ
+    /// واحدة تستدعي أمراً من التاريخ إلى الصندوق، فيمتلئ، فتعود كلّ الضغطات التالية إليه ولا يصل
+    /// المنتقي شيء). أيُّ مفتاحٍ يخصّ تحرير النصّ يُفحَص فراغُ الصندوق عنده وحده — انظر
+    /// <see cref="Composer_PreviewKeyDown"/>.</para>
+    /// </summary>
+    private bool AppWantsRawKeys()
+    {
+        if (AppDrawsOwnUi()) return true;
+        return RunState == TerminalRunState.Running && !IsAtShellPrompt(_lastSnapshot);
+    }
+
+    /// <summary>وضع مفاتيح المؤشّر التطبيقيّ (DECCKM) — يحدّد SS3 أم CSI لتسلسلات الأسهم.</summary>
+    private bool AppCursorKeys()
+    {
+        lock (_screenLock) return _coreScreen?.ApplicationCursorKeys ?? false;
     }
 
     private void UpdateGhost()
@@ -2508,7 +2755,8 @@ public partial class TerminalTabView : UserControl
 
         // 1.1) الصندوق نشط والشبكة تحمل التركيز (بعد نقرة تحديد مثلاً): مفاتيح تحرير/تنفيذ سطر الأمر
         // تخصّ الصندوق لا الشبكة — ننقل التركيز إليه ونعيد توجيه المفتاح كي لا يذهب للـPTY.
-        if (ComposerActive && !ctrl && !alt
+        // ‏AppWantsRawKeys: برنامجٌ يقرأ المفاتيح الآن ⇒ لا نخطفها للصندوق، تمضي للـPTY أدناه.
+        if (ComposerActive && !ctrl && !alt && !AppWantsRawKeys()
             && key is Key.Enter or Key.Back or Key.Left or Key.Right or Key.Up or Key.Down
                     or Key.Home or Key.End or Key.Delete)
         {
@@ -2550,7 +2798,7 @@ public partial class TerminalTabView : UserControl
         if (!ctrl && !alt && key == Key.Back)
         {
             if (_inputLine.Length > 0) _inputLine.Length--;
-            _histIndex = -1;   // تحرير السطر يُنهي تنقّل التاريخ
+            ResetHistoryNav();   // تحرير السطر يُنهي تنقّل التاريخ
             UpdateGhost();
         }
         // Enter: «التعلّم» — سجّل السطر المتتبَّع (إن كان غير فارغ) قبل مسحه، ثمّ نظّف الشبح.
@@ -2614,7 +2862,8 @@ public partial class TerminalTabView : UserControl
             if (key == Key.Enter)
             {
                 lock (_screenLock) _coreScreen?.BeginHeuristicCommand("");
-                MarkCommandStarted();
+                // Enter على سطرٍ فارغ = موجّهٌ جديد لا أمر ⇒ لا توقيت (انظر SubmitComposer).
+                if (_lastTypedLine.Length > 0) MarkCommandStarted();
                 NoteLaunch(_lastTypedLine);   // الكتابة داخل الشبكة مباشرةً
             }
             Send(seq);
@@ -2691,7 +2940,16 @@ public partial class TerminalTabView : UserControl
     private void Send(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        _coreSession?.Write(text);
+
+        // جلسة منتهية: الكتابة تضيع بصمت — وهو ما يجعل التيرمنال يبدو «صافناً لا يأخذ الأوامر».
+        // نقولها في شريط الحالة بدل ابتلاعها.
+        if (_coreSession is null || _coreSession.HasExited)
+        {
+            if (Dispatcher.CheckAccess())
+                SetStatus(Services.Loc.T("term.st.ended"), (Brush)FindResource("Brush.Danger"));
+            return;
+        }
+        _coreSession.Write(text);
     }
 
     /// <summary>

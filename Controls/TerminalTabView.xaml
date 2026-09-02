@@ -183,9 +183,14 @@
                     <!-- نقطة الدخول الموحّدة لمساعد الـAI: ميزة خلف قائمة سياق لا يجدها أحد. -->
                     <ToggleButton x:Name="AiToggleButton" Style="{StaticResource IconToggle}"
                                   Content="✦" FontSize="13" Click="AiToggleButton_Click"/>
-                    <!-- سجلّ الأوامر (T-106): زرّ يفتح Popup بقائمة الأوامر الأخيرة -->
-                    <Button x:Name="HistoryButton" Style="{StaticResource IconButton}" Content="⏱"
-                            FontSize="13" Click="HistoryButton_Click"/>
+                    <!-- سجلّ الأوامر (T-106): زرّ يفتح Popup بقائمة الأوامر الأخيرة.
+                         ‏E81C = History. كان محرف الساعة «⏱» — وهو عين الرمز الذي كان يسبق المدّة
+                         المنقضية في شريط الحالة على بُعد سنتيمترات، فيقرأ العينُ ساعتين متطابقتين
+                         في شريطٍ واحد. المدّة صارت بلا رمز، والزرّ صار أيقونة MDL2 كبقيّة الشريط. -->
+                    <Button x:Name="HistoryButton" Style="{StaticResource IconButton}"
+                            Content="&#xE81C;" FontFamily="Segoe MDL2 Assets"
+                            FontSize="13" Click="HistoryButton_Click"
+                            ToolTip="{loc:T term.history}"/>
                     <Popup x:Name="HistoryPopup" PlacementTarget="{Binding ElementName=HistoryButton}"
                            Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                            FlowDirection="{Binding FlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
@@ -234,16 +239,20 @@
                             ToolTip="{loc:T term.restart}"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="StopButton_Click"
                             ToolTip="{loc:T term.stop}"/>
-                    <Button Style="{StaticResource IconButton}" Content="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="ClearButton_Click"
+                    <!-- ‏E894 = Clear (تنظيف الشاشة). كان E74D = Delete (سلّة مهملات) — يقرأ
+                         «احذف» لا «نظّف الشاشة»، وهو الرمز نفسه المستعمَل للحذف في بقيّة التطبيق. -->
+                    <Button Style="{StaticResource IconButton}" Content="&#xE894;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="ClearButton_Click"
                             ToolTip="{loc:T term.clear}"/>
                     <!-- فصل: نقرة → نافذة مستقلّة · Shift+نقرة → تيرمنال خارجيّ بنفس المسار (E8A7 = OpenInNewWindow) -->
                     <Button x:Name="DetachButton" Style="{StaticResource IconButton}"
                             Content="&#xE8A7;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                             Click="DetachButton_Click"
-                            ToolTip="فتح في نافذة مستقلّة · Shift: تيرمنال خارجيّ بنفس المسار"/>
+                            ToolTip="{loc:T term.detach}"/>
+                    <!-- الأيقونة تتبع الحالة: E740 (توسيع) ⇄ E73F (إرجاع). كانت ثابتة على E740،
+                         فتشابهت مع E8A7 المجاورة (كلتاهما إطارٌ وسهم) ولم تقل أيّ وضعٍ نحن فيه. -->
                     <ToggleButton x:Name="ExpandToggle" Style="{StaticResource IconToggle}"
                                   Content="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="13"
-                                  Click="ExpandToggle_Click" ToolTip="توسيع مساحة العمل"/>
+                                  Click="ExpandToggle_Click" ToolTip="{loc:T term.expand}"/>
                     <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="13" Click="CloseButton_Click"
                             ToolTip="{loc:T term.closePane}"/>
                 </StackPanel>
@@ -535,7 +544,7 @@
                                                FontFamily="Cascadia Mono, Consolas" FontSize="{DynamicResource Size.Small}"
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="9"
+                                    <TextBlock x:Name="CwdPickerChevron" Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="9"
                                                Margin="7,1,0,0" VerticalAlignment="Center" Opacity="0.7"
                                                Foreground="{DynamicResource Brush.TextMuted}"/>
                                 </StackPanel>
@@ -731,10 +740,46 @@
                                      LostKeyboardFocus="Composer_LostFocus"
                                      GotKeyboardFocus="Composer_GotFocus"
                                      PreviewKeyDown="Composer_PreviewKeyDown"/>
-                            <TextBlock Grid.Column="2" x:Name="ComposerHint" Text="↵"
-                                       VerticalAlignment="Center" Margin="12,0,0,0"
-                                       FontSize="{DynamicResource Size.Ui}" Opacity="0.4"
-                                       Foreground="{DynamicResource Brush.TextMuted}"/>
+                            <!-- زرّ التنفيذ: كان TextBlock بحجم ضئيل وOpacity ‎0.4‎ — يبدو زرّاً ولا
+                                 يستجيب للنقر. صار زرّاً حقيقيّاً بمساحة نقرٍ ‎28×28‎، يُعتِم حين
+                                 يفرغ الصندوق ويتلوّن باللكنة حين يصير فيه ما يُنفَّذ. -->
+                            <Button Grid.Column="2" x:Name="ComposerSendBtn"
+                                    Width="28" Height="28" Margin="10,0,0,0" Padding="0"
+                                    Cursor="Hand" Focusable="False" Click="ComposerSend_Click"
+                                    ToolTip="{loc:T term.send}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Opacity" Value="1"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd" CornerRadius="7" Background="Transparent">
+                                                        <TextBlock x:Name="Gl" Text="&#xE751;"
+                                                                   FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{TemplateBinding Foreground}"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background"
+                                                                    Value="{DynamicResource Brush.KeyCap}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <!-- صندوق فارغ ⇒ الزرّ باهت ومحايد (Enter المجرّدة تمرّ
+                                                 للصدفة كسطرٍ فارغ)؛ وفيه نصّ ⇒ حيّ بلون اللكنة. -->
+                                            <DataTrigger Binding="{Binding Text, ElementName=ComposerInput}" Value="">
+                                                <Setter Property="Opacity" Value="0.4"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </Grid>
                         </StackPanel>
                     </DockPanel>

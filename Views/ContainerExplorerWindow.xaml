@@ -4,7 +4,7 @@
         xmlns:ctrl="clr-namespace:TerminalLauncher.Controls"
         xmlns:loc="clr-namespace:TerminalLauncher.Services"
         xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
-        Title="مستكشف الحاوية" Height="640" Width="960" MinHeight="380" MinWidth="560"
+        Title="مستكشف الحاوية" Height="720" Width="1240" MinHeight="380" MinWidth="640"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.Bg}"
         TextOptions.TextFormattingMode="Ideal"
